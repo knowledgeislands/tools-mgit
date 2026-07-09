@@ -1,0 +1,17 @@
+# Knowledge Islands repo config — read by the ki-repo skill.
+# One [table] per skill that needs per-repo options.
+[ki-repo]
+visibility = "public"   # "public" | "private"
+
+# ki-repo's default topic set is MCP/TypeScript-centric (mcp, model-context-protocol,
+# typescript, bun); those don't describe a standalone bash CLI. This repo carries its
+# own topics (git, cli, bash, monorepo, …) and opts out of the standard-set check.
+[ki-repo.checks]
+topics = false
+
+# ki-tools — opt-in marker: declaring this table opts the repo into the tools standard
+# (ONE standalone CLI tool per repo, curl-installer + Homebrew tap). No keys today —
+# a bare header is the whole contract. This is a pure bash tool: no package.json, so
+# no [ki-engineering]. The tap formula is governed separately by [ki-homebrew-tap] in
+# the homebrew-tap repo.
+[ki-tools]
