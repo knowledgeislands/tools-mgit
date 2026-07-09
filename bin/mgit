@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2088  # literal '~' in .mgitconfig path strings is intentional, not tilde expansion
+# shellcheck disable=SC2016  # backticks inside single-quoted generated-comment strings are literal
+# Run a command across multiple git repositories.
+#
+# Terminology: a "leaf dir" has a .git child (a repo); "container dirs" are the
+# directories between the cwd and the leaf dirs. The repo set comes from a
+# .mgitconfig in the current directory if one exists; otherwise the tree is
+# walked for .git entries (dropping any nested under another repo).
+#
+# A .mgitconfig holds two kinds of lines:
+#
+#     <path>               a member: a child container dir, or a child repo
+#                          (relative to the file's dir, or ~-prefixed / absolute)
+#     <link>  ->  <target> a symlink a repo owns, pointing into another repo
+#
+# `mgit register` writes a .mgitconfig in every container dir (listing its
+# children) and in every leaf dir that owns cross-repo symlinks (listing them).
+# It stops at leaf dirs — it never descends into a repo — and always scans
+# fresh, ignoring existing config (so it implies -I).
+#
+# At runtime mgit walks that hierarchy: container members are recursed into,
+# repo members are operated on, and the repo containing each symlink target is
+# pulled in too (transitive, with cycle/dup guards). git already tracks the
+# symlinks themselves, so they come back on clone; mgit only records them.
+#
+# '#' comments and blank lines are ignored.
+
+MGIT_CONFIG=.mgitconfig
+MGIT_VERSION=0.1.0
+
+CLEAR=$'\033[0m'
+BOLD=$'\033[1m'
+YELLOW=$'\033[33m'
+
+usage() {
+  cat <<'EOF'
+Usage: mgit [options] [command]
+       mgit [options] register
+
+Runs supplied command on multiple git repositories.
+
+A "leaf dir" has a .git child (a repo); "container dirs" are the directories
+between the cwd and the leaf dirs. The repo set comes from ./.mgitconfig if
+present, else by walking the tree. A .mgitconfig holds two kinds of lines:
+  <path>               a member: a child container dir, or a child repo
+  <link>  ->  <target>  a symlink a repo owns, into another git repo
+
+Options:
+  -P, --physical         Don't follow symlinked container dirs (default)
+  -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
+  -B, --bare             Run bare; don't prefix command with git
+  -I, --ignore           Ignore .mgitconfig files; walk the tree instead
+  -h, --help             Show this message
+  -V, --version          Print version and exit
+
+Subcommand:
+  register               Write a .mgitconfig in every container dir (listing its
+                         child containers/repos) and in every leaf dir that owns
+                         cross-repo symlinks (listing them). Stops at leaf dirs,
+                         never descending into a repo. Always scans fresh
+                         (implies -I) and overwrites generated files.
+EOF
+}
+
+# Trim leading/trailing whitespace.
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# Canonical absolute path of a directory (resolves symlinks and ..); empty on
+# failure.
+canon_dir() { ( cd "$1" 2>/dev/null && pwd -P ); }
+
+# Resolve $1 (absolute, ~-prefixed, or relative to base dir $2) to an
+# absolute-ish path. May still contain .. components.
+resolve_path() {
+  local p="$1" base="$2"
+  case "$p" in
+    "~")   p="$HOME" ;;
+    "~/"*) p="$HOME/${p#\~/}" ;;
+  esac
+  case "$p" in
+    /*) printf '%s' "$p" ;;
+    *)  printf '%s/%s' "$base" "$p" ;;
+  esac
+}
+
+# Canonical absolute path of any existing path (dir or file/symlink leaf).
+canon_any() {
+  local p="$1" d b
+  if [ -d "$p" ]; then canon_dir "$p"; return; fi
+  d=$(dirname "$p"); b=$(basename "$p")
+  d=$(canon_dir "$d") || return 1
+  [ -z "$d" ] && return 1
+  printf '%s/%s' "$d" "$b"
+}
+
+# Print the canonical dir of the git repo containing path $1 (walk up); empty if
+# none. Uses parameter expansion (no per-step `dirname` process) since it runs
+# in hot loops.
+repo_of() {
+  local p="$1" d
+  if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; [ "$d" = "$p" ] && d="."; fi
+  d=$(canon_dir "$d") || return 1
+  [ -z "$d" ] && return 1
+  while :; do
+    [ -e "$d/.git" ] && { printf '%s' "$d"; return 0; }
+    [ "$d" = "/" ] && return 1
+    d="${d%/*}"; [ -z "$d" ] && d="/"
+  done
+}
+
+# Relative path from dir $1 to path $2 (both absolute & canonical).
+relpath() {
+  local from="${1%/}" to="${2%/}" i j n m min rel="" down=""
+  local fa ta IFS=/
+  read -ra fa <<< "${from#/}"
+  read -ra ta <<< "${to#/}"
+  unset IFS
+  n=${#fa[@]}; m=${#ta[@]}; min=$n; [ "$m" -lt "$n" ] && min=$m
+  i=0
+  while [ "$i" -lt "$min" ] && [ "${fa[$i]}" = "${ta[$i]}" ]; do i=$((i + 1)); done
+  j=$i; while [ "$j" -lt "$n" ]; do rel="../$rel"; j=$((j + 1)); done
+  j=$i; while [ "$j" -lt "$m" ]; do down="$down${ta[$j]}/"; j=$((j + 1)); done
+  rel="$rel$down"; rel="${rel%/}"
+  [ -z "$rel" ] && rel="."
+  printf '%s' "$rel"
+}
+
+# Pick how to express target $2 in repo $1's .mgitconfig: relative to the repo
+# for nearby targets, ~-prefixed or absolute for ones living far out of tree.
+choose_target() {
+  local repoabs="$1" tabs="$2" rel
+  rel=$(relpath "$repoabs" "$tabs")
+  case "$rel" in
+    ../../*)
+      case "$tabs" in
+        "$HOME"/*) printf '~/%s' "${tabs#"$HOME"/}" ;;
+        *)         printf '%s' "$tabs" ;;
+      esac ;;
+    *) printf '%s' "$rel" ;;
+  esac
+}
+
+# Parse dir $1's .mgitconfig, emitting one TAB-separated record per declaration:
+#   R<TAB><path>            a member
+#   L<TAB><link><TAB><tgt>  a symlink declaration
+parse_mgit() {
+  local repo="$1" line link target
+  [ -f "$repo/$MGIT_CONFIG" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%#*}"
+    line=$(trim "$line")
+    [ -z "$line" ] && continue
+    case "$line" in
+      *"->"*)
+        link=$(trim "${line%%->*}")
+        target=$(trim "${line#*->}")
+        if [ -z "$link" ] || [ -z "$target" ]; then
+          printf 'mgit: %s: malformed symlink line: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+          continue
+        fi
+        printf 'L\t%s\t%s\n' "$link" "$target"
+        ;;
+      *)
+        printf 'R\t%s\n' "$line"
+        ;;
+    esac
+  done < "$repo/$MGIT_CONFIG"
+}
+
+# Expand a ~ prefix; leave absolute/relative paths untouched.
+expand_tilde() {
+  case "$1" in
+    "~")   printf '%s' "$HOME" ;;
+    "~/"*) printf '%s/%s' "$HOME" "${1#\~/}" ;;
+    *)     printf '%s' "$1" ;;
+  esac
+}
+
+# register, repo case: scan dir $1 for symlinks into *other* git repos and write
+# its .mgitconfig (symlink lines only). Removes a stale config if none are found.
+#
+# Heavy directories that never hold intentional cross-repo links (.git itself,
+# node_modules) are pruned from the scan. Symlinks resolving back inside this
+# repo — the overwhelming majority, e.g. node_modules/.bin/* — are skipped with
+# a cheap string check, so the expensive repo lookup only runs for the few links
+# that actually escape the repo.
+register_repo() {
+  local dir="$1" repoabs sl slabs tabs trepo i l width
+  local found_links=() found_targets=()
+  repoabs=$(canon_dir "$dir") || return 0
+  [ -z "$repoabs" ] && return 0
+  while IFS= read -r sl; do
+    sl="${sl#./}"
+    [ -z "$sl" ] && continue
+    git -C "$dir" check-ignore -q "$sl" 2>/dev/null && continue  # gitignored = ephemeral, skip
+    slabs="$dir/$sl"
+    tabs=$(canon_any "$slabs") || continue
+    [ -z "$tabs" ] && continue
+    case "$tabs" in "$repoabs"/*) continue ;; esac  # internal link: skip cheaply
+    trepo=$(repo_of "$tabs")
+    [ -z "$trepo" ] && continue                     # target not in a git repo
+    found_links+=("$sl")
+    found_targets+=("$(choose_target "$repoabs" "$tabs")")
+  done < <(cd "$dir" && find . \( -name .git -o -name node_modules \) -prune \
+             -o -type l -print 2>/dev/null | sort)
+
+  if [ ${#found_links[@]} -eq 0 ]; then
+    [ -f "$dir/$MGIT_CONFIG" ] && rm -f "$dir/$MGIT_CONFIG"
+    return 0
+  fi
+  width=0
+  for l in "${found_links[@]}"; do [ ${#l} -gt "$width" ] && width=${#l}; done
+  {
+    printf '# .mgitconfig — generated by `mgit register`. "<link> -> <target>" is a\n'
+    printf '# symlink this repo owns, recorded so mgit pulls in the linked repo.\n'
+    for i in "${!found_links[@]}"; do
+      printf '%-*s -> %s\n' "$width" "${found_links[$i]}" "${found_targets[$i]}"
+    done
+  } > "$dir/$MGIT_CONFIG"
+  printf '%s%s%s%s: recorded %d symlink(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#found_links[@]}"
+  return 0
+}
+
+# register, recursive: write a .mgitconfig in every container dir (and every
+# leaf dir that owns symlinks). Returns 0 if $1 is or contains a repo (so its
+# parent should reference it), 1 otherwise.
+reg_seen=()
+reg_is_seen() {
+  local needle="$1" x
+  for x in "${reg_seen[@]+"${reg_seen[@]}"}"; do
+    [ "$x" = "$needle" ] && return 0
+  done
+  return 1
+}
+register_tree() {
+  local dir="$1" child kids=() k canon
+  # In -L mode, guard against symlink cycles by canonical path.
+  if [ "$follow_symlinks" = true ]; then
+    canon=$(canon_dir "$dir") || return 1
+    reg_is_seen "$canon" && return 1
+    reg_seen+=("$canon")
+  fi
+  if [ -e "$dir/.git" ]; then
+    register_repo "$dir"     # leaf dir: record its symlinks, don't descend
+    return 0
+  fi
+  for child in "$dir"/*/; do
+    [ -d "$child" ] || continue          # no subdirs (glob didn't match)
+    child="${child%/}"
+    if [ -L "$child" ]; then
+      # Follow symlinked dirs only in -L mode, and only container dirs — a
+      # symlinked leaf repo is skipped (it's an alias of a real repo).
+      [ "$follow_symlinks" = true ] || continue
+      [ -e "$child/.git" ] && continue
+    fi
+    if register_tree "$child"; then
+      kids+=("$(basename "$child")")
+    fi
+  done
+  if [ ${#kids[@]} -gt 0 ]; then
+    {
+      printf '# mgit config (generated by `mgit register`). Bare line = member.\n'
+      for k in "${kids[@]}"; do printf '%s\n' "$k"; done
+    } > "$dir/$MGIT_CONFIG"
+    printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kids[@]}"
+    return 0
+  fi
+  [ -f "$dir/$MGIT_CONFIG" ] && rm -f "$dir/$MGIT_CONFIG"
+  return 1
+}
+
+follow_symlinks=false
+bare=false
+read_config=true
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -P|--physical)        follow_symlinks=false ;;
+    -L|--follow-symlinks) follow_symlinks=true ;;
+    -B|--bare)            bare=true ;;
+    -I|--ignore)          read_config=false ;;
+    -h|--help)            usage; exit 0 ;;
+    -V|--version)         printf 'mgit %s\n' "$MGIT_VERSION"; exit 0 ;;
+    --)                   shift; break ;;
+    -*)                   printf 'mgit: unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+    *)                    break ;;
+  esac
+  shift
+done
+
+# `register` is self-contained (it scans the filesystem), so handle it before
+# building the repo set.
+if [ "${1:-}" = "register" ]; then
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) usage; exit 0 ;;
+      *) printf 'mgit register: unexpected argument: %s\n' "$1" >&2; exit 2 ;;
+    esac
+    # shellcheck disable=SC2317  # reachable once register grows an option that doesn't exit
+    shift
+  done
+  if register_tree "."; then
+    exit 0
+  else
+    printf 'mgit register: no git repos found under %s\n' "$(pwd)" >&2
+    exit 1
+  fi
+fi
+
+repos=()
+
+# Base set: a ./.mgitconfig manifest pins it (member lines, plus the current dir
+# itself if it's a repo); otherwise discover by walking for .git.
+if [ "$read_config" = true ] && [ -f "./$MGIT_CONFIG" ]; then
+  while IFS=$'\t' read -r kind a b; do
+    [ "$kind" = R ] && repos+=("$(expand_tilde "$a")")
+  done < <(parse_mgit ".")
+  [ -e ".git" ] && repos+=(".")
+else
+  if [ "$follow_symlinks" = true ]; then
+    found=$(find -L . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::' | sort)
+  else
+    found=$(find . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::' | sort)
+  fi
+
+  # Sorted order means any parent repo appears before its children, so a
+  # prefix check against already-kept repos drops the nested ones.
+  while IFS= read -r r; do
+    [ -z "$r" ] && continue
+    nested=false
+    for parent in "${repos[@]+"${repos[@]}"}"; do
+      case "$r" in
+        "$parent"/*) nested=true; break ;;
+      esac
+    done
+    [ "$nested" = false ] && repos+=("$r")
+  done <<< "$found"
+fi
+
+# Walk the hierarchy: member (R) lines that are repos are operated on and member
+# directories are recursed into; symlink (L) lines pull in the repo containing
+# each target. Transitive, with cycle/dup guards. Every repo is displayed (and
+# cd'd into) as a path relative to the cwd.
+final=()
+seen=()
+
+is_seen() {
+  local needle="$1" x
+  for x in "${seen[@]+"${seen[@]}"}"; do
+    [ "$x" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+cwd_canon=$(canon_dir ".")
+# Path of canonical dir $1 relative to the cwd (e.g. hnr/kit-hnr, ../other/repo).
+disp() { relpath "$cwd_canon" "$1"; }
+
+queue=()  # canonical dirs whose .mgitconfig still needs walking
+
+# Seed from the base set, distinguishing repos (operate + walk) from grouping
+# directories (walk only).
+for r in "${repos[@]+"${repos[@]}"}"; do
+  c=$(canon_dir "$r")
+  if [ -z "$c" ]; then
+    printf 'mgit: skipping (not a directory): %s\n' "$r" >&2
+    continue
+  fi
+  is_seen "$c" && continue
+  seen+=("$c"); queue+=("$c")
+  [ -e "$c/.git" ] && final+=("$(disp "$c")")
+done
+
+qi=0
+while [ $qi -lt ${#queue[@]} ]; do
+  repo="${queue[$qi]}"; qi=$((qi + 1))
+  while IFS=$'\t' read -r kind a b; do
+    case "$kind" in
+      L)
+        [ -z "$b" ] && continue
+        add=$(repo_of "$(resolve_path "$b" "$repo")")
+        if [ -z "$add" ]; then
+          printf 'mgit: %s: symlink target not inside a git repo: %s\n' \
+            "$repo/$MGIT_CONFIG" "$b" >&2
+          continue
+        fi
+        is_seen "$add" && continue
+        seen+=("$add"); queue+=("$add"); final+=("$(disp "$add")")  # target is a repo
+        ;;
+      R)
+        [ -z "$a" ] && continue
+        add=$(canon_dir "$(resolve_path "$(expand_tilde "$a")" "$repo")")
+        if [ -z "$add" ]; then
+          printf 'mgit: %s: member not found: %s\n' "$repo/$MGIT_CONFIG" "$a" >&2
+          continue
+        fi
+        is_seen "$add" && continue
+        seen+=("$add"); queue+=("$add")
+        [ -e "$add/.git" ] && final+=("$(disp "$add")")  # a repo member; dirs walk only
+        ;;
+    esac
+  done < <(parse_mgit "$repo")
+done
+
+repos=("${final[@]+"${final[@]}"}")
+
+if [ $# -eq 0 ]; then
+  for r in "${repos[@]+"${repos[@]}"}"; do
+    printf '%s\n' "$r"
+  done
+  exit 0
+fi
+
+printed_cmd=$(printf '%q ' "$@")
+printed_cmd="${printed_cmd% }"
+
+for d in "${repos[@]+"${repos[@]}"}"; do
+  if [ "$bare" = true ]; then
+    printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$d" "$CLEAR" "$printed_cmd"
+    ( cd "$d" && "$@" )
+  else
+    printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$d" "$CLEAR" "$printed_cmd"
+    ( cd "$d" && git "$@" )
+  fi
+done
