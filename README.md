@@ -1,8 +1,8 @@
 # mgit
 
-Run a command across many git repositories at once — driven by a small, checked-in manifest so the repo set is explicit and reproducible.
+Run commands across many git repositories at once. `mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every repo in the set, with the repo name printed before its output.
 
-`mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every repo `mgit` discovers, with the repo name printed before its output. The repo set comes from a `.mgitconfig` manifest when one is present, or from walking the directory tree for `.git` when it isn't.
+The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgitconfig` manifest. The manifest is never required — reach for it when you want the set to be explicit and reproducible, or to span repos that live outside the current tree.
 
 ## Install
 
@@ -42,14 +42,14 @@ mgit                          # just list the discovered repos
 
 ### Options
 
-| Option                  | Effect                                                          |
-| ----------------------- | -------------------------------------------------------------- |
-| `-P`, `--physical`      | Don't follow symlinked container dirs (default).               |
-| `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos).     |
-| `-B`, `--bare`          | Run the command bare, without prefixing it with `git`.         |
-| `-I`, `--ignore`        | Ignore `.mgitconfig` files; discover repos by walking the tree. |
-| `-h`, `--help`          | Show usage.                                                    |
-| `-V`, `--version`       | Print the version.                                             |
+| Option | Effect |
+| --- | --- |
+| `-P`, `--physical` | Don't follow symlinked container dirs (default). |
+| `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos). |
+| `-B`, `--bare` | Run the command bare, without prefixing it with `git`. |
+| `-I`, `--ignore` | Ignore `.mgitconfig` files; discover repos by walking the tree. |
+| `-h`, `--help` | Show usage. |
+| `-V`, `--version` | Print the version. |
 
 ## The `.mgitconfig` model
 
