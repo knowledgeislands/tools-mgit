@@ -69,6 +69,21 @@ At runtime `mgit` walks that hierarchy: container members are recursed into, rep
 
 `mgit register` writes a `.mgitconfig` into every container dir (listing its child containers and repos) and into every leaf dir that owns cross-repo symlinks (listing them). It stops at leaf dirs — it never descends into a repo — and always scans fresh, overwriting generated manifests. Run it once to snapshot a workspace, and again whenever the layout changes.
 
+## Development
+
+Two tools are needed to lint and test locally — the same ones CI runs:
+
+```sh
+brew install shellcheck bats-core
+```
+
+Then run the checks CI runs ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+```sh
+shellcheck bin/mgit install.sh   # lint
+bats tests/                      # test
+```
+
 ## License
 
 [MIT](LICENSE) © 2026 Kris Brown.
