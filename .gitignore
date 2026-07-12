@@ -7,3 +7,6 @@
 
 # Test scratch
 /tmp/
+
+# Generated project-local links (ki-bootstrap) — never committed
+.claude/skills/

@@ -9,6 +9,10 @@ visibility = "public"   # "public" | "private"
 [ki-repo.checks]
 topics = false
 
+# The authoring standard (Markdown/TOML house style) is baseline for every KI repo —
+# declared explicitly, not assumed. Presence is the compliance marker.
+[ki-authoring]
+
 # ki-tools — opt-in marker: declaring this table opts the repo into the tools standard
 # (ONE standalone CLI tool per repo, curl-installer + Homebrew tap). No keys today —
 # a bare header is the whole contract. This is a pure bash tool: no package.json, so
