@@ -54,41 +54,41 @@ mgit                          # just list the discovered repos
 
 ## Worktrees
 
-`mgit` distinguishes a working tree from its shared Git store. A normal checkout has a `.git` directory; a linked worktree has a `.git` file; both are working trees and are discovered by `mgit`. Bare `*.git` stores are also discovered, and can be included explicitly in a `.mgitconfig` manifest.
+`mgit` recognises two repository types. A standard repository has a `.git/` directory. A managed worktree repository has a colocated bare store and child checkouts:
 
-Existing commands keep their meaning: `mgit status` runs in every discovered working tree, while a bare store receives the Git command directly. `mgit worktree list` de-duplicates linked checkouts by their common Git directory, so each shared repository is listed once.
-
-```bash
-mgit worktree list            # paths, branches, and state grouped by common Git store
-mgit worktree status          # clean/dirty status for every working tree
+```text
+repoA/
+├── .bare/      # shared Git store
+├── .git        # controller file pointing to ./.bare
+├── main/       # required default checkout
+└── featureA/   # optional branch checkout
 ```
 
-Create a named worktree from inside one of its repositories:
+The outer `repoA/` is registered once, but ordinary `mgit` commands run in every active checkout (`repoA/main`, `repoA/featureA`, and so on). They never run in `.bare/` or the controller directory. Standard repositories retain their existing behaviour.
+
+Convert every eligible standard repository in the current set with a mandatory preview and confirmation:
 
 ```bash
-cd ~/workspaces/kis/knowledgeislands/tools-mgit
-mgit worktree add codex       # ../tools-mgit-codex on branch worktree/codex
-mgit worktree add fix main    # create worktree/fix from main
+mgit convert worktree --dry-run
+mgit convert worktree --yes
 ```
 
-The default sibling location preserves the current layout. To adopt a grouped workspace layout without migrating any existing repository, set `MGIT_WORKTREE_ROOT`; the worktree is created at `<root>/<repository-name>/<name>`.
+Conversion requires a clean, attached checkout without existing linked worktrees. It preserves the original files as a rollback backup. The inverse is available only for a managed repository whose sole checkout is `main/`:
 
 ```bash
-export MGIT_WORKTREE_ROOT="$HOME/workspaces/kis"
-cd ~/workspaces/kis/knowledgeislands/tools-mgit
-mgit worktree add review      # ~/workspaces/kis/tools-mgit/review
+mgit convert standard --dry-run
+mgit convert standard --yes
 ```
 
-`mgit worktree add` only creates a new `worktree/<name>` branch. It refuses an existing destination or branch. `mgit worktree remove` operates only on a linked worktree of the current repository and needs explicit confirmation. Git still rejects a dirty worktree unless `--force` is also explicit.
+Add an existing remote branch to every managed worktree repository in the current set:
 
 ```bash
-mgit worktree remove ../tools-mgit-codex --yes
-mgit worktree remove ../tools-mgit-codex --yes --force
+mgit worktree add featureA
 ```
 
-Missing worktrees are shown as `prunable` by `list` and `missing (prunable)` by `status`; `mgit` never prunes their metadata automatically.
+This creates `repoA/featureA` on local branch `featureA`, tracking `origin/featureA`; standard repositories are skipped. The command preflights every managed repository before changing any of them. Use `mgit worktree list` or `mgit worktree status` to inspect the full checkout set.
 
-See [the worktree workflow and staged migration guide](docs/worktrees.md) for a recommended rollout from existing repositories under `~/workspaces/kis`.
+See [the managed worktree workflow](docs/worktrees.md) for the complete layout and safety rules.
 
 ## The `.mgitconfig` model
 

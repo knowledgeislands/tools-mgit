@@ -22,6 +22,31 @@ mkbare() {
   git init -q --bare "$1"
 }
 
+make_managed_worktree_repo() {
+  local root="$1" branch stage
+  branch=$(git -C "$root" branch --show-current)
+  stage="$root.mgit-stage"
+  mv "$root" "$stage"
+  mkdir "$root"
+  mv "$stage/.git" "$root/.bare"
+  git --git-dir="$root/.bare" config core.bare true
+  printf 'gitdir: ./.bare\n' > "$root/.git"
+  git -C "$root" worktree add -q main "$branch"
+  mv "$stage" "$root/.mgit-backup-test"
+}
+
+add_origin_branch() {
+  local root="$1" branch="$2" base
+  base=$(git -C "$root" branch --show-current)
+  git init -q --bare "$TREE/origin.git"
+  git -C "$root" remote add origin "$TREE/origin.git"
+  git -C "$root" push -q -u origin "$base"
+  git -C "$root" checkout -q -b "$branch"
+  git -C "$root" commit -q --allow-empty -m "$branch"
+  git -C "$root" push -q -u origin "$branch"
+  git -C "$root" checkout -q "$base"
+}
+
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
@@ -31,7 +56,7 @@ mkbare() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.2.0" ]]
+  [[ "$output" == "mgit 0.3.0" ]]
 }
 
 @test "unknown option exits 2" {
@@ -90,109 +115,99 @@ mkbare() {
   grep -q -- "link-to-b -> ../b/shared" "$TREE/a/.mgitconfig"
 }
 
-@test "discovery includes a standard repository and a linked worktree" {
-  mkrepo "$TREE/source"
-  git -C "$TREE/source" worktree add -q -b topic "$TREE/linked tree"
+@test "register records a managed workspace once and standard repo once" {
+  mkrepo "$TREE/repoA"
+  make_managed_worktree_repo "$TREE/repoA"
+  mkrepo "$TREE/repoB"
 
   cd "$TREE"
+  run "$MGIT" register
+
+  [ "$status" -eq 0 ]
+  grep -qx "repoA" "$TREE/.mgitconfig"
+  grep -qx "repoB" "$TREE/.mgitconfig"
+  ! grep -q "main" "$TREE/.mgitconfig"
+}
+
+@test "normal commands expand a managed workspace to all child worktrees" {
+  mkrepo "$TREE/repoA"
+  make_managed_worktree_repo "$TREE/repoA"
+  git -C "$TREE/repoA" worktree add -q -b branch-b "$TREE/repoA/branch-b"
+  mkrepo "$TREE/repoB"
+
+  cd "$TREE"
+  "$MGIT" register >/dev/null
   run "$MGIT"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"source"* ]]
-  [[ "$output" == *"linked tree"* ]]
-  [ -f "$TREE/linked tree/.git" ]
+  [[ "$output" == *"repoA/main"* ]]
+  [[ "$output" == *"repoA/branch-b"* ]]
+  [[ "$output" == *"repoB"* ]]
+  [[ "$output" != *"repoA/.bare"* ]]
+
+  run "$MGIT" worktree list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repoA/main"* ]]
+  [[ "$output" == *"repoA/branch-b"* ]]
 }
 
-@test "discovery includes a bare repository" {
-  mkbare "$TREE/shared-store.git"
+@test "convert worktree previews then converts every standard repo in the set" {
+  mkrepo "$TREE/repo A"
+  mkrepo "$TREE/repoB"
 
   cd "$TREE"
+  "$MGIT" register >/dev/null
+  run "$MGIT" convert worktree --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would convert $TREE/repo A"* ]]
+  [[ "$output" == *"would convert $TREE/repoB"* ]]
+
+  run "$MGIT" convert worktree --yes
+  [ "$status" -eq 0 ]
+  [ -d "$TREE/repo A/.bare" ]
+  [ -f "$TREE/repo A/.git" ]
+  [ -f "$TREE/repo A/main/.git" ]
+  [ -d "$TREE/repoB/.bare" ]
+  [ -f "$TREE/repoB/main/.git" ]
+
   run "$MGIT"
-
   [ "$status" -eq 0 ]
-  [[ "$output" == *"shared-store.git"* ]]
+  [[ "$output" == *"repo A/main"* ]]
+  [[ "$output" == *"repoB/main"* ]]
 }
 
-@test "worktree status identifies a bare store" {
-  mkbare "$TREE/shared-store.git"
-
-  cd "$TREE/shared-store.git"
-  run "$MGIT" worktree status
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *$'.\t(detached)\tbare store'* ]]
-}
-
-@test "worktree list groups linked worktrees by their common directory" {
-  mkrepo "$TREE/source"
-  git -C "$TREE/source" worktree add -q -b topic "$TREE/linked tree"
+@test "worktree add creates a colocated branch tracking origin across the set" {
+  mkrepo "$TREE/repoA"
+  add_origin_branch "$TREE/repoA" featureA
+  make_managed_worktree_repo "$TREE/repoA"
+  mkrepo "$TREE/repoB"
 
   cd "$TREE"
-  run "$MGIT" worktree list
+  "$MGIT" register >/dev/null
+  run "$MGIT" worktree add featureA
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"common-dir: $TREE/source/.git"* ]]
-  [[ "$output" == *$'source\t'* ]]
-  [[ "$output" == *$'linked tree\ttopic\tnormal'* ]]
+  [ -f "$TREE/repoA/featureA/.git" ]
+  [ "$(git -C "$TREE/repoA/featureA" branch --show-current)" = "featureA" ]
+  [ "$(git -C "$TREE/repoA/featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
+  [ ! -e "$TREE/repoB/featureA" ]
 }
 
-@test "worktree list and status report detached and stale worktrees" {
-  mkrepo "$TREE/source"
-  git -C "$TREE/source" worktree add -q --detach "$TREE/detached tree" HEAD
-  git -C "$TREE/source" worktree add -q -b stale "$TREE/stale"
-  rm -rf "$TREE/stale"
+@test "convert standard restores a managed repository with only main" {
+  mkrepo "$TREE/repoA"
+  make_managed_worktree_repo "$TREE/repoA"
 
   cd "$TREE"
-  run "$MGIT" worktree list
+  "$MGIT" register >/dev/null
+  run "$MGIT" convert standard --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'detached tree\t(detached)\tdetached'* ]]
-  [[ "$output" == *$'stale\tstale\tprunable'* ]]
+  [[ "$output" == *"would convert $TREE/repoA"* ]]
 
-  run "$MGIT" worktree status
+  run "$MGIT" convert standard --yes
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'detached tree\t(detached)\tclean'* ]]
-  [[ "$output" == *$'stale\tstale\tmissing (prunable)'* ]]
-}
-
-@test "worktree add uses a safe branch and default sibling path" {
-  mkrepo "$TREE/source"
-
-  cd "$TREE/source"
-  run "$MGIT" worktree add codex
-
-  [ "$status" -eq 0 ]
-  [ -f "$TREE/source-codex/.git" ]
-  [ "$(git -C "$TREE/source-codex" branch --show-current)" = "worktree/codex" ]
-}
-
-@test "worktree add supports the future shared workspace layout" {
-  mkrepo "$TREE/source"
-
-  cd "$TREE/source"
-  run env MGIT_WORKTREE_ROOT="$TREE/workspaces" "$MGIT" worktree add review
-
-  [ "$status" -eq 0 ]
-  [ -f "$TREE/workspaces/source/review/.git" ]
-}
-
-@test "worktree remove requires explicit confirmation and protects dirty worktrees" {
-  mkrepo "$TREE/source"
-  git -C "$TREE/source" worktree add -q -b removable "$TREE/removable"
-  touch "$TREE/removable/uncommitted"
-
-  cd "$TREE/source"
-  run "$MGIT" worktree remove "$TREE/removable"
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"without --yes"* ]]
-  [ -d "$TREE/removable" ]
-
-  run "$MGIT" worktree remove --yes "$TREE/removable"
-  [ "$status" -ne 0 ]
-  [ -d "$TREE/removable" ]
-
-  run "$MGIT" worktree remove --yes --force "$TREE/removable"
-  [ "$status" -eq 0 ]
-  [ ! -e "$TREE/removable" ]
+  [ -d "$TREE/repoA/.git" ]
+  [ ! -d "$TREE/repoA/.bare" ]
+  [ "$(git -C "$TREE/repoA" status --porcelain)" = "" ]
 }
 
 # Helper: run a command, failing the test if it errors (for use inside subshells

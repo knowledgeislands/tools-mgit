@@ -1,73 +1,70 @@
-# Worktree workflow and staged migration
+# Managed worktree repositories
 
-Git worktrees let several branches share one Git object store while retaining independent files, indexes, and uncommitted changes. They are a good fit for parallel human and agent work: each checkout can be opened and changed independently without switching branches or stashing work.
+`mgit` is opinionated about worktree repositories. A repository is either standard, with a `.git/` directory at its root, or a managed worktree repository using this colocated layout:
 
-`mgit` treats the working tree and the Git store as separate identities. A normal repository's `.git` directory is its common directory; a linked worktree's `.git` file points into that same common directory. `mgit worktree list` shows the relationship explicitly.
-
-## Recommended everyday workflow
-
-Keep your primary checkout as it is and add disposable, named worktrees for focused work:
-
-```bash
-cd ~/workspaces/kis/knowledgeislands/tools-mgit
-mgit worktree add codex
-mgit worktree add review main
-mgit worktree status
+```text
+repoA/
+├── .bare/      # shared bare Git store
+├── .git        # controller file: gitdir: ./.bare
+├── main/       # required default checkout
+└── <branch>/   # optional branch checkout
 ```
 
-This creates sibling checkouts such as `~/workspaces/kis/knowledgeislands/tools-mgit-codex` on `worktree/codex`. The branch namespace makes agent work easy to identify and avoids silently reusing an existing branch.
+The outer directory is one logical repository in an `mgit` set. `main/` and each child branch directory are its checkouts, not independently registered repositories. The shared `.bare/` directory and outer controller are never targets for normal commands.
 
-When a worktree is finished, merge or otherwise preserve its branch first. Then remove the checkout with an explicit confirmation:
+## Registering and operating across repositories
 
-```bash
-mgit worktree remove ../tools-mgit-codex --yes
+From a parent that contains one managed workspace and one standard repository:
+
+```text
+parent/
+├── repoA/      # managed worktree repository
+└── repoB/      # standard repository
 ```
 
-Use `--force` only when you intentionally want Git to discard uncommitted files in that linked worktree. `mgit` never removes the primary working tree, never removes a worktree without `--yes`, and never automatically prunes stale worktree metadata.
-
-## Adopt a grouped workspace layout without migration
-
-Set `MGIT_WORKTREE_ROOT` when creating worktrees to place them under a common root. This is opt-in and changes no existing checkout:
+run:
 
 ```bash
-export MGIT_WORKTREE_ROOT="$HOME/workspaces/kis"
-cd ~/workspaces/kis/knowledgeislands/tools-mgit
-mgit worktree add codex
+cd parent
+mgit register
 ```
 
-The result is `~/workspaces/kis/tools-mgit/codex`. Repeat this from each repository to build a layout such as `~/workspaces/kis/ki-specifications/review` or `~/workspaces/kis/tools-mgit/codex`.
+The generated `.mgitconfig` contains only `repoA` and `repoB`. It does not list `.bare`, `main`, or branch worktrees. At runtime, `mgit status` expands that manifest to every active checkout:
 
-## Staged migration from current repositories
+```text
+repoA/main
+repoA/featureA
+repoB
+```
 
-No migration is required to use worktrees. Move gradually, repository by repository, and keep the existing checkout until the replacement has been verified.
+## Convert a set to managed worktrees
 
-1. Inventory the current tree and register its explicit members if that suits your workflow.
+Convert all eligible standard repositories in the current `mgit` set with an explicit preview first:
 
-   ```bash
-   cd ~/workspaces/kis
-   mgit
-   mgit register
-   ```
+```bash
+mgit convert worktree --dry-run
+mgit convert worktree --yes
+```
 
-2. Add and use linked worktrees beside one existing repository. This validates tooling and editor/agent setup while leaving its original `.git` directory untouched.
+Each candidate must have a clean working tree, an attached branch, and no pre-existing linked worktrees. The current branch becomes `main/`; Git metadata moves into `.bare/`; the former files are retained as a timestamped rollback backup. A conversion failure restores the original checkout where possible and retains failed staging data for inspection.
 
-   ```bash
-   cd ~/workspaces/kis/knowledgeislands/tools-mgit
-   mgit worktree add codex
-   mgit worktree list
-   ```
+To return to a standard repository, remove every non-`main` worktree, ensure `main/` is clean, then run:
 
-3. Optionally adopt `MGIT_WORKTREE_ROOT` for new worktrees. Existing repository paths and `.mgitconfig` manifests continue to work unchanged.
+```bash
+mgit convert standard --dry-run
+mgit convert standard --yes
+```
 
-4. Only when you want every checkout to be symmetric, create a new bare store and add a replacement main worktree. Do not delete or move the original checkout in this step.
+This promotes `main/` back to the repository root and retains the former workspace as a sibling backup.
 
-   ```bash
-   git clone --bare ~/workspaces/kis/knowledgeislands/tools-mgit \
-     ~/.local/share/mgit/git-stores/tools-mgit.git
-   git --git-dir="$HOME/.local/share/mgit/git-stores/tools-mgit.git" \
-     worktree add "$HOME/workspaces/kis/tools-mgit/main" main
-   ```
+## Add a branch across the managed set
 
-5. Verify the new checkout, its remotes, and its history before retiring anything. For example, run `git -C "$HOME/workspaces/kis/tools-mgit/main" status` and `mgit worktree list` from that checkout. Retire the original only through a separately planned, explicitly confirmed filesystem change.
+To check out an existing branch from `origin` in every managed worktree repository:
 
-The bare-store form is supported because `mgit` recognises a bare `*.git` directory and models it by its common Git directory. It remains optional: a normal primary checkout plus linked worktrees has the same shared-history behaviour and is the lowest-risk starting point.
+```bash
+mgit worktree add featureA
+```
+
+For each managed repository, `mgit` creates `<repo>/featureA` on local branch `featureA` tracking `origin/featureA`. Standard repositories are not changed. Before making any checkout, `mgit` verifies that every managed repository has the remote branch and no conflicting local branch or directory.
+
+Use `mgit worktree list` or `mgit worktree status` to inspect the resulting checkout set. `mgit worktree remove` remains confirmation-gated and refuses to remove the required `main/` checkout.
