@@ -36,10 +36,11 @@ make_managed_worktree_repo() {
 }
 
 add_origin_branch() {
-  local root="$1" branch="$2" base
+  local root="$1" branch="$2" base origin
   base=$(git -C "$root" branch --show-current)
-  git init -q --bare "$TREE/origin.git"
-  git -C "$root" remote add origin "$TREE/origin.git"
+  origin="$TREE/$(basename "$root").origin.git"
+  git init -q --bare "$origin"
+  git -C "$root" remote add origin "$origin"
   git -C "$root" push -q -u origin "$base"
   git -C "$root" checkout -q -b "$branch"
   git -C "$root" commit -q --allow-empty -m "$branch"
@@ -56,17 +57,20 @@ add_origin_branch() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.3.1" ]]
+  [[ "$output" == "mgit 0.4.0" ]]
 }
 
 @test "completion prints bash and zsh setup" {
   run "$MGIT" completion bash
   [ "$status" -eq 0 ]
   [[ "$output" == *"complete -F _mgit mgit"* ]]
+  [[ "$output" == *"structure"* ]]
+  [[ "$output" != *"convert"* ]]
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
   [[ "$output" == *"#compdef mgit"* ]]
+  [[ "$output" == *"standard nested"* ]]
 
   run "$MGIT" completion fish
   [ "$status" -eq 2 ]
@@ -101,6 +105,7 @@ add_origin_branch() {
   mkrepo "$TREE/b"
   cd "$TREE"
   "$MGIT" register >/dev/null
+  ! grep -q "repoB-branch-c" "$TREE/.mgitconfig"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"a"* ]]
@@ -128,7 +133,7 @@ add_origin_branch() {
   grep -q -- "link-to-b -> ../b/shared" "$TREE/a/.mgitconfig"
 }
 
-@test "register records a managed workspace once and standard repo once" {
+@test "register records nested and standard structures once" {
   mkrepo "$TREE/repoA"
   make_managed_worktree_repo "$TREE/repoA"
   mkrepo "$TREE/repoB"
@@ -147,6 +152,7 @@ add_origin_branch() {
   make_managed_worktree_repo "$TREE/repoA"
   git -C "$TREE/repoA" worktree add -q -b branch-b "$TREE/repoA/branch-b"
   mkrepo "$TREE/repoB"
+  git -C "$TREE/repoB" worktree add -q -b branch-c "$TREE/repoB-branch-c"
 
   cd "$TREE"
   "$MGIT" register >/dev/null
@@ -156,6 +162,7 @@ add_origin_branch() {
   [[ "$output" == *"repoA/main"* ]]
   [[ "$output" == *"repoA/branch-b"* ]]
   [[ "$output" == *"repoB"* ]]
+  [[ "$output" == *"repoB-branch-c"* ]]
   [[ "$output" != *"repoA/.bare"* ]]
 
   run "$MGIT" worktree list
@@ -164,18 +171,18 @@ add_origin_branch() {
   [[ "$output" == *"repoA/branch-b"* ]]
 }
 
-@test "convert worktree previews then converts every standard repo in the set" {
+@test "structure nested previews then restructures every standard repo in the set" {
   mkrepo "$TREE/repo A"
   mkrepo "$TREE/repoB"
 
   cd "$TREE"
   "$MGIT" register >/dev/null
-  run "$MGIT" convert worktree --dry-run
+  run "$MGIT" structure nested --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would convert $TREE/repo A"* ]]
-  [[ "$output" == *"would convert $TREE/repoB"* ]]
+  [[ "$output" == *"would restructure $TREE/repo A"* ]]
+  [[ "$output" == *"would restructure $TREE/repoB"* ]]
 
-  run "$MGIT" convert worktree --yes
+  run "$MGIT" structure nested --yes
   [ "$status" -eq 0 ]
   [ -d "$TREE/repo A/.bare" ]
   [ -f "$TREE/repo A/.git" ]
@@ -189,11 +196,12 @@ add_origin_branch() {
   [[ "$output" == *"repoB/main"* ]]
 }
 
-@test "worktree add creates a colocated branch tracking origin across the set" {
+@test "worktree add uses nested and sibling destinations across the set" {
   mkrepo "$TREE/repoA"
   add_origin_branch "$TREE/repoA" featureA
   make_managed_worktree_repo "$TREE/repoA"
   mkrepo "$TREE/repoB"
+  add_origin_branch "$TREE/repoB" featureA
 
   cd "$TREE"
   "$MGIT" register >/dev/null
@@ -203,20 +211,36 @@ add_origin_branch() {
   [ -f "$TREE/repoA/featureA/.git" ]
   [ "$(git -C "$TREE/repoA/featureA" branch --show-current)" = "featureA" ]
   [ "$(git -C "$TREE/repoA/featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
-  [ ! -e "$TREE/repoB/featureA" ]
+  [ -f "$TREE/repoB-featureA/.git" ]
+  [ "$(git -C "$TREE/repoB-featureA" branch --show-current)" = "featureA" ]
+  [ "$(git -C "$TREE/repoB-featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
 }
 
-@test "convert standard restores a managed repository with only main" {
+@test "worktree remove supports a standard sibling and protects the primary checkout" {
+  mkrepo "$TREE/repoA"
+  git -C "$TREE/repoA" worktree add -q -b featureA "$TREE/repoA-featureA"
+
+  cd "$TREE/repoA"
+  run "$MGIT" worktree remove "$TREE/repoA-featureA" --yes
+  [ "$status" -eq 0 ]
+  [ ! -e "$TREE/repoA-featureA" ]
+
+  run "$MGIT" worktree remove "$TREE/repoA" --yes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"primary working tree"* ]]
+}
+
+@test "structure standard restores a nested repository with only main" {
   mkrepo "$TREE/repoA"
   make_managed_worktree_repo "$TREE/repoA"
 
   cd "$TREE"
   "$MGIT" register >/dev/null
-  run "$MGIT" convert standard --dry-run
+  run "$MGIT" structure standard --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would convert $TREE/repoA"* ]]
+  [[ "$output" == *"would restructure $TREE/repoA"* ]]
 
-  run "$MGIT" convert standard --yes
+  run "$MGIT" structure standard --yes
   [ "$status" -eq 0 ]
   [ -d "$TREE/repoA/.git" ]
   [ ! -d "$TREE/repoA/.bare" ]

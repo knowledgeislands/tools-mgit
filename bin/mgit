@@ -3,9 +3,9 @@
 # shellcheck disable=SC2016  # backticks inside single-quoted generated-comment strings are literal
 # Run a command across multiple git repositories.
 #
-# Terminology: a repository is either standard (a checkout with a .git
-# directory) or a managed worktree repository (a .bare store, a .git controller
-# file, and a main/ checkout). Container dirs are the directories between the
+# Terminology: a repository has either a standard structure (a checkout with a
+# .git directory) or a nested structure (a .bare store, a .git controller file,
+# and a main/ checkout). Container dirs are the directories between the
 # cwd and repository roots. The repo set comes from a
 # .mgitconfig in the current directory if one exists; otherwise the tree is
 # walked for .git entries (dropping any nested under another repo).
@@ -29,7 +29,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgitconfig
-MGIT_VERSION=0.3.1
+MGIT_VERSION=0.4.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
@@ -39,7 +39,7 @@ usage() {
   cat <<'EOF'
 Usage: mgit [options] [command]
        mgit [options] register
-       mgit convert <worktree|standard> <--dry-run|--yes>
+       mgit structure <standard|nested> <--dry-run|--yes>
        mgit worktree <list|status|add|remove> [options]
        mgit completion <bash|zsh>
 
@@ -65,11 +65,11 @@ Subcommand:
                          cross-repo symlinks (listing them). Stops at leaf dirs,
                          never descending into a repo. Always scans fresh
                          (implies -I) and overwrites generated files.
-  worktree list           List managed worktrees, grouped by shared Git store.
+  worktree list           List worktrees, grouped by shared Git store.
   worktree status         Show branch and cleanliness for every working tree.
-  convert worktree       Convert all eligible standard repos in the current set.
-  convert standard       Convert eligible managed worktree repos back to standard.
-  worktree add BRANCH    Add BRANCH from origin to every worktree repo in the set.
+  structure nested        Convert eligible standard repos to nested structure.
+  structure standard      Convert eligible nested repos to standard structure.
+  worktree add BRANCH     Add BRANCH from origin to every structured repo in the set.
   worktree remove PATH    Remove a linked worktree; requires --yes.
   completion SHELL       Print completion setup for bash or zsh.
 EOF
@@ -84,8 +84,8 @@ _mgit() {
   command="${COMP_WORDS[1]:-}"
   subcommand="${COMP_WORDS[2]:-}"
   case "$command" in
-    convert)
-      COMPREPLY=( $(compgen -W 'worktree standard --dry-run --yes --help' -- "$cur") )
+    structure)
+      COMPREPLY=( $(compgen -W 'standard nested --dry-run --yes --help' -- "$cur") )
       ;;
     worktree)
       case "$subcommand" in
@@ -99,7 +99,7 @@ _mgit() {
       COMPREPLY=( $(compgen -W 'bash zsh' -- "$cur") )
       ;;
     *)
-      COMPREPLY=( $(compgen -W 'register convert worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -h --help -V --version' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'register structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -h --help -V --version' -- "$cur") )
       ;;
   esac
 }
@@ -114,8 +114,8 @@ _mgit() {
   local -a global_commands global_options
   global_commands=(
     'register:generate .mgitconfig manifests'
-    'convert:change repository type across the current set'
-    'worktree:manage colocated worktrees'
+    'structure:change repository structure across the current set'
+    'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
   )
   global_options=(
@@ -133,7 +133,7 @@ _mgit() {
     '--version[show version]'
   )
   case $words[2] in
-    convert) _arguments '1:repository type:(worktree standard)' '--dry-run[preview changes]' '--yes[confirm changes]' ;;
+    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '--yes[confirm changes]' ;;
     worktree)
       case $words[3] in
         '') _describe -t commands 'worktree command' 'list:list worktrees' 'status:show worktree status' 'add:add a remote branch' 'remove:remove a worktree' ;;
@@ -206,10 +206,10 @@ is_repo() {
   is_worktree "$1" || is_bare_repo "$1"
 }
 
-# A managed worktree repository is deliberately stricter than an arbitrary Git
-# worktree. Its outer directory is a controller, .bare is the common Git store,
-# and every live checkout (including main) lives directly below that controller.
-is_managed_worktree_repo() {
+# A nested repository is deliberately stricter than an arbitrary Git worktree.
+# Its outer directory is a controller, .bare is the common Git store, and every
+# live checkout (including main) lives directly below that controller.
+is_nested_repo() {
   local root="$1" bare path
   bare=$(canon_dir "$root/.bare") || return 1
   [ -f "$root/.git" ] && [ -d "$bare" ] && [ -d "$root/main" ] || return 1
@@ -226,8 +226,8 @@ is_managed_worktree_repo() {
 }
 
 repo_type() {
-  if is_managed_worktree_repo "$1"; then
-    printf 'worktree'
+  if is_nested_repo "$1"; then
+    printf 'nested'
   elif [ -d "$1/.git" ] && is_worktree "$1"; then
     printf 'standard'
   elif is_bare_repo "$1"; then
@@ -237,23 +237,22 @@ repo_type() {
   fi
 }
 
-managed_worktree_paths() {
-  local root="$1" bare path state
-  bare=$(canon_dir "$root/.bare") || return 1
+active_worktree_paths() {
+  local root="$1" path state
   path=""; state=""
   while IFS= read -r line || [ -n "$line" ]; do
     if [ -z "$line" ]; then
-      [ -n "$path" ] && [ "$path" != "$bare" ] && [ "$state" != prunable ] && printf '%s\n' "$path"
+      [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\n' "$path"
       path=""; state=""
       continue
     fi
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       prunable*)    state=prunable ;;
-      bare)         path="$bare" ;;
+      bare)         state=bare ;;
     esac
   done < <(git -C "$root" worktree list --porcelain 2>/dev/null)
-  [ -n "$path" ] && [ "$path" != "$bare" ] && [ "$state" != prunable ] && printf '%s\n' "$path"
+  [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\n' "$path"
 }
 
 # A repository has two useful identities: its checkout (if any) and the common
@@ -293,14 +292,14 @@ repo_of() {
   done
 }
 
-# Return the managed workspace containing $1, if any. A command issued from a
+# Return the nested structure containing $1, if any. A command issued from a
 # child checkout must still resolve to the outer workspace controller.
-workspace_of() {
+structure_of() {
   local p="$1" d
   if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; [ "$d" = "$p" ] && d="."; fi
   d=$(canon_dir "$d") || return 1
   while :; do
-    is_managed_worktree_repo "$d" && { printf '%s' "$d"; return 0; }
+    is_nested_repo "$d" && { printf '%s' "$d"; return 0; }
     [ "$d" = "/" ] && return 1
     d="${d%/*}"; [ -z "$d" ] && d="/"
   done
@@ -440,7 +439,7 @@ register_tree() {
   fi
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
-    # A managed workspace and a bare store are leaf repository units. A standard
+    # A nested structure and a bare store are leaf repository units. A standard
     # checkout alone may own cross-repository symlinks to record.
     [ "$kind" = standard ] && register_repo "$dir"
     return 0
@@ -513,7 +512,7 @@ collect_worktrees() {
     path=""; head=""; branch=""; state=""
     while IFS= read -r line || [ -n "$line" ]; do
       if [ -z "$line" ]; then
-        if [ -n "$path" ] && { [ "$source_type" != worktree ] || [ "$path" != "$common" ]; }; then
+        if [ -n "$path" ] && { [ "$source_type" != nested ] || [ "$path" != "$common" ]; }; then
           worktree_add_record "$path" "$common" "$head" "$branch" "${state:-normal}"
         fi
         path=""; head=""; branch=""; state=""
@@ -531,7 +530,7 @@ collect_worktrees() {
         locked)   state="${state:+$state,}locked" ;;
       esac
     done < <(git -C "$source" worktree list --porcelain 2>/dev/null)
-    if [ -n "$path" ] && { [ "$source_type" != worktree ] || [ "$path" != "$common" ]; }; then
+    if [ -n "$path" ] && { [ "$source_type" != nested ] || [ "$path" != "$common" ]; }; then
       worktree_add_record "$path" "$common" "$head" "$branch" "${state:-normal}"
     fi
   done
@@ -589,9 +588,20 @@ worktree_status() {
   done
 }
 
+standard_root_of() {
+  local source="$1" path common gitdir
+  common=$(git_common_dir "$source") || return 1
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    gitdir=$(git_dir "$path") || continue
+    [ "$gitdir" = "$common" ] && { canon_dir "$path"; return 0; }
+  done < <(active_worktree_paths "$source")
+  return 1
+}
+
 worktree_source_repo() {
   local source
-  source=$(workspace_of ".") || source=$(repo_of ".") || {
+  source=$(structure_of ".") || source=$(standard_root_of ".") || source=$(repo_of ".") || {
     printf 'mgit worktree: run this command from inside a Git repository\n' >&2
     return 1
   }
@@ -606,25 +616,33 @@ valid_worktree_name() {
 }
 
 worktree_default_path() {
-  local source="$1" name="$2"
-  printf '%s/%s' "$source" "$name"
+  local source="$1" name="$2" parent base
+  case "$(repo_type "$source")" in
+    nested) printf '%s/%s' "$source" "$name" ;;
+    standard)
+      parent=$(dirname "$source")
+      base=$(basename "$source")
+      printf '%s/%s-%s' "$parent" "$base" "$name" ;;
+    *) return 1 ;;
+  esac
 }
 
 worktree_add() {
-  local branch="${1:-}" unit root destination count=0 failed=false
+  local branch="${1:-}" unit root kind destination count=0 failed=false
   [ $# -eq 1 ] || { printf 'mgit worktree add: BRANCH is required\n' >&2; return 2; }
   valid_worktree_name "${branch//\//-}" || {
     printf 'mgit worktree add: invalid branch name: %s\n' "$branch" >&2
     return 2
   }
 
-  # Preflight every managed repository before creating any worktree. This avoids
-  # a typo or an already-checked-out branch leaving a partially changed set.
+  # Preflight every structured repository before creating any worktree. This
+  # avoids a typo or an already-checked-out branch leaving a partial set.
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
-    [ "$(repo_type "$root")" = worktree ] || continue
+    kind=$(repo_type "$root")
+    case "$kind" in standard|nested) ;; *) continue ;; esac
     count=$((count + 1))
-    destination="$root/${branch//\//-}"
+    destination=$(worktree_default_path "$root" "${branch//\//-}") || continue
     [ ! -e "$destination" ] || {
       printf 'mgit worktree add: destination already exists: %s\n' "$destination" >&2
       failed=true
@@ -635,13 +653,14 @@ worktree_add() {
         failed=true
       }
   done
-  [ "$count" -gt 0 ] || { printf 'mgit worktree add: no worktree repositories in the current set\n' >&2; return 1; }
+  [ "$count" -gt 0 ] || { printf 'mgit worktree add: no standard or nested repositories in the current set\n' >&2; return 1; }
   [ "$failed" = false ] || return 1
 
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
-    [ "$(repo_type "$root")" = worktree ] || continue
-    destination="$root/${branch//\//-}"
+    kind=$(repo_type "$root")
+    case "$kind" in standard|nested) ;; *) continue ;; esac
+    destination=$(worktree_default_path "$root" "${branch//\//-}") || continue
     if git -C "$root" show-ref --verify --quiet "refs/heads/$branch"; then
       git -C "$root" worktree add "$destination" "$branch" || return
     else
@@ -652,7 +671,7 @@ worktree_add() {
 }
 
 worktree_remove() {
-  local target="" force=false yes=false source canonical i found=false path gitdir common
+  local target="" force=false yes=false source source_kind canonical i found=false path gitdir common
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes) yes=true ;;
@@ -671,10 +690,11 @@ worktree_remove() {
     return 2
   }
   source=$(worktree_source_repo) || return 1
-  [ "$(repo_type "$source")" = worktree ] || {
-    printf 'mgit worktree remove: this command manages colocated worktree repositories only\n' >&2
+  source_kind=$(repo_type "$source")
+  case "$source_kind" in standard|nested) ;; *)
+    printf 'mgit worktree remove: unsupported repository structure\n' >&2
     return 1
-  }
+  esac
   canonical=$(canon_dir "$(resolve_path "$(expand_tilde "$target")" "$(pwd)")") || {
     printf 'mgit worktree remove: PATH is not an existing directory: %s\n' "$target" >&2
     return 1
@@ -692,7 +712,7 @@ worktree_remove() {
   }
   gitdir=$(git_dir "$canonical")
   common=$(git_common_dir "$canonical")
-  [ "$canonical" != "$(canon_dir "$source/main")" ] || {
+  [ "$source_kind" != nested ] || [ "$canonical" != "$(canon_dir "$source/main")" ] || {
     printf 'mgit worktree remove: refusing to remove the required main worktree\n' >&2
     return 1
   }
@@ -711,21 +731,21 @@ conversion_branch() {
   git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null
 }
 
-validate_standard_conversion() {
+validate_nested_structure() {
   local root="$1" branch changes count
   [ "$(repo_type "$root")" = standard ] || return 1
   branch=$(conversion_branch "$root") || {
-    printf 'mgit convert worktree: skipping detached repository: %s\n' "$root" >&2
+    printf 'mgit structure nested: skipping detached repository: %s\n' "$root" >&2
     return 1
   }
   changes=$(git -C "$root" status --porcelain) || return 1
   [ -z "$changes" ] || {
-    printf 'mgit convert worktree: skipping dirty repository: %s\n' "$root" >&2
+    printf 'mgit structure nested: skipping dirty repository: %s\n' "$root" >&2
     return 1
   }
   count=$(git -C "$root" worktree list --porcelain 2>/dev/null | awk '/^worktree / { n++ } END { print n + 0 }')
   [ "$count" -eq 1 ] || {
-    printf 'mgit convert worktree: skipping repository with linked worktrees: %s\n' "$root" >&2
+    printf 'mgit structure nested: skipping repository with linked worktrees: %s\n' "$root" >&2
     return 1
   }
   printf '%s' "$branch"
@@ -735,16 +755,16 @@ validate_standard_conversion() {
 # its former files. The original checkout is retained in .mgit-backup-<stamp>;
 # a failed conversion restores its .git directory and leaves the failed attempt
 # beside it for inspection.
-convert_standard_repository() {
+structure_nested_repository() {
   local root="$1" branch="$2" parent name stamp stage failed backup
   parent=$(dirname "$root")
   name=$(basename "$root")
   stamp=$(date +%Y%m%d%H%M%S)
-  stage="$parent/.${name}.mgit-convert-$stamp"
+  stage="$parent/.${name}.mgit-nested-$stamp"
   failed="$parent/.${name}.mgit-failed-$stamp"
   backup="$root/.mgit-backup-$stamp"
   [ ! -e "$stage" ] && [ ! -e "$failed" ] || {
-    printf 'mgit convert worktree: staging path already exists for %s\n' "$root" >&2
+    printf 'mgit structure nested: staging path already exists for %s\n' "$root" >&2
     return 1
   }
 
@@ -753,77 +773,77 @@ convert_standard_repository() {
      ! git --git-dir="$root/.bare" config core.bare true || \
      ! printf 'gitdir: ./.bare\n' > "$root/.git" || \
      ! git -C "$root" worktree add main "$branch"; then
-    printf 'mgit convert worktree: conversion failed; restoring %s\n' "$root" >&2
+    printf 'mgit structure nested: conversion failed; restoring %s\n' "$root" >&2
     mv "$root" "$failed" 2>/dev/null || true
     [ -d "$failed/.bare" ] && mv "$failed/.bare" "$stage/.git" 2>/dev/null || true
     mv "$stage" "$root" 2>/dev/null || true
-    printf 'mgit convert worktree: failed attempt retained at %s\n' "$failed" >&2
+    printf 'mgit structure nested: failed attempt retained at %s\n' "$failed" >&2
     return 1
   fi
   if ! mv "$stage" "$backup"; then
-    printf 'mgit convert worktree: converted %s, but rollback backup remains at %s\n' "$root" "$stage" >&2
+    printf 'mgit structure nested: converted %s, but rollback backup remains at %s\n' "$root" "$stage" >&2
     return 1
   fi
-  printf 'mgit: converted %s (backup: %s)\n' "$root" "$backup"
+  printf 'mgit: structured %s as nested (backup: %s)\n' "$root" "$backup"
 }
 
-convert_worktree() {
+structure_nested() {
   local mode="" unit root kind branch failed=false
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run|--yes)
-        [ -z "$mode" ] || { printf 'mgit convert worktree: choose one of --dry-run or --yes\n' >&2; return 2; }
+        [ -z "$mode" ] || { printf 'mgit structure nested: choose one of --dry-run or --yes\n' >&2; return 2; }
         mode="$1" ;;
       -h|--help) usage; return 0 ;;
-      *) printf 'mgit convert worktree: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      *) printf 'mgit structure nested: unexpected argument: %s\n' "$1" >&2; return 2 ;;
     esac
     shift
   done
   [ -n "$mode" ] || {
-    printf 'mgit convert worktree: use --dry-run to preview or --yes to convert\n' >&2
+    printf 'mgit structure nested: use --dry-run to preview or --yes to change repositories\n' >&2
     return 2
   }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")
     case "$kind" in
-      worktree) printf 'mgit convert worktree: already managed: %s\n' "$root" ;;
+      nested) printf 'mgit structure nested: already nested: %s\n' "$root" ;;
       standard)
-        branch=$(validate_standard_conversion "$root") || { failed=true; continue; }
+        branch=$(validate_nested_structure "$root") || { failed=true; continue; }
         if [ "$mode" = --dry-run ]; then
-          printf 'mgit convert worktree: would convert %s (%s -> main/)\n' "$root" "$branch"
+          printf 'mgit structure nested: would restructure %s (%s -> main/)\n' "$root" "$branch"
         else
-          convert_standard_repository "$root" "$branch" || failed=true
+          structure_nested_repository "$root" "$branch" || failed=true
         fi ;;
-      bare) printf 'mgit convert worktree: skipping bare repository: %s\n' "$root" >&2; failed=true ;;
-      *) printf 'mgit convert worktree: skipping unsupported path: %s\n' "$root" >&2; failed=true ;;
+      bare) printf 'mgit structure nested: skipping bare repository: %s\n' "$root" >&2; failed=true ;;
+      *) printf 'mgit structure nested: skipping unsupported path: %s\n' "$root" >&2; failed=true ;;
     esac
   done
   [ "$failed" = false ]
 }
 
-validate_worktree_conversion() {
+validate_standard_structure() {
   local root="$1" paths=() path changes
-  [ "$(repo_type "$root")" = worktree ] || return 1
-  while IFS= read -r path; do [ -n "$path" ] && paths+=("$path"); done < <(managed_worktree_paths "$root")
+  [ "$(repo_type "$root")" = nested ] || return 1
+  while IFS= read -r path; do [ -n "$path" ] && paths+=("$path"); done < <(active_worktree_paths "$root")
   [ ${#paths[@]} -eq 1 ] && [ "$(canon_dir "${paths[0]}")" = "$(canon_dir "$root/main")" ] || {
-    printf 'mgit convert standard: skipping repository with non-main worktrees: %s\n' "$root" >&2
+    printf 'mgit structure standard: skipping repository with non-main worktrees: %s\n' "$root" >&2
     return 1
   }
   changes=$(git -C "$root/main" status --porcelain) || return 1
   [ -z "$changes" ] || {
-    printf 'mgit convert standard: skipping dirty main worktree: %s\n' "$root" >&2
+    printf 'mgit structure standard: skipping dirty main worktree: %s\n' "$root" >&2
     return 1
   }
 }
 
-convert_worktree_to_standard() {
+structure_standard_repository() {
   local root="$1" parent name stamp stage backup
   parent=$(dirname "$root")
   name=$(basename "$root")
   stamp=$(date +%Y%m%d%H%M%S)
   stage="$parent/.${name}.mgit-standard-$stamp"
-  backup="$parent/.${name}.mgit-worktree-backup-$stamp"
+  backup="$parent/.${name}.mgit-nested-backup-$stamp"
   [ ! -e "$stage" ] || return 1
   mv "$root" "$stage" || return 1
   if ! mv "$stage/.git" "$stage/.mgit-controller" || \
@@ -832,52 +852,52 @@ convert_worktree_to_standard() {
      ! mv "$stage/main" "$root" || \
      ! mv "$root/.git" "$stage/.mgit-main-gitfile" || \
      ! mv "$stage/.git" "$root/.git"; then
-    printf 'mgit convert standard: conversion failed; retained staging path: %s\n' "$stage" >&2
+    printf 'mgit structure standard: conversion failed; retained staging path: %s\n' "$stage" >&2
     return 1
   fi
   mv "$stage" "$backup" || {
-    printf 'mgit convert standard: converted %s, but backup remains at %s\n' "$root" "$stage" >&2
+    printf 'mgit structure standard: converted %s, but backup remains at %s\n' "$root" "$stage" >&2
     return 1
   }
-  printf 'mgit: converted %s to a standard repository (backup: %s)\n' "$root" "$backup"
+  printf 'mgit: structured %s as standard (backup: %s)\n' "$root" "$backup"
 }
 
-convert_standard() {
+structure_standard() {
   local mode="" unit root kind failed=false
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run|--yes) [ -z "$mode" ] || return 2; mode="$1" ;;
       -h|--help) usage; return 0 ;;
-      *) printf 'mgit convert standard: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      *) printf 'mgit structure standard: unexpected argument: %s\n' "$1" >&2; return 2 ;;
     esac
     shift
   done
-  [ -n "$mode" ] || { printf 'mgit convert standard: use --dry-run to preview or --yes to convert\n' >&2; return 2; }
+  [ -n "$mode" ] || { printf 'mgit structure standard: use --dry-run to preview or --yes to change repositories\n' >&2; return 2; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")
     case "$kind" in
-      standard) printf 'mgit convert standard: already standard: %s\n' "$root" ;;
-      worktree)
-        validate_worktree_conversion "$root" || { failed=true; continue; }
+      standard) printf 'mgit structure standard: already standard: %s\n' "$root" ;;
+      nested)
+        validate_standard_structure "$root" || { failed=true; continue; }
         if [ "$mode" = --dry-run ]; then
-          printf 'mgit convert standard: would convert %s (main/ -> repository root)\n' "$root"
+          printf 'mgit structure standard: would restructure %s (main/ -> repository root)\n' "$root"
         else
-          convert_worktree_to_standard "$root" || failed=true
+          structure_standard_repository "$root" || failed=true
         fi ;;
-      *) printf 'mgit convert standard: skipping unsupported repository: %s\n' "$root" >&2; failed=true ;;
+      *) printf 'mgit structure standard: skipping unsupported repository: %s\n' "$root" >&2; failed=true ;;
     esac
   done
   [ "$failed" = false ]
 }
 
-convert_command() {
+structure_command() {
   local target="${1:-}"
   [ $# -gt 0 ] && shift
   case "$target" in
-    worktree) convert_worktree "$@" ;;
-    standard) convert_standard "$@" ;;
-    *) printf 'mgit convert: expected worktree or standard\n' >&2; return 2 ;;
+    nested) structure_nested "$@" ;;
+    standard) structure_standard "$@" ;;
+    *) printf 'mgit structure: expected standard or nested\n' >&2; return 2 ;;
   esac
 }
 
@@ -1050,25 +1070,25 @@ repos=()
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
   c=$(canon_dir "$r") || continue
   case "$(repo_type "$c")" in
-    worktree)
+    standard|nested)
       while IFS= read -r wt; do
         [ -z "$wt" ] && continue
         repos+=("$(disp "$(canon_dir "$wt")")")
-      done < <(managed_worktree_paths "$c")
+      done < <(active_worktree_paths "$c")
       ;;
-    standard|bare) repos+=("$(disp "$c")") ;;
+    bare) repos+=("$(disp "$c")") ;;
   esac
 done
 
-if [ "${1:-}" = "convert" ]; then
+if [ "${1:-}" = "structure" ]; then
   shift
-  convert_command "$@"
+  structure_command "$@"
   exit $?
 fi
 
 # Worktree management is a first-class mgit command rather than a generic
-# `git worktree` fan-out. It acts on managed worktree repositories in the
-# current multi-repository set.
+# `git worktree` fan-out. It applies each operation according to the standard
+# or nested structure of every repository in the current multi-repository set.
 if [ "${1:-}" = "worktree" ]; then
   shift
   worktree_command "$@"

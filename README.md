@@ -42,6 +42,7 @@ mgit [options] [command]      run `git <command>` in every repo
 mgit [options] -B [command]   run <command> bare (no leading `git`)
 mgit [options]                list the repos that would be operated on
 mgit register                 generate .mgitconfig manifests for a tree
+mgit structure <type>         change repositories to standard or nested structure
 mgit worktree <command>       inspect or manage worktrees for the tree
 mgit completion <shell>       print Bash or Zsh completion setup
 ```
@@ -68,7 +69,17 @@ mgit                          # just list the discovered repos
 
 ## Worktrees
 
-`mgit` recognises two repository types. A standard repository has a `.git/` directory. A managed worktree repository has a colocated bare store and child checkouts:
+`mgit` recognises two repository structures. A standard repository is an ordinary checkout with a `.git/` directory, optionally with sibling linked worktrees:
+
+```text
+repoB/
+├── .git/
+└── <files>
+
+repoB-featureA/   # optional sibling linked worktree
+```
+
+A nested repository is an `mgit`-managed container with a colocated bare store and child checkouts:
 
 ```text
 repoA/
@@ -78,31 +89,31 @@ repoA/
 └── featureA/   # optional branch checkout
 ```
 
-The outer `repoA/` is registered once, but ordinary `mgit` commands run in every active checkout (`repoA/main`, `repoA/featureA`, and so on). They never run in `.bare/` or the controller directory. Standard repositories retain their existing behaviour.
+`mgit register` records each logical repository only once. At runtime, ordinary commands resolve both structures to their active checkouts: `repoA/main` and `repoA/featureA` for nested repositories; `repoB` and `repoB-featureA` for standard repositories. They never run in `.bare/` or the nested controller directory.
 
-Convert every eligible standard repository in the current set with a mandatory preview and confirmation:
-
-```bash
-mgit convert worktree --dry-run
-mgit convert worktree --yes
-```
-
-Conversion requires a clean, attached checkout without existing linked worktrees. It preserves the original files as a rollback backup. The inverse is available only for a managed repository whose sole checkout is `main/`:
+Change every eligible standard repository in the current set to nested structure with a mandatory preview and confirmation:
 
 ```bash
-mgit convert standard --dry-run
-mgit convert standard --yes
+mgit structure nested --dry-run
+mgit structure nested --yes
 ```
 
-Add an existing remote branch to every managed worktree repository in the current set:
+This requires a clean, attached checkout without existing linked worktrees. It preserves the original files as a rollback backup. Change back only when a nested repository's sole checkout is `main/`:
+
+```bash
+mgit structure standard --dry-run
+mgit structure standard --yes
+```
+
+Add an existing remote branch to every standard and nested repository in the current set:
 
 ```bash
 mgit worktree add featureA
 ```
 
-This creates `repoA/featureA` on local branch `featureA`, tracking `origin/featureA`; standard repositories are skipped. The command preflights every managed repository before changing any of them. Use `mgit worktree list` or `mgit worktree status` to inspect the full checkout set.
+This creates `repoA/featureA` for a nested repository and `repoB-featureA` for a standard repository. Each checkout is on local branch `featureA`, tracking `origin/featureA`. The command preflights every participating repository before changing any of them. Use `mgit worktree list` or `mgit worktree status` to inspect the full checkout set; `mgit worktree remove PATH --yes` safely removes a linked checkout and never the primary or required `main/` checkout.
 
-See [the managed worktree workflow](docs/worktrees.md) for the complete layout and safety rules.
+See [the worktree structures guide](docs/worktrees.md) for the complete layouts and safety rules.
 
 ## The `.mgitconfig` model
 
