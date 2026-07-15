@@ -18,6 +18,10 @@ mkrepo() {
   git -C "$1" commit -q --allow-empty -m init
 }
 
+mkbare() {
+  git init -q --bare "$1"
+}
+
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
@@ -27,7 +31,7 @@ mkrepo() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.1.0" ]]
+  [[ "$output" == "mgit 0.2.0" ]]
 }
 
 @test "unknown option exits 2" {
@@ -84,6 +88,111 @@ mkrepo() {
   "$MGIT" register >/dev/null
   [ -f "$TREE/a/.mgitconfig" ]
   grep -q -- "link-to-b -> ../b/shared" "$TREE/a/.mgitconfig"
+}
+
+@test "discovery includes a standard repository and a linked worktree" {
+  mkrepo "$TREE/source"
+  git -C "$TREE/source" worktree add -q -b topic "$TREE/linked tree"
+
+  cd "$TREE"
+  run "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"source"* ]]
+  [[ "$output" == *"linked tree"* ]]
+  [ -f "$TREE/linked tree/.git" ]
+}
+
+@test "discovery includes a bare repository" {
+  mkbare "$TREE/shared-store.git"
+
+  cd "$TREE"
+  run "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"shared-store.git"* ]]
+}
+
+@test "worktree status identifies a bare store" {
+  mkbare "$TREE/shared-store.git"
+
+  cd "$TREE/shared-store.git"
+  run "$MGIT" worktree status
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'.\t(detached)\tbare store'* ]]
+}
+
+@test "worktree list groups linked worktrees by their common directory" {
+  mkrepo "$TREE/source"
+  git -C "$TREE/source" worktree add -q -b topic "$TREE/linked tree"
+
+  cd "$TREE"
+  run "$MGIT" worktree list
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"common-dir: $TREE/source/.git"* ]]
+  [[ "$output" == *$'source\t'* ]]
+  [[ "$output" == *$'linked tree\ttopic\tnormal'* ]]
+}
+
+@test "worktree list and status report detached and stale worktrees" {
+  mkrepo "$TREE/source"
+  git -C "$TREE/source" worktree add -q --detach "$TREE/detached tree" HEAD
+  git -C "$TREE/source" worktree add -q -b stale "$TREE/stale"
+  rm -rf "$TREE/stale"
+
+  cd "$TREE"
+  run "$MGIT" worktree list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'detached tree\t(detached)\tdetached'* ]]
+  [[ "$output" == *$'stale\tstale\tprunable'* ]]
+
+  run "$MGIT" worktree status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'detached tree\t(detached)\tclean'* ]]
+  [[ "$output" == *$'stale\tstale\tmissing (prunable)'* ]]
+}
+
+@test "worktree add uses a safe branch and default sibling path" {
+  mkrepo "$TREE/source"
+
+  cd "$TREE/source"
+  run "$MGIT" worktree add codex
+
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/source-codex/.git" ]
+  [ "$(git -C "$TREE/source-codex" branch --show-current)" = "worktree/codex" ]
+}
+
+@test "worktree add supports the future shared workspace layout" {
+  mkrepo "$TREE/source"
+
+  cd "$TREE/source"
+  run env MGIT_WORKTREE_ROOT="$TREE/workspaces" "$MGIT" worktree add review
+
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/workspaces/source/review/.git" ]
+}
+
+@test "worktree remove requires explicit confirmation and protects dirty worktrees" {
+  mkrepo "$TREE/source"
+  git -C "$TREE/source" worktree add -q -b removable "$TREE/removable"
+  touch "$TREE/removable/uncommitted"
+
+  cd "$TREE/source"
+  run "$MGIT" worktree remove "$TREE/removable"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"without --yes"* ]]
+  [ -d "$TREE/removable" ]
+
+  run "$MGIT" worktree remove --yes "$TREE/removable"
+  [ "$status" -ne 0 ]
+  [ -d "$TREE/removable" ]
+
+  run "$MGIT" worktree remove --yes --force "$TREE/removable"
+  [ "$status" -eq 0 ]
+  [ ! -e "$TREE/removable" ]
 }
 
 # Helper: run a command, failing the test if it errors (for use inside subshells

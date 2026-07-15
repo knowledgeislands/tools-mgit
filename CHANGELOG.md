@@ -4,6 +4,15 @@ All notable changes to `mgit` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-07-15
+
+### Added
+
+- Git-aware repository discovery for normal checkouts, linked worktrees, and bare `*.git` stores.
+- `mgit worktree list` and `mgit worktree status`, grouped by each repository's shared Git common directory.
+- Safe `mgit worktree add` and confirmation-gated `mgit worktree remove` commands, including optional grouped workspace placement through `MGIT_WORKTREE_ROOT`.
+- A staged worktree migration guide that leaves existing repositories in place until the user explicitly retires them.
+
 ## [0.1.0] — 2026-07-09
 
 Initial public release.
@@ -19,3 +28,4 @@ Initial public release.
 - Homebrew tap install (`knowledgeislands/tap/mgit`) and a `curl | bash` installer.
 
 [0.1.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.1.0
+[0.2.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.2.0

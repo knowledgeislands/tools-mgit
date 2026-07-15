@@ -3,8 +3,9 @@
 # shellcheck disable=SC2016  # backticks inside single-quoted generated-comment strings are literal
 # Run a command across multiple git repositories.
 #
-# Terminology: a "leaf dir" has a .git child (a repo); "container dirs" are the
-# directories between the cwd and the leaf dirs. The repo set comes from a
+# Terminology: a "leaf dir" is a Git working tree (with either a .git directory
+# or .git file) or a bare Git repository; "container dirs" are the directories
+# between the cwd and the leaf dirs. The repo set comes from a
 # .mgitconfig in the current directory if one exists; otherwise the tree is
 # walked for .git entries (dropping any nested under another repo).
 #
@@ -27,7 +28,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgitconfig
-MGIT_VERSION=0.1.0
+MGIT_VERSION=0.2.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
@@ -37,6 +38,7 @@ usage() {
   cat <<'EOF'
 Usage: mgit [options] [command]
        mgit [options] register
+       mgit worktree <list|status|add|remove> [options]
 
 Runs supplied command on multiple git repositories.
 
@@ -60,6 +62,10 @@ Subcommand:
                          cross-repo symlinks (listing them). Stops at leaf dirs,
                          never descending into a repo. Always scans fresh
                          (implies -I) and overwrites generated files.
+  worktree list           List working trees, grouped by shared Git store.
+  worktree status         Show branch and cleanliness for every working tree.
+  worktree add NAME [REF] Create worktree/NAME from REF (default: HEAD).
+  worktree remove PATH    Remove a linked worktree; requires --yes.
 EOF
 }
 
@@ -99,16 +105,53 @@ canon_any() {
   printf '%s/%s' "$d" "$b"
 }
 
-# Print the canonical dir of the git repo containing path $1 (walk up); empty if
-# none. Uses parameter expansion (no per-step `dirname` process) since it runs
-# in hot loops.
+# Git-aware repository predicates.  A linked worktree has a .git *file*, so
+# filesystem tests alone cannot describe the repository model.  Git owns that
+# distinction and also tells us whether a directory is a bare repository.
+is_worktree() {
+  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ]
+}
+
+is_bare_repo() {
+  [ "$(git -C "$1" rev-parse --is-bare-repository 2>/dev/null)" = true ]
+}
+
+is_repo() {
+  is_worktree "$1" || is_bare_repo "$1"
+}
+
+# A repository has two useful identities: its checkout (if any) and the common
+# Git directory shared by all of its linked worktrees.  Keep them distinct so
+# commands can operate on checkouts while grouping by their shared store.
+git_common_dir() {
+  local dir="$1" common
+  common=$(git -C "$dir" rev-parse --git-common-dir 2>/dev/null) || return 1
+  case "$common" in
+    /*) canon_dir "$common" ;;
+    *)  canon_dir "$dir/$common" ;;
+  esac
+}
+
+git_dir() {
+  local dir="$1" gitdir
+  gitdir=$(git -C "$dir" rev-parse --git-dir 2>/dev/null) || return 1
+  case "$gitdir" in
+    /*) canon_dir "$gitdir" ;;
+    *)  canon_dir "$dir/$gitdir" ;;
+  esac
+}
+
+# Print the canonical directory of the Git repository containing path $1.  Git
+# handles .git directories, linked-worktree .git files, and bare repositories.
 repo_of() {
-  local p="$1" d
+  local p="$1" d root
   if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; [ "$d" = "$p" ] && d="."; fi
   d=$(canon_dir "$d") || return 1
   [ -z "$d" ] && return 1
   while :; do
-    [ -e "$d/.git" ] && { printf '%s' "$d"; return 0; }
+    root=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)
+    if [ -n "$root" ]; then canon_dir "$root"; return; fi
+    is_bare_repo "$d" && { printf '%s' "$d"; return 0; }
     [ "$d" = "/" ] && return 1
     d="${d%/*}"; [ -z "$d" ] && d="/"
   done
@@ -246,8 +289,9 @@ register_tree() {
     reg_is_seen "$canon" && return 1
     reg_seen+=("$canon")
   fi
-  if [ -e "$dir/.git" ]; then
-    register_repo "$dir"     # leaf dir: record its symlinks, don't descend
+  if is_repo "$dir"; then
+    # A bare repository has no working files or symlinks to register.
+    is_bare_repo "$dir" || register_repo "$dir"
     return 0
   fi
   for child in "$dir"/*/; do
@@ -257,7 +301,7 @@ register_tree() {
       # Follow symlinked dirs only in -L mode, and only container dirs — a
       # symlinked leaf repo is skipped (it's an alias of a real repo).
       [ "$follow_symlinks" = true ] || continue
-      [ -e "$child/.git" ] && continue
+      is_repo "$child" && continue
     fi
     if register_tree "$child"; then
       kids+=("$(basename "$child")")
@@ -273,6 +317,243 @@ register_tree() {
   fi
   [ -f "$dir/$MGIT_CONFIG" ] && rm -f "$dir/$MGIT_CONFIG"
   return 1
+}
+
+worktree_paths=()
+worktree_commons=()
+worktree_heads=()
+worktree_branches=()
+worktree_states=()
+worktree_seen_commons=()
+
+worktree_common_seen() {
+  local needle="$1" item
+  for item in "${worktree_seen_commons[@]+"${worktree_seen_commons[@]}"}"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+worktree_add_record() {
+  worktree_paths+=("$1")
+  worktree_commons+=("$2")
+  worktree_heads+=("$3")
+  worktree_branches+=("$4")
+  worktree_states+=("$5")
+}
+
+# Populate records for every worktree attached to the supplied repositories.
+# The common directory is deliberately de-duplicated: each linked checkout can
+# be discovered independently, but represents the same Git repository.
+collect_worktrees() {
+  local source common line key value path head branch state
+  worktree_paths=()
+  worktree_commons=()
+  worktree_heads=()
+  worktree_branches=()
+  worktree_states=()
+  worktree_seen_commons=()
+
+  for source in "$@"; do
+    common=$(git_common_dir "$source") || continue
+    worktree_common_seen "$common" && continue
+    worktree_seen_commons+=("$common")
+    path=""; head=""; branch=""; state=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ -z "$line" ]; then
+        [ -n "$path" ] && worktree_add_record "$path" "$common" "$head" "$branch" "${state:-normal}"
+        path=""; head=""; branch=""; state=""
+        continue
+      fi
+      key=${line%% *}
+      value=${line#* }
+      case "$key" in
+        worktree) path="$value" ;;
+        HEAD)     head="$value" ;;
+        branch)   branch="${value#refs/heads/}" ;;
+        detached) state="${state:+$state,}detached" ;;
+        bare)     state="${state:+$state,}bare" ;;
+        prunable) state="${state:+$state,}prunable" ;;
+        locked)   state="${state:+$state,}locked" ;;
+      esac
+    done < <(git -C "$source" worktree list --porcelain 2>/dev/null)
+    [ -n "$path" ] && worktree_add_record "$path" "$common" "$head" "$branch" "${state:-normal}"
+  done
+}
+
+display_worktree_path() {
+  local path="$1" canonical
+  canonical=$(canon_dir "$path")
+  if [ -n "$canonical" ]; then
+    disp "$canonical"
+  elif [ "${path#/}" != "$path" ]; then
+    # `git worktree list` retains an absolute record for a missing checkout;
+    # it is still safe to make that lexical path relative to the current tree.
+    relpath "$cwd_canon" "$path"
+  else
+    printf '%s' "$path"
+  fi
+}
+
+worktree_list() {
+  local i previous_common="" common
+  collect_worktrees "${repos[@]+"${repos[@]}"}"
+  for i in "${!worktree_paths[@]}"; do
+    common="${worktree_commons[$i]}"
+    if [ "$common" != "$previous_common" ]; then
+      printf 'common-dir: %s\n' "$common"
+      previous_common="$common"
+    fi
+    printf '  %s\t%s\t%s\n' "$(display_worktree_path "${worktree_paths[$i]}")" \
+      "${worktree_branches[$i]:-(detached)}" "${worktree_states[$i]}"
+  done
+}
+
+worktree_status() {
+  local i path state status
+  collect_worktrees "${repos[@]+"${repos[@]}"}"
+  for i in "${!worktree_paths[@]}"; do
+    path="${worktree_paths[$i]}"
+    state="${worktree_states[$i]}"
+    if [ ! -d "$path" ]; then
+      printf '%s\t%s\tmissing (%s)\n' "$(display_worktree_path "$path")" \
+        "${worktree_branches[$i]:-(detached)}" "$state"
+      continue
+    fi
+    case "$state" in
+      *bare*)
+        printf '%s\t%s\tbare store\n' "$(display_worktree_path "$path")" \
+          "${worktree_branches[$i]:-(detached)}"
+        continue ;;
+    esac
+    status=$(git -C "$path" status --porcelain 2>/dev/null)
+    if [ -n "$status" ]; then state="dirty"; else state="clean"; fi
+    printf '%s\t%s\t%s\n' "$(display_worktree_path "$path")" \
+      "${worktree_branches[$i]:-(detached)}" "$state"
+  done
+}
+
+worktree_source_repo() {
+  local source
+  source=$(repo_of ".") || {
+    printf 'mgit worktree: run this command from inside a Git repository\n' >&2
+    return 1
+  }
+  printf '%s' "$source"
+}
+
+valid_worktree_name() {
+  case "$1" in
+    ""|.|..|*/*|*\\*|*[!A-Za-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+worktree_default_path() {
+  local source="$1" name="$2" root repo_name parent
+  repo_name=$(basename "$source")
+  if [ -n "${MGIT_WORKTREE_ROOT:-}" ]; then
+    root=$(expand_tilde "$MGIT_WORKTREE_ROOT")
+    printf '%s/%s/%s' "$root" "$repo_name" "$name"
+    return
+  fi
+  parent=$(dirname "$source")
+  printf '%s/%s-%s' "$parent" "$repo_name" "$name"
+}
+
+worktree_add() {
+  local name="${1:-}" start=HEAD destination="" source branch
+  shift $(( $# > 0 ? 1 : 0 ))
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --path)
+        [ $# -ge 2 ] || { printf 'mgit worktree add: --path needs a value\n' >&2; return 2; }
+        destination="$2"; shift 2 ;;
+      -h|--help) usage; return 0 ;;
+      *)
+        if [ "$start" = HEAD ]; then start="$1"; shift; else
+          printf 'mgit worktree add: unexpected argument: %s\n' "$1" >&2; return 2
+        fi ;;
+    esac
+  done
+  valid_worktree_name "$name" || {
+    printf 'mgit worktree add: NAME must contain only letters, numbers, dot, underscore, or hyphen\n' >&2
+    return 2
+  }
+  source=$(worktree_source_repo) || return 1
+  destination=${destination:-"$(worktree_default_path "$source" "$name")"}
+  destination=$(resolve_path "$(expand_tilde "$destination")" "$(pwd)")
+  [ ! -e "$destination" ] || {
+    printf 'mgit worktree add: destination already exists: %s\n' "$destination" >&2
+    return 1
+  }
+  branch="worktree/$name"
+  git -C "$source" show-ref --verify --quiet "refs/heads/$branch" && {
+    printf 'mgit worktree add: branch already exists: %s\n' "$branch" >&2
+    return 1
+  }
+  git -C "$source" worktree add -b "$branch" "$destination" "$start" || return
+  printf 'mgit: created %s on branch %s\n' "$destination" "$branch"
+}
+
+worktree_remove() {
+  local target="" force=false yes=false source canonical i found=false path gitdir common
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --yes) yes=true ;;
+      --force) force=true ;;
+      -h|--help) usage; return 0 ;;
+      -*) printf 'mgit worktree remove: unknown option: %s\n' "$1" >&2; return 2 ;;
+      *)
+        [ -z "$target" ] || { printf 'mgit worktree remove: only one PATH is allowed\n' >&2; return 2; }
+        target="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$target" ] || { printf 'mgit worktree remove: PATH is required\n' >&2; return 2; }
+  [ "$yes" = true ] || {
+    printf 'mgit worktree remove: refusing to remove without --yes\n' >&2
+    return 2
+  }
+  source=$(worktree_source_repo) || return 1
+  canonical=$(canon_dir "$(resolve_path "$(expand_tilde "$target")" "$(pwd)")") || {
+    printf 'mgit worktree remove: PATH is not an existing directory: %s\n' "$target" >&2
+    return 1
+  }
+  collect_worktrees "$source"
+  for i in "${!worktree_paths[@]}"; do
+    path=$(canon_dir "${worktree_paths[$i]}")
+    [ "$path" = "$canonical" ] || continue
+    found=true
+    break
+  done
+  [ "$found" = true ] || {
+    printf 'mgit worktree remove: not a worktree of this repository: %s\n' "$target" >&2
+    return 1
+  }
+  gitdir=$(git_dir "$canonical")
+  common=$(git_common_dir "$canonical")
+  [ "$gitdir" != "$common" ] || {
+    printf 'mgit worktree remove: refusing to remove the primary working tree\n' >&2
+    return 1
+  }
+  if [ "$force" = true ]; then
+    git -C "$source" worktree remove --force "$canonical"
+  else
+    git -C "$source" worktree remove "$canonical"
+  fi
+}
+
+worktree_command() {
+  local action="${1:-list}"
+  [ $# -gt 0 ] && shift
+  case "$action" in
+    list)   [ $# -eq 0 ] || { printf 'mgit worktree list: unexpected argument\n' >&2; return 2; }; worktree_list ;;
+    status) [ $# -eq 0 ] || { printf 'mgit worktree status: unexpected argument\n' >&2; return 2; }; worktree_status ;;
+    add)    worktree_add "$@" ;;
+    remove) worktree_remove "$@" ;;
+    *) printf 'mgit worktree: expected list, status, add, or remove\n' >&2; return 2 ;;
+  esac
 }
 
 follow_symlinks=false
@@ -322,18 +603,30 @@ if [ "$read_config" = true ] && [ -f "./$MGIT_CONFIG" ]; then
   while IFS=$'\t' read -r kind a b; do
     [ "$kind" = R ] && repos+=("$(expand_tilde "$a")")
   done < <(parse_mgit ".")
-  [ -e ".git" ] && repos+=(".")
+  is_repo "." && repos+=(".")
 else
+  # Include the current directory itself when it is a repository.  In
+  # particular, a bare store has no nested .git marker for `find` to discover.
+  is_repo "." && repos+=(".")
   if [ "$follow_symlinks" = true ]; then
-    found=$(find -L . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::' | sort)
+    found=$(
+      find -L . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::'
+      find -L . -type d -name '*.git' -print 2>/dev/null
+    )
   else
-    found=$(find . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::' | sort)
+    found=$(
+      find . -name .git 2>/dev/null | sed -e 's:/\.git$::' -e 's:^\./::'
+      find . -type d -name '*.git' -print 2>/dev/null
+    )
   fi
+  found=$(printf '%s\n' "$found" | sed -e 's:^\./::' | sort -u)
 
-  # Sorted order means any parent repo appears before its children, so a
-  # prefix check against already-kept repos drops the nested ones.
+  # Sorted order means any parent repository appears before its children, so a
+  # prefix check against already-kept repos drops the nested ones.  The .git
+  # marker candidates and `*.git` candidates are both verified by Git here.
   while IFS= read -r r; do
     [ -z "$r" ] && continue
+    is_repo "$r" || continue
     nested=false
     for parent in "${repos[@]+"${repos[@]}"}"; do
       case "$r" in
@@ -375,7 +668,7 @@ for r in "${repos[@]+"${repos[@]}"}"; do
   fi
   is_seen "$c" && continue
   seen+=("$c"); queue+=("$c")
-  [ -e "$c/.git" ] && final+=("$(disp "$c")")
+  is_repo "$c" && final+=("$(disp "$c")")
 done
 
 qi=0
@@ -403,13 +696,22 @@ while [ $qi -lt ${#queue[@]} ]; do
         fi
         is_seen "$add" && continue
         seen+=("$add"); queue+=("$add")
-        [ -e "$add/.git" ] && final+=("$(disp "$add")")  # a repo member; dirs walk only
+        is_repo "$add" && final+=("$(disp "$add")")  # a repo member; dirs walk only
         ;;
     esac
   done < <(parse_mgit "$repo")
 done
 
 repos=("${final[@]+"${final[@]}"}")
+
+# Worktree management is a first-class mgit command rather than a generic
+# `git worktree` fan-out.  It has to understand the shared common directory and
+# applies add/remove to the repository containing the current directory.
+if [ "${1:-}" = "worktree" ]; then
+  shift
+  worktree_command "$@"
+  exit $?
+fi
 
 if [ $# -eq 0 ]; then
   for r in "${repos[@]+"${repos[@]}"}"; do

@@ -1,6 +1,6 @@
 # mgit
 
-Run commands across many git repositories at once. `mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every repo in the set, with the repo name printed before its output.
+Run commands across many Git repositories and worktrees at once. `mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every checkout in the set, with the repo name printed before its output.
 
 The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgitconfig` manifest. The manifest is never required — reach for it when you want the set to be explicit and reproducible, or to span repos that live outside the current tree.
 
@@ -29,6 +29,7 @@ mgit [options] [command]      run `git <command>` in every repo
 mgit [options] -B [command]   run <command> bare (no leading `git`)
 mgit [options]                list the repos that would be operated on
 mgit register                 generate .mgitconfig manifests for a tree
+mgit worktree <command>       inspect or manage worktrees for the tree
 ```
 
 Examples:
@@ -42,14 +43,52 @@ mgit                          # just list the discovered repos
 
 ### Options
 
-| Option | Effect |
-| --- | --- |
-| `-P`, `--physical` | Don't follow symlinked container dirs (default). |
-| `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos). |
-| `-B`, `--bare` | Run the command bare, without prefixing it with `git`. |
-| `-I`, `--ignore` | Ignore `.mgitconfig` files; discover repos by walking the tree. |
-| `-h`, `--help` | Show usage. |
-| `-V`, `--version` | Print the version. |
+| Option                    | Effect                                                          |
+| ------------------------- | --------------------------------------------------------------- |
+| `-P`, `--physical`        | Don't follow symlinked container dirs (default).                |
+| `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos).        |
+| `-B`, `--bare`            | Run the command bare, without prefixing it with `git`.          |
+| `-I`, `--ignore`          | Ignore `.mgitconfig` files; discover repos by walking the tree. |
+| `-h`, `--help`            | Show usage.                                                     |
+| `-V`, `--version`         | Print the version.                                              |
+
+## Worktrees
+
+`mgit` distinguishes a working tree from its shared Git store. A normal checkout has a `.git` directory; a linked worktree has a `.git` file; both are working trees and are discovered by `mgit`. Bare `*.git` stores are also discovered, and can be included explicitly in a `.mgitconfig` manifest.
+
+Existing commands keep their meaning: `mgit status` runs in every discovered working tree, while a bare store receives the Git command directly. `mgit worktree list` de-duplicates linked checkouts by their common Git directory, so each shared repository is listed once.
+
+```bash
+mgit worktree list            # paths, branches, and state grouped by common Git store
+mgit worktree status          # clean/dirty status for every working tree
+```
+
+Create a named worktree from inside one of its repositories:
+
+```bash
+cd ~/workspaces/kis/knowledgeislands/tools-mgit
+mgit worktree add codex       # ../tools-mgit-codex on branch worktree/codex
+mgit worktree add fix main    # create worktree/fix from main
+```
+
+The default sibling location preserves the current layout. To adopt a grouped workspace layout without migrating any existing repository, set `MGIT_WORKTREE_ROOT`; the worktree is created at `<root>/<repository-name>/<name>`.
+
+```bash
+export MGIT_WORKTREE_ROOT="$HOME/workspaces/kis"
+cd ~/workspaces/kis/knowledgeislands/tools-mgit
+mgit worktree add review      # ~/workspaces/kis/tools-mgit/review
+```
+
+`mgit worktree add` only creates a new `worktree/<name>` branch. It refuses an existing destination or branch. `mgit worktree remove` operates only on a linked worktree of the current repository and needs explicit confirmation. Git still rejects a dirty worktree unless `--force` is also explicit.
+
+```bash
+mgit worktree remove ../tools-mgit-codex --yes
+mgit worktree remove ../tools-mgit-codex --yes --force
+```
+
+Missing worktrees are shown as `prunable` by `list` and `missing (prunable)` by `status`; `mgit` never prunes their metadata automatically.
+
+See [the worktree workflow and staged migration guide](docs/worktrees.md) for a recommended rollout from existing repositories under `~/workspaces/kis`.
 
 ## The `.mgitconfig` model
 
