@@ -22,6 +22,19 @@ The installer drops `mgit` into `~/.local/bin` by default; set `MGIT_INSTALL_DIR
 
 Requirements: `bash` (3.2+, the macOS system bash is fine) and `git`.
 
+### Shell completion
+
+`mgit` can print completion setup for Bash and Zsh. Add one of these to your shell configuration:
+
+```bash
+source <(mgit completion bash)
+```
+
+```zsh
+autoload -Uz compinit && compinit
+eval "$(mgit completion zsh)"
+```
+
 ## Usage
 
 ```text
@@ -30,6 +43,7 @@ mgit [options] -B [command]   run <command> bare (no leading `git`)
 mgit [options]                list the repos that would be operated on
 mgit register                 generate .mgitconfig manifests for a tree
 mgit worktree <command>       inspect or manage worktrees for the tree
+mgit completion <shell>       print Bash or Zsh completion setup
 ```
 
 Examples:

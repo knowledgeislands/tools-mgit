@@ -29,7 +29,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgitconfig
-MGIT_VERSION=0.3.0
+MGIT_VERSION=0.3.1
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
@@ -41,6 +41,7 @@ Usage: mgit [options] [command]
        mgit [options] register
        mgit convert <worktree|standard> <--dry-run|--yes>
        mgit worktree <list|status|add|remove> [options]
+       mgit completion <bash|zsh>
 
 Runs supplied command on multiple git repositories.
 
@@ -70,7 +71,88 @@ Subcommand:
   convert standard       Convert eligible managed worktree repos back to standard.
   worktree add BRANCH    Add BRANCH from origin to every worktree repo in the set.
   worktree remove PATH    Remove a linked worktree; requires --yes.
+  completion SHELL       Print completion setup for bash or zsh.
 EOF
+}
+
+completion_script() {
+  case "${1:-}" in
+    bash)
+      cat <<'EOF'
+_mgit() {
+  local cur="${COMP_WORDS[COMP_CWORD]}" command subcommand
+  command="${COMP_WORDS[1]:-}"
+  subcommand="${COMP_WORDS[2]:-}"
+  case "$command" in
+    convert)
+      COMPREPLY=( $(compgen -W 'worktree standard --dry-run --yes --help' -- "$cur") )
+      ;;
+    worktree)
+      case "$subcommand" in
+        '') COMPREPLY=( $(compgen -W 'list status add remove' -- "$cur") ) ;;
+        add) COMPREPLY=() ;;
+        remove) COMPREPLY=( $(compgen -W '--yes --force --help' -- "$cur") ) ;;
+        *) COMPREPLY=() ;;
+      esac
+      ;;
+    completion)
+      COMPREPLY=( $(compgen -W 'bash zsh' -- "$cur") )
+      ;;
+    *)
+      COMPREPLY=( $(compgen -W 'register convert worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -h --help -V --version' -- "$cur") )
+      ;;
+  esac
+}
+complete -F _mgit mgit
+EOF
+      ;;
+    zsh)
+      cat <<'EOF'
+#compdef mgit
+
+_mgit() {
+  local -a global_commands global_options
+  global_commands=(
+    'register:generate .mgitconfig manifests'
+    'convert:change repository type across the current set'
+    'worktree:manage colocated worktrees'
+    'completion:print shell completion setup'
+  )
+  global_options=(
+    '-P[do not follow symlinked container directories]'
+    '--physical[do not follow symlinked container directories]'
+    '-L[follow symlinked container directories]'
+    '--follow-symlinks[follow symlinked container directories]'
+    '-B[run command without git prefix]'
+    '--bare[run command without git prefix]'
+    '-I[ignore .mgitconfig files]'
+    '--ignore[ignore .mgitconfig files]'
+    '-h[show help]'
+    '--help[show help]'
+    '-V[show version]'
+    '--version[show version]'
+  )
+  case $words[2] in
+    convert) _arguments '1:repository type:(worktree standard)' '--dry-run[preview changes]' '--yes[confirm changes]' ;;
+    worktree)
+      case $words[3] in
+        '') _describe -t commands 'worktree command' 'list:list worktrees' 'status:show worktree status' 'add:add a remote branch' 'remove:remove a worktree' ;;
+        add) _message 'remote branch name' ;;
+        remove) _arguments '--yes[confirm removal]' '--force[discard dirty changes]' ;;
+      esac ;;
+    completion) _arguments '1:shell:(bash zsh)' ;;
+    *) _arguments -s $global_options '1:command:_describe -t commands command global_commands' ;;
+  esac
+}
+
+_mgit "$@"
+EOF
+      ;;
+    *)
+      printf 'mgit completion: expected bash or zsh\n' >&2
+      return 2
+      ;;
+  esac
 }
 
 # Trim leading/trailing whitespace.
@@ -829,6 +911,12 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+if [ "${1:-}" = "completion" ]; then
+  shift
+  completion_script "$@"
+  exit $?
+fi
 
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.

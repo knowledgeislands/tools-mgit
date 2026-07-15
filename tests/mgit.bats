@@ -56,7 +56,20 @@ add_origin_branch() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.3.0" ]]
+  [[ "$output" == "mgit 0.3.1" ]]
+}
+
+@test "completion prints bash and zsh setup" {
+  run "$MGIT" completion bash
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"complete -F _mgit mgit"* ]]
+
+  run "$MGIT" completion zsh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"#compdef mgit"* ]]
+
+  run "$MGIT" completion fish
+  [ "$status" -eq 2 ]
 }
 
 @test "unknown option exits 2" {
