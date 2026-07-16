@@ -57,7 +57,7 @@ add_origin_branch() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.4.0" ]]
+  [[ "$output" == "mgit 0.4.1" ]]
 }
 
 @test "completion prints bash and zsh setup" {
@@ -94,10 +94,10 @@ add_origin_branch() {
 
   [ -f "$TREE/.mgitconfig" ]
   [ -f "$TREE/sub/.mgitconfig" ]
-  grep -qx "a" "$TREE/.mgitconfig"
-  grep -qx "b" "$TREE/.mgitconfig"
-  grep -qx "sub" "$TREE/.mgitconfig"
-  grep -qx "c" "$TREE/sub/.mgitconfig"
+  grep -qx "standard a" "$TREE/.mgitconfig"
+  grep -qx "standard b" "$TREE/.mgitconfig"
+  grep -qx "dir sub" "$TREE/.mgitconfig"
+  grep -qx "standard c" "$TREE/sub/.mgitconfig"
 }
 
 @test "bare mgit lists the discovered repos" {
@@ -142,9 +142,20 @@ add_origin_branch() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -qx "repoA" "$TREE/.mgitconfig"
-  grep -qx "repoB" "$TREE/.mgitconfig"
-  ! grep -q "main" "$TREE/.mgitconfig"
+  grep -qx "nested repoA" "$TREE/.mgitconfig"
+  grep -qx "standard repoB" "$TREE/.mgitconfig"
+  ! grep -Eq '^(standard|nested|bare|dir) main$' "$TREE/.mgitconfig"
+}
+
+@test "legacy untyped config members remain valid" {
+  mkrepo "$TREE/repoA"
+  printf 'repoA\n' > "$TREE/.mgitconfig"
+
+  cd "$TREE"
+  run "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repoA"* ]]
 }
 
 @test "normal commands expand a managed workspace to all child worktrees" {

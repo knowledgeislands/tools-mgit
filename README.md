@@ -119,15 +119,17 @@ See [the worktree structures guide](docs/worktrees.md) for the complete layouts 
 
 Without a manifest, `mgit` finds repos by walking the current tree for `.git` (dropping any repo nested inside another). A `.mgitconfig` makes the set explicit and lets it span repos that live outside the tree.
 
-A **leaf dir** holds a `.git` (it is a repo); the **container dirs** are the directories between your cwd and the leaf dirs. A `.mgitconfig` holds two kinds of line:
+A **leaf dir** holds a `.git` (it is a repo); the **container dirs** are the directories between your cwd and the leaf dirs. A generated `.mgitconfig` labels its members:
 
 ```text
-<path>                a member — a child container dir, or a child repo
-                      (relative to the file's dir, or ~-prefixed / absolute)
-<link>  ->  <target>  a symlink this repo owns, pointing into another repo
+standard <path>       conventional repository structure
+nested <path>         mgit-managed nested repository structure
+bare <path>           bare Git repository
+dir <path>            child directory containing more members
+<link>  ->  <target>  symlink this repo owns, pointing into another repository
 ```
 
-At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point.
+The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
 
 ### `mgit register`
 

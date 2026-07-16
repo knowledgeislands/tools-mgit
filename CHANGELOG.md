@@ -4,6 +4,13 @@ All notable changes to `mgit` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-07-16
+
+### Changed
+
+- Generated `.mgitconfig` files now label repository members as `standard`, `nested`, or `bare`, and directory members as `dir`.
+- Existing untyped member entries remain valid; Git continues to verify each repository's live structure at runtime.
+
 ## [0.4.0] — 2026-07-16
 
 ### Changed

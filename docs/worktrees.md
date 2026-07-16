@@ -42,7 +42,14 @@ cd parent
 mgit register
 ```
 
-The generated `.mgitconfig` contains only `repoA` and `repoB`. It does not list `.bare`, `main`, or branch worktrees. At runtime, `mgit status` expands that manifest to every active checkout:
+The generated `.mgitconfig` labels the two logical repositories without listing `.bare`, `main`, or branch worktrees:
+
+```text
+nested repoA
+standard repoB
+```
+
+At runtime, `mgit status` expands that manifest to every active checkout:
 
 ```text
 repoA/main
