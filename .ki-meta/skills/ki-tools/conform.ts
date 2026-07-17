@@ -23,7 +23,7 @@
  *     mechanical fill-in).
  *   - CONFIG: appends the `[ki-tools]` opt-in marker to .ki-config.toml when
  *     the table is absent. Never overwrites an existing table, never creates
- *     .ki-config.toml from scratch (that's ki-repo's INIT/CONFORM job).
+ *     .ki-config.toml from scratch (that's ki-repo's EDUCATE/CONFORM job).
  *
  * Deliberately NEVER touches (judgment → manual TODOs):
  *   - TOOL-BIN (bin/ missing entirely) — scaffolding the tool's own
@@ -56,6 +56,23 @@ const KI_DEFAULT = `# ${KI_SECTION} — opt-in marker: declaring this table opts
 [${KI_SECTION}]
 `
 
+// Collect-then-emit harness (mirrors audit.ts + the house conform shape). Each action
+// records a finding; `say` prints the human line only when not in --json mode, so a direct
+// run streams prose while the aggregate consumes the wrapper. area is the rubric code, ref
+// its reference-doc pointer, file the path an action concerns — same (area, ref) as audit.
+type Level = 'FAIL' | 'WARN' | 'POLISH' | 'ADVISORY' | 'INFO' | 'NA' | 'PASS'
+type Finding = { level: Level; area: string; msg: string; ref?: string; file?: string }
+
+// Reference-doc pointers per rubric section — kept in lockstep with audit.ts's REF.
+const REF = {
+  layout: 'references/tools-standard.md#repository-layout',
+  exec: 'references/tools-standard.md#the-executable--bintool',
+  dist: 'references/tools-standard.md#the-distribution-contract',
+  ver: 'references/tools-standard.md#versioning--releases',
+  cap: 'references/tools-standard.md#capability-conditionals',
+  marker: 'references/tools-standard.md#the-ki-tools-marker'
+} as const
+
 const isDir = (p: string): boolean => existsSync(p) && statSync(p).isDirectory()
 const isFile = (p: string): boolean => existsSync(p) && statSync(p).isFile()
 const isExecutable = (p: string): boolean => existsSync(p) && (statSync(p).mode & 0o111) !== 0
@@ -82,7 +99,15 @@ const paint = (c: string, s: string): string => `${c}${s}${C.reset}`
 async function main() {
   const argv = process.argv.slice(2)
   const dryRun = argv.includes('--dry-run')
+  const json = argv.includes('--json')
   const target = resolve(argv.find((a) => !a.startsWith('-')) ?? '.')
+
+  const findings: Finding[] = []
+  const rec = (level: Level, area: string, msg: string, ref?: string, file?: string): void =>
+    void findings.push({ level, area, msg, ref, file })
+  const say = (line: string): void => {
+    if (!json) console.log(line)
+  }
 
   if (!isDir(target)) {
     console.error(paint(C.red, `not a directory: ${target}`))
@@ -90,73 +115,118 @@ async function main() {
     return
   }
 
-  console.log(paint(C.dim, `target: ${target}${dryRun ? '   (dry run)' : ''}\n`))
-
-  const manualTodos: string[] = []
+  say(paint(C.dim, `target: ${target}${dryRun ? '   (dry run)' : ''}\n`))
 
   // ── a) TOOL-EXEC — chmod +x on every non-executable bin/ file ──
-  console.log(paint(C.cyan, 'bin/ executable bit (TOOL-EXEC)'))
+  say(paint(C.cyan, 'bin/ executable bit (TOOL-EXEC)'))
   const bins = binFiles(target)
   if (!isDir(join(target, 'bin'))) {
-    manualTodos.push('TOOL-BIN — bin/ is missing entirely; scaffold the tool executable by hand (see Mode INIT)')
-    console.log(`  ${paint(C.dim, 'bin/ missing — see manual TODOs')}`)
+    rec('ADVISORY', 'TOOL-BIN', 'bin/ is missing entirely; scaffold the tool executable by hand (see Mode EDUCATE)', REF.layout, 'bin/')
+    say(`  ${paint(C.dim, 'bin/ missing — see manual TODOs')}`)
   } else if (bins.length === 0) {
-    manualTodos.push('TOOL-BIN — bin/ holds no files; add the tool executable by hand')
-    console.log(`  ${paint(C.dim, 'bin/ empty — see manual TODOs')}`)
+    rec('ADVISORY', 'TOOL-BIN', 'bin/ holds no files; add the tool executable by hand', REF.layout, 'bin/')
+    say(`  ${paint(C.dim, 'bin/ empty — see manual TODOs')}`)
   } else {
     let fixed = 0
     for (const name of bins) {
       const path = join(target, 'bin', name)
       if (!isExecutable(path)) {
-        console.log(`  ${paint(C.green, 'fix')}   chmod +x bin/${name}`)
+        rec('POLISH', 'TOOL-EXEC', `chmod +x bin/${name} (${dryRun ? 'would set' : 'set'} the executable bit)`, REF.exec, `bin/${name}`)
+        say(`  ${paint(C.green, 'fix')}   chmod +x bin/${name}`)
         if (!dryRun) chmodSync(path, statSync(path).mode | 0o111)
         fixed++
       }
     }
-    if (fixed === 0) console.log(`  ${paint(C.dim, 'nothing to fix — every bin/ file is executable')}`)
+    if (fixed === 0) {
+      rec('PASS', 'TOOL-EXEC', 'every bin/ file is already executable', REF.exec, 'bin/')
+      say(`  ${paint(C.dim, 'nothing to fix — every bin/ file is executable')}`)
+    }
   }
 
   // ── b) TOOL-INSTALL — chmod +x on install.sh when present but not executable ──
-  console.log(`\n${paint(C.cyan, 'install.sh executable bit (TOOL-INSTALL)')}`)
+  say(`\n${paint(C.cyan, 'install.sh executable bit (TOOL-INSTALL)')}`)
   const installPath = join(target, 'install.sh')
   if (!isFile(installPath)) {
-    manualTodos.push('TOOL-INSTALL — no install.sh at the repo root; author the curl-installer by hand (see Mode INIT)')
-    console.log(`  ${paint(C.dim, 'install.sh missing — see manual TODOs')}`)
+    rec(
+      'ADVISORY',
+      'TOOL-INSTALL',
+      'no install.sh at the repo root; author the curl-installer by hand (see Mode EDUCATE)',
+      REF.dist,
+      'install.sh'
+    )
+    say(`  ${paint(C.dim, 'install.sh missing — see manual TODOs')}`)
   } else if (!isExecutable(installPath)) {
-    console.log(`  ${paint(C.green, 'fix')}   chmod +x install.sh`)
+    rec('POLISH', 'TOOL-INSTALL', `chmod +x install.sh (${dryRun ? 'would set' : 'set'} the executable bit)`, REF.dist, 'install.sh')
+    say(`  ${paint(C.green, 'fix')}   chmod +x install.sh`)
     if (!dryRun) chmodSync(installPath, statSync(installPath).mode | 0o111)
   } else {
-    console.log(`  ${paint(C.dim, 'nothing to fix — install.sh is already executable')}`)
+    rec('PASS', 'TOOL-INSTALL', 'install.sh is already executable', REF.dist, 'install.sh')
+    say(`  ${paint(C.dim, 'nothing to fix — install.sh is already executable')}`)
   }
 
   // ── c) CONFIG — append the [ki-tools] opt-in marker when absent ──
-  console.log(`\n${paint(C.cyan, `[${KI_SECTION}] config marker (CONFIG)`)}`)
+  say(`\n${paint(C.cyan, `[${KI_SECTION}] config marker (CONFIG)`)}`)
   const kiPath = join(target, KI_CONFIG)
   if (!isFile(kiPath)) {
-    manualTodos.push(`CONFIG — ${KI_CONFIG} is missing entirely; run ki-repo's CONFORM/INIT to scaffold it, then re-run this script`)
-    console.log(`  ${paint(C.dim, `${KI_CONFIG} missing — see manual TODOs`)}`)
+    rec(
+      'ADVISORY',
+      'CONFIG',
+      `${KI_CONFIG} is missing entirely; run ki-repo's CONFORM/EDUCATE to scaffold it, then re-run this script`,
+      REF.marker,
+      KI_CONFIG
+    )
+    say(`  ${paint(C.dim, `${KI_CONFIG} missing — see manual TODOs`)}`)
   } else {
     const kiText = readFileSync(kiPath, 'utf8')
     if (hasKiToolsTable(kiText)) {
-      console.log(`  ${paint(C.dim, `nothing to fix — [${KI_SECTION}] already present`)}`)
+      rec('PASS', 'CONFIG', `[${KI_SECTION}] marker already present`, REF.marker, KI_CONFIG)
+      say(`  ${paint(C.dim, `nothing to fix — [${KI_SECTION}] already present`)}`)
     } else {
-      console.log(`  ${paint(C.green, 'append')} [${KI_SECTION}] marker → ${KI_CONFIG}`)
+      rec(
+        'POLISH',
+        'CONFIG',
+        `${dryRun ? 'would append' : 'appended'} the [${KI_SECTION}] opt-in marker to ${KI_CONFIG}`,
+        REF.marker,
+        KI_CONFIG
+      )
+      say(`  ${paint(C.green, 'append')} [${KI_SECTION}] marker → ${KI_CONFIG}`)
       if (!dryRun) writeFileSync(kiPath, `${kiText.replace(/\n*$/, '\n\n')}${KI_DEFAULT}`)
     }
   }
 
-  // ── judgment items — never guessed, always surfaced ──
-  console.log(`\n${paint(C.cyan, 'manual TODOs (judgment — not scripted)')}`)
-  for (const todo of manualTodos) console.log(`  - ${todo}`)
-  console.log('  - TOOL-TESTS — no tests/ directory: author an executable test suite (a *.bats suite for a shell tool) by hand.')
-  console.log('  - TOOL-CI — no .github/workflows/*.yml: author the CI workflow by hand.')
-  console.log("  - TOOL-VERSION — bin/<tool> has no visible --version handling: wire it into the tool's own code.")
-  console.log('  - TOOL-CHANGELOG — no CHANGELOG.md: seed one (keep-a-changelog + semver) by hand.')
-  console.log('  - SHELL-LINT / SHELL-TEST — shellcheck/bats not wired into CI: author the workflow steps by hand.')
-  console.log('  - RELEASE — vX.Y.Z git tags + a GitHub release each: not checkable from a path, not fixable by editing files.')
-  console.log(
-    `\n${paint(C.dim, 'mechanical layer applied — re-run `bun scripts/audit.ts` (or `ki:tools:audit`) to confirm findings clear.')}`
+  // ── judgment items — never guessed, always surfaced as ADVISORY (SKILL.md Mode CONFORM) ──
+  say(`\n${paint(C.cyan, 'manual TODOs (judgment — not scripted)')}`)
+  rec(
+    'ADVISORY',
+    'TOOL-TESTS',
+    'no tests/ directory: author an executable test suite (a *.bats suite for a shell tool) by hand',
+    REF.layout,
+    'tests/'
   )
+  rec('ADVISORY', 'TOOL-CI', 'no .github/workflows/*.yml: author the CI workflow by hand', REF.layout, '.github/workflows/')
+  rec('ADVISORY', 'TOOL-VERSION', "bin/<tool> has no visible --version handling: wire it into the tool's own code", REF.ver)
+  rec('ADVISORY', 'TOOL-CHANGELOG', 'no CHANGELOG.md: seed one (keep-a-changelog + semver) by hand', REF.ver, 'CHANGELOG.md')
+  rec('ADVISORY', 'SHELL-LINT', 'shellcheck/bats not wired into CI: author the workflow steps by hand', REF.cap)
+  rec('ADVISORY', 'RELEASE', 'vX.Y.Z git tags + a GitHub release each: not checkable from a path, not fixable by editing files', REF.ver)
+  for (const r of findings.filter(
+    (f) => f.level === 'ADVISORY' && f.area !== 'TOOL-BIN' && f.area !== 'TOOL-INSTALL' && f.area !== 'CONFIG'
+  ))
+    say(`  - ${r.area} — ${r.msg}`)
+  say(`\n${paint(C.dim, 'mechanical layer applied — re-run `bun scripts/audit.ts` (or `ki:tools:audit`) to confirm findings clear.')}`)
+
+  if (json) {
+    const n = (l: Level): number => findings.filter((f) => f.level === l).length
+    const summary = {
+      fail: n('FAIL'),
+      warn: n('WARN'),
+      polish: n('POLISH'),
+      advisory: n('ADVISORY'),
+      info: n('INFO'),
+      na: n('NA'),
+      pass: n('PASS')
+    }
+    process.stdout.write(JSON.stringify({ concern: 'tools', target, generatedAt: new Date().toISOString(), summary, findings }))
+  }
 }
 
 main().catch((err) => {

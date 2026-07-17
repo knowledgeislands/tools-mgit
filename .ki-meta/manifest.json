@@ -1,15 +1,15 @@
 {
-  "ref": "4a327ca2f94ced1dc9e499cce07e81cbab576169",
+  "ref": "b3022c2f9fef995549eeffe15c301f85bdc9e60b",
   "files": {
-    ".ki-meta/skills/ki-authoring/audit.ts": "748a34c86942dcfd5a4036aee30bafebd7aba8190ddef0b466b01a81934a9fc1",
-    ".ki-meta/skills/ki-authoring/conform.ts": "73ea8ebc371bc1307d8e5aa24cf924376ab575e95dede89b92fcc80add557fc1",
-    ".ki-meta/skills/ki-authoring/help.md": "ee3408470f0ac2c1800451a9f494170b99b55c227850fa3d5c537f7160cdc6b1",
-    ".ki-meta/skills/ki-repo/audit.ts": "84cd3a5c85d1eed748bc2ac1b08256ec7337a6ea49c12a3b7376d9610f8c93b7",
-    ".ki-meta/skills/ki-repo/conform.ts": "2c9798ccfbe5069f0cf1d994e2fcb9770b3c4ed6186dba62c510f5426816ff52",
-    ".ki-meta/skills/ki-repo/help.md": "f822f9346f0d2da888865497a5e1e8a3dd8b18ecdc70f9bcb9f1dc163ccd5b67",
-    ".ki-meta/skills/ki-tools/audit.ts": "67e2f01894be92493fd22fc45e2447242b23fcb48c19862d19679960c7f899a9",
-    ".ki-meta/skills/ki-tools/conform.ts": "0799eb1823b2a8ce23eeb3127cfd63b80c98af3f0ea317b93b40a5fe7a11ad19",
-    ".ki-meta/skills/ki-tools/help.md": "f7a5596897baf61ecacef6bbf1b6f0f175f6ce57c9e09aba46474ada890eaadb",
-    ".ki-meta/bin/aggregate.ts": "1e3d504d2aea9bcbd5dd299bb2ac5cdde1a098c24d83450e0f008723eda2e1bb"
+    ".ki-meta/skills/ki-authoring/audit.ts": "686be5f1c00e76ea76f494050eabb8fc4708ee92a741391b9dc346f7010aa41d",
+    ".ki-meta/skills/ki-authoring/conform.ts": "6d5232b279764152f68909b85f96518191e068f3108a75d57030ce5759bd3c93",
+    ".ki-meta/skills/ki-authoring/help.md": "2eaed57639dba4200bc06850d16e8bc2b430fa2fd29180ab9c0cec96e8434fe7",
+    ".ki-meta/skills/ki-repo/audit.ts": "606d8b5be46f7320bd32cd94d349cc0dea97b3cd69901ee46a3641a3ed77e7fd",
+    ".ki-meta/skills/ki-repo/conform.ts": "5c24bb22b658ab62d2402c9adb4ec1e27889ae9790925dba7be50a57150ed145",
+    ".ki-meta/skills/ki-repo/help.md": "c5167327b31559fd7c70c5cd9bfe44e68343ea135a4d145197a339a1a83dec83",
+    ".ki-meta/skills/ki-tools/audit.ts": "ad09ae7328ab69dc16b133605a649193f89fda052fc81affa866778216d6022a",
+    ".ki-meta/skills/ki-tools/conform.ts": "5577a7c9f0d3772fadb600e2bac26168d41a08ab79f165efeceeb59fc3ae74dd",
+    ".ki-meta/skills/ki-tools/help.md": "f88ed18c6b661c7aa3b14940617c5db8f6f650bc03abcc8695ea6ec03ba2864b",
+    ".ki-meta/bin/aggregate.ts": "d453fe6a3f623f71b656cc3d802bb1088c7280094f548fb106bce95ab7446845"
   }
 }
