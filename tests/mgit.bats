@@ -68,7 +68,7 @@ make_origin() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.4.1" ]]
+  [[ "$output" == "mgit 0.5.0" ]]
 }
 
 @test "completion prints bash and zsh setup" {
