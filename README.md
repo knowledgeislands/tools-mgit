@@ -42,6 +42,7 @@ mgit [options] [command]      run `git <command>` in every repo
 mgit [options] -B [command]   run <command> bare (no leading `git`)
 mgit [options]                list the repos that would be operated on
 mgit register                 generate .mgitconfig manifests for a tree
+mgit bootstrap                populate missing repositories from .mgitconfig
 mgit structure <type>         change repositories to standard or nested structure
 mgit worktree <command>       inspect or manage worktrees for the tree
 mgit completion <shell>       print Bash or Zsh completion setup
@@ -129,11 +130,17 @@ dir <path>            child directory containing more members
 <link>  ->  <target>  symlink this repo owns, pointing into another repository
 ```
 
-The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
+Repository entries may append ` -> <clone-url>`, for example `nested platform -> git@github.com:acme/platform.git`. `mgit register` writes that URL from `origin` when it exists. The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
 
 ### `mgit register`
 
 `mgit register` writes a `.mgitconfig` into every container dir (listing its child containers and repos) and into every leaf dir that owns cross-repo symlinks (listing them). It stops at leaf dirs — it never descends into a repo — and always scans fresh, overwriting generated manifests. Run it once to snapshot a workspace, and again whenever the layout changes.
+
+### `mgit bootstrap`
+
+`mgit bootstrap` materializes a workspace from the `.mgitconfig` in the current directory. It clones every missing typed repository entry that has a ` -> <clone-url>` suffix, then follows manifests that arrive with those clones. Standard repositories are cloned normally, bare repositories with `--bare`, and nested repositories into the `.bare/` plus `main/` layout.
+
+Bootstrap never replaces an existing path: a present repository is retained and checked for the declared structure; a non-repository path or structure mismatch is an error. Directory entries must already exist because they have no clone source. Use `mgit register` in an existing workspace to add each repository's `origin` URL before committing the manifests.
 
 ## Development
 

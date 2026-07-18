@@ -48,6 +48,17 @@ add_origin_branch() {
   git -C "$root" checkout -q "$base"
 }
 
+make_origin() {
+  local checkout="$1" origin="$2" contents="$3"
+  mkrepo "$checkout"
+  printf '%s\n' "$contents" > "$checkout/payload"
+  git -C "$checkout" add payload
+  git -C "$checkout" commit -q -m payload
+  git init -q --bare "$origin"
+  git -C "$checkout" remote add origin "$origin"
+  git -C "$checkout" push -q -u origin HEAD
+}
+
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
@@ -65,6 +76,7 @@ add_origin_branch() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
+  [[ "$output" == *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
 
   run "$MGIT" completion zsh
@@ -98,6 +110,49 @@ add_origin_branch() {
   grep -qx "standard b" "$TREE/.mgitconfig"
   grep -qx "dir sub" "$TREE/.mgitconfig"
   grep -qx "standard c" "$TREE/sub/.mgitconfig"
+}
+
+@test "register records origin URLs for typed repository members" {
+  make_origin "$TREE/repoA" "$TREE/repoA.origin.git" payload
+
+  ( cd "$TREE" && run_ok "$MGIT" register )
+
+  grep -Fx "standard repoA -> $TREE/repoA.origin.git" "$TREE/.mgitconfig"
+}
+
+@test "bootstrap clones typed manifest members and recreates nested layout" {
+  make_origin "$TREE/source-standard" "$TREE/standard.origin.git" standard
+  make_origin "$TREE/source-nested" "$TREE/nested.origin.git" nested
+  mkdir -p "$TREE/workspace/group"
+  printf 'standard standard-repo -> %s\nnested nested-repo -> %s\nbare bare-repo.git -> %s\ndir group\n' \
+    "$TREE/standard.origin.git" "$TREE/nested.origin.git" "$TREE/standard.origin.git" > "$TREE/workspace/.mgitconfig"
+  printf 'standard grouped-repo -> %s\n' "$TREE/standard.origin.git" > "$TREE/workspace/group/.mgitconfig"
+
+  cd "$TREE/workspace"
+  run "$MGIT" bootstrap
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$TREE/workspace/standard-repo/payload")" = standard ]
+  [ -d "$TREE/workspace/nested-repo/.bare" ]
+  [ -f "$TREE/workspace/nested-repo/main/.git" ]
+  [ "$(cat "$TREE/workspace/nested-repo/main/payload")" = nested ]
+  [ "$(git -C "$TREE/workspace/bare-repo.git" rev-parse --is-bare-repository)" = true ]
+  [ "$(cat "$TREE/workspace/group/grouped-repo/payload")" = standard ]
+
+  run "$MGIT" bootstrap
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"present "*"standard-repo"* ]]
+}
+
+@test "bootstrap refuses a missing member without a clone URL" {
+  printf 'standard missing-repo\n' > "$TREE/.mgitconfig"
+
+  cd "$TREE"
+  run "$MGIT" bootstrap
+
+  [ "$status" -eq 1 ]
+  [ ! -e "$TREE/missing-repo" ]
+  [[ "$output" == *"no clone URL"* ]]
 }
 
 @test "bare mgit lists the discovered repos" {
