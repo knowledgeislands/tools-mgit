@@ -130,7 +130,7 @@ dir <path>            child directory containing more members
 <link>  ->  <target>  symlink this repo owns, pointing into another repository
 ```
 
-Repository entries may append ` -> <clone-url>`, for example `nested platform -> git@github.com:acme/platform.git`. `mgit register` writes that URL from `origin` when it exists. The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
+Repository entries may append `-> <clone-url>`, for example `nested platform -> git@github.com:acme/platform.git`. `mgit register` writes that URL from `origin` when it exists. The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
 
 ### `mgit register`
 
@@ -138,7 +138,7 @@ Repository entries may append ` -> <clone-url>`, for example `nested platform ->
 
 ### `mgit bootstrap`
 
-`mgit bootstrap` materializes a workspace from the `.mgitconfig` in the current directory. It clones every missing typed repository entry that has a ` -> <clone-url>` suffix, then follows manifests that arrive with those clones. Standard repositories are cloned normally, bare repositories with `--bare`, and nested repositories into the `.bare/` plus `main/` layout.
+`mgit bootstrap` materializes a workspace from the `.mgitconfig` in the current directory. It clones every missing typed repository entry that has a `-> <clone-url>` suffix, then follows manifests that arrive with those clones. Standard repositories are cloned normally, bare repositories with `--bare`, and nested repositories into the `.bare/` plus `main/` layout.
 
 Bootstrap never replaces an existing path: a present repository is retained and checked for the declared structure; a non-repository path or structure mismatch is an error. Directory entries must already exist because they have no clone source. Use `mgit register` in an existing workspace to add each repository's `origin` URL before committing the manifests.
 
