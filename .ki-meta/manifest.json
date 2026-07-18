@@ -1,15 +1,21 @@
 {
-  "ref": "b3022c2f9fef995549eeffe15c301f85bdc9e60b",
+  "ref": "aa41f2c",
   "files": {
-    ".ki-meta/skills/ki-authoring/audit.ts": "686be5f1c00e76ea76f494050eabb8fc4708ee92a741391b9dc346f7010aa41d",
-    ".ki-meta/skills/ki-authoring/conform.ts": "6d5232b279764152f68909b85f96518191e068f3108a75d57030ce5759bd3c93",
-    ".ki-meta/skills/ki-authoring/help.md": "2eaed57639dba4200bc06850d16e8bc2b430fa2fd29180ab9c0cec96e8434fe7",
-    ".ki-meta/skills/ki-repo/audit.ts": "606d8b5be46f7320bd32cd94d349cc0dea97b3cd69901ee46a3641a3ed77e7fd",
-    ".ki-meta/skills/ki-repo/conform.ts": "5c24bb22b658ab62d2402c9adb4ec1e27889ae9790925dba7be50a57150ed145",
-    ".ki-meta/skills/ki-repo/help.md": "c5167327b31559fd7c70c5cd9bfe44e68343ea135a4d145197a339a1a83dec83",
-    ".ki-meta/skills/ki-tools/audit.ts": "ad09ae7328ab69dc16b133605a649193f89fda052fc81affa866778216d6022a",
-    ".ki-meta/skills/ki-tools/conform.ts": "5577a7c9f0d3772fadb600e2bac26168d41a08ab79f165efeceeb59fc3ae74dd",
-    ".ki-meta/skills/ki-tools/help.md": "f88ed18c6b661c7aa3b14940617c5db8f6f650bc03abcc8695ea6ec03ba2864b",
-    ".ki-meta/bin/aggregate.ts": "d453fe6a3f623f71b656cc3d802bb1088c7280094f548fb106bce95ab7446845"
+    ".ki-meta/checkers/ki-authoring/scripts/audit.ts": "4236346582d4ffefdcce65739c6b0d4b805eeb0ac7624dc9ca6e292fae3bdd57",
+    ".ki-meta/checkers/ki-authoring/scripts/conform.ts": "0d0ecb4fb9df3f4b4ec84201ef2af51191a0ac9b05ee563f89c033b1b485603a",
+    ".ki-meta/checkers/ki-authoring/references/rubric.md": "3ef0af5b69dde5ca6e10ec75b8c9aa241d8ac35ceb6065dcf1980e5b62881210",
+    ".ki-meta/checkers/ki-authoring/scripts/vendored/ki-skills/checker-reporter.ts": "41d95a0c1759278f87812a91d283b85cc036349be1010eb0cc53580e3ba22344",
+    ".ki-meta/checkers/ki-authoring/help.md": "2eaed57639dba4200bc06850d16e8bc2b430fa2fd29180ab9c0cec96e8434fe7",
+    ".ki-meta/checkers/ki-repo/scripts/audit.ts": "78f412da69b8bb9a76e9c93c968c9ec0e981e50d60990348aa28fb1b94ca9a73",
+    ".ki-meta/checkers/ki-repo/scripts/conform.ts": "9d86828cb458b6f4a3dc7c1dac97d28af9cd48714986cc1841f52adc03d34fc6",
+    ".ki-meta/checkers/ki-repo/references/rubric.md": "928ef82f285d4276937feee7da33c78d4fc7702e655dd7bd2d27de15ae7acad6",
+    ".ki-meta/checkers/ki-repo/scripts/vendored/ki-skills/checker-reporter.ts": "41d95a0c1759278f87812a91d283b85cc036349be1010eb0cc53580e3ba22344",
+    ".ki-meta/checkers/ki-repo/help.md": "c5167327b31559fd7c70c5cd9bfe44e68343ea135a4d145197a339a1a83dec83",
+    ".ki-meta/checkers/ki-tools/scripts/audit.ts": "604c2179def203cb208055e86641027c40f616b37c232e75f0d9a613d5c8c301",
+    ".ki-meta/checkers/ki-tools/scripts/conform.ts": "068d05788b2855536b1567115f6870f6e1f4657d5ffdde9d347a1b81acdc4fc5",
+    ".ki-meta/checkers/ki-tools/references/rubric.md": "4453dfa20220b7f50d21b440224080de7fd121acdb4907e32372a2fbd497747c",
+    ".ki-meta/checkers/ki-tools/scripts/vendored/ki-skills/checker-reporter.ts": "41d95a0c1759278f87812a91d283b85cc036349be1010eb0cc53580e3ba22344",
+    ".ki-meta/checkers/ki-tools/help.md": "f88ed18c6b661c7aa3b14940617c5db8f6f650bc03abcc8695ea6ec03ba2864b",
+    ".ki-meta/bin/aggregate.ts": "b7cfeba11bfed928c0313eb86112378dea7161c11171c472a03a8912ab4aaaaa"
   }
 }
