@@ -136,6 +136,8 @@ Repository entries may append `-> <clone-url>`, for example `nested platform -> 
 
 `mgit register` writes a `.mgitconfig` into every container dir (listing its child containers and repos) and into every leaf dir that owns cross-repo symlinks (listing them). It stops at leaf dirs — it never descends into a repo — and always scans fresh, overwriting generated manifests. Run it once to snapshot a workspace, and again whenever the layout changes.
 
+When [Chezmoi](https://www.chezmoi.io/) is installed and configured, `mgit register` adds each generated manifest below Chezmoi's target directory to the Chezmoi source state as well. It uses `chezmoi add`, so Chezmoi controls the source filename and layout. Manifests outside the target directory, and manifests generated inside Chezmoi's source directory, remain local only.
+
 ### `mgit bootstrap`
 
 `mgit bootstrap` materializes a workspace from the `.mgitconfig` in the current directory. It clones every missing typed repository entry that has a `-> <clone-url>` suffix, then follows manifests that arrive with those clones. Standard repositories are cloned normally, bare repositories with `--bare`, and nested repositories into the `.bare/` plus `main/` layout.

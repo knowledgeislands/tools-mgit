@@ -29,7 +29,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgitconfig
-MGIT_VERSION=0.5.0
+MGIT_VERSION=0.5.1
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
@@ -65,7 +65,8 @@ Subcommand:
                          child containers/repos) and in every leaf dir that owns
                          cross-repo symlinks (listing them). Stops at leaf dirs,
                          never descending into a repo. Always scans fresh
-                         (implies -I) and overwrites generated files.
+                         (implies -I) and overwrites generated files. If chezmoi
+                         manages the current path, also updates its source state.
   bootstrap              Clone missing repositories declared with a source URL in
                          .mgitconfig, recreating standard, nested, and bare layouts.
   worktree list           List worktrees, grouped by shared Git store.
@@ -397,6 +398,62 @@ expand_tilde() {
   esac
 }
 
+# When chezmoi is configured, let it map generated manifests back into its
+# source state. This keeps chezmoi's naming, permissions, and source layout
+# authoritative instead of trying to reproduce them here. Only paths inside
+# chezmoi's target directory participate; its source directory itself is
+# deliberately excluded to avoid managing the source repository recursively.
+chezmoi_enabled=false
+chezmoi_source_dir=""
+chezmoi_target_dir=""
+chezmoi_init() {
+  local source target
+  command -v chezmoi >/dev/null 2>&1 || return 0
+  source=$(chezmoi source-path 2>/dev/null) || return 0
+  target=$(chezmoi target-path 2>/dev/null) || return 0
+  source=$(canon_dir "$source") || return 0
+  target=$(canon_dir "$target") || return 0
+  [ -n "$source" ] && [ -n "$target" ] || return 0
+  chezmoi_source_dir="$source"
+  chezmoi_target_dir="$target"
+  chezmoi_enabled=true
+}
+
+chezmoi_target_file() {
+  local path="$1" parent canonical
+  [ "$chezmoi_enabled" = true ] || return 1
+  parent=$(canon_dir "$(dirname "$path")") || return 1
+  canonical="$parent/$(basename "$path")"
+  case "$canonical" in
+    "$chezmoi_source_dir"/*) return 1 ;;
+    "$chezmoi_target_dir"/*) printf '%s' "$canonical" ;;
+    *) return 1 ;;
+  esac
+}
+
+chezmoi_add_manifest() {
+  local path="$1" target
+  target=$(chezmoi_target_file "$path") || return 0
+  if ! chezmoi add "$target"; then
+    printf 'mgit register: failed to add manifest to chezmoi: %s\n' "$target" >&2
+    return 1
+  fi
+  printf 'mgit register: added to chezmoi: %s\n' "$target"
+}
+
+chezmoi_forget_manifest() {
+  local path="$1" target
+  target=$(chezmoi_target_file "$path") || return 0
+  # source-path succeeds only for an entry chezmoi already manages; an
+  # unmanaged local manifest has nothing to remove from the source state.
+  chezmoi source-path "$target" >/dev/null 2>&1 || return 0
+  if ! chezmoi forget "$target"; then
+    printf 'mgit register: failed to remove manifest from chezmoi: %s\n' "$target" >&2
+    return 1
+  fi
+  printf 'mgit register: removed from chezmoi: %s\n' "$target"
+}
+
 # register, repo case: scan dir $1 for symlinks into *other* git repos and write
 # its .mgitconfig (symlink lines only). Removes a stale config if none are found.
 #
@@ -426,7 +483,10 @@ register_repo() {
              -o -type l -print 2>/dev/null | sort)
 
   if [ ${#found_links[@]} -eq 0 ]; then
-    [ -f "$dir/$MGIT_CONFIG" ] && rm -f "$dir/$MGIT_CONFIG"
+    if [ -f "$dir/$MGIT_CONFIG" ]; then
+      chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
+      rm -f "$dir/$MGIT_CONFIG" || return 2
+    fi
     return 0
   fi
   width=0
@@ -437,7 +497,8 @@ register_repo() {
     for i in "${!found_links[@]}"; do
       printf '%-*s -> %s\n' "$width" "${found_links[$i]}" "${found_targets[$i]}"
     done
-  } > "$dir/$MGIT_CONFIG"
+  } > "$dir/$MGIT_CONFIG" || return 2
+  chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
   printf '%s%s%s%s: recorded %d symlink(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#found_links[@]}"
   return 0
 }
@@ -454,7 +515,7 @@ reg_is_seen() {
   return 1
 }
 register_tree() {
-  local dir="$1" child kids=() k canon kind child_kind source
+  local dir="$1" child kids=() k canon kind child_kind source status
   # In -L mode, guard against symlink cycles by canonical path.
   if [ "$follow_symlinks" = true ]; then
     canon=$(canon_dir "$dir") || return 1
@@ -465,7 +526,9 @@ register_tree() {
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
     # checkout alone may own cross-repository symlinks to record.
-    [ "$kind" = standard ] && register_repo "$dir"
+    if [ "$kind" = standard ]; then
+      register_repo "$dir" || return 2
+    fi
     return 0
   fi
   for child in "$dir"/*/; do
@@ -479,15 +542,23 @@ register_tree() {
     fi
     child_kind=$(repo_type "$child")
     if [ "$child_kind" != unknown ]; then
-      register_tree "$child" || return 1
+      register_tree "$child"
+      status=$?
+      [ "$status" -eq 0 ] || return "$status"
       source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
       if [ -n "$source" ]; then
         kids+=("$child_kind $(basename "$child") -> $source")
       else
         kids+=("$child_kind $(basename "$child")")
       fi
-    elif register_tree "$child"; then
-      kids+=("dir $(basename "$child")")
+    else
+      register_tree "$child"
+      status=$?
+      if [ "$status" -eq 0 ]; then
+        kids+=("dir $(basename "$child")")
+      elif [ "$status" -ne 1 ]; then
+        return "$status"
+      fi
     fi
   done
   if [ ${#kids[@]} -gt 0 ]; then
@@ -496,11 +567,15 @@ register_tree() {
       printf '# standard/nested/bare PATH = repository structure; append " -> URL" to bootstrap it.\n'
       printf '# Structure labels are refreshed by register; Git remains the runtime source of truth.\n'
       for k in "${kids[@]}"; do printf '%s\n' "$k"; done
-    } > "$dir/$MGIT_CONFIG"
+    } > "$dir/$MGIT_CONFIG" || return 2
+    chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
     printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kids[@]}"
     return 0
   fi
-  [ -f "$dir/$MGIT_CONFIG" ] && rm -f "$dir/$MGIT_CONFIG"
+  if [ -f "$dir/$MGIT_CONFIG" ]; then
+    chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
+    rm -f "$dir/$MGIT_CONFIG" || return 2
+  fi
   return 1
 }
 
@@ -1109,11 +1184,15 @@ if [ "${1:-}" = "register" ]; then
     # shellcheck disable=SC2317  # reachable once register grows an option that doesn't exit
     shift
   done
+  chezmoi_init
   if register_tree "."; then
     exit 0
   else
-    printf 'mgit register: no git repos found under %s\n' "$(pwd)" >&2
-    exit 1
+    status=$?
+    if [ "$status" -eq 1 ]; then
+      printf 'mgit register: no git repos found under %s\n' "$(pwd)" >&2
+    fi
+    exit "$status"
   fi
 fi
 

@@ -59,6 +59,50 @@ make_origin() {
   git -C "$checkout" push -q -u origin HEAD
 }
 
+make_fake_chezmoi() {
+  local bin="$TREE/fake-bin"
+  CHEZMOI_TARGET=$(cd "$TREE" && pwd -P)
+  CHEZMOI_SOURCE="$CHEZMOI_TARGET/dotfiles"
+  CHEZMOI_LOG="$TREE/chezmoi.log"
+  export CHEZMOI_SOURCE CHEZMOI_TARGET CHEZMOI_LOG
+  mkdir -p "$bin" "$CHEZMOI_SOURCE"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'source_for() {' \
+    '  local target="$1" relative parent name' \
+    '  case "$target" in "$CHEZMOI_TARGET"/*) ;; *) return 1 ;; esac' \
+    '  relative="${target#"$CHEZMOI_TARGET"/}"' \
+    '  parent=$(dirname "$relative")' \
+    '  name=$(basename "$relative")' \
+    '  [ "$parent" = . ] && parent="" || parent="$parent/"' \
+    '  printf "%s/%sdot_%s\\n" "$CHEZMOI_SOURCE" "$parent" "${name#.}"' \
+    '}' \
+    'case "${1:-}" in' \
+    '  source-path)' \
+    '    if [ "$#" -eq 1 ]; then printf "%s\\n" "$CHEZMOI_SOURCE"; exit 0; fi' \
+    '    source=$(source_for "$2") || exit 1' \
+    '    [ -e "$source" ] || exit 1' \
+    '    printf "%s\\n" "$source"' \
+    '    ;;' \
+    '  target-path) printf "%s\\n" "$CHEZMOI_TARGET" ;;' \
+    '  add)' \
+    '    [ "${CHEZMOI_FAIL_ADD:-false}" = true ] && exit 1' \
+    '    source=$(source_for "$2") || exit 1' \
+    '    mkdir -p "$(dirname "$source")"' \
+    '    cp "$2" "$source"' \
+    '    printf "add %s\\n" "$2" >> "$CHEZMOI_LOG"' \
+    '    ;;' \
+    '  forget)' \
+    '    source=$(source_for "$2") || exit 1' \
+    '    rm -f "$source"' \
+    '    printf "forget %s\\n" "$2" >> "$CHEZMOI_LOG"' \
+    '    ;;' \
+    '  *) exit 2 ;;' \
+    'esac' > "$bin/chezmoi"
+  chmod +x "$bin/chezmoi"
+  PATH="$bin:$PATH"
+}
+
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
@@ -68,7 +112,7 @@ make_origin() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.5.0" ]]
+  [[ "$output" == "mgit 0.5.1" ]]
 }
 
 @test "completion prints bash and zsh setup" {
@@ -118,6 +162,52 @@ make_origin() {
   ( cd "$TREE" && run_ok "$MGIT" register )
 
   grep -Fx "standard repoA -> $TREE/repoA.origin.git" "$TREE/.mgitconfig"
+}
+
+@test "register synchronizes generated manifests with chezmoi" {
+  make_fake_chezmoi
+  make_origin "$TREE/repoA" "$BATS_TEST_TMPDIR/repoA.origin.git" payload
+
+  cd "$TREE"
+  run "$MGIT" register
+
+  [ "$status" -eq 0 ]
+  cmp "$TREE/.mgitconfig" "$CHEZMOI_SOURCE/dot_mgitconfig"
+  grep -Fx "standard repoA -> $BATS_TEST_TMPDIR/repoA.origin.git" "$CHEZMOI_SOURCE/dot_mgitconfig"
+  grep -Fx "add $CHEZMOI_TARGET/.mgitconfig" "$CHEZMOI_LOG"
+
+  mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
+  run "$MGIT" register
+
+  [ "$status" -eq 1 ]
+  [ ! -e "$TREE/.mgitconfig" ]
+  [ ! -e "$CHEZMOI_SOURCE/dot_mgitconfig" ]
+  grep -Fx "forget $CHEZMOI_TARGET/.mgitconfig" "$CHEZMOI_LOG"
+}
+
+@test "register reports chezmoi synchronization failures" {
+  make_fake_chezmoi
+  export CHEZMOI_FAIL_ADD=true
+  mkrepo "$TREE/repoA"
+
+  cd "$TREE"
+  run "$MGIT" register
+
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"failed to add manifest to chezmoi"* ]]
+  [[ "$output" != *"no git repos found"* ]]
+}
+
+@test "register does not manage manifests inside the chezmoi source directory" {
+  make_fake_chezmoi
+  mkrepo "$CHEZMOI_SOURCE/repoA"
+
+  cd "$CHEZMOI_SOURCE"
+  run "$MGIT" register
+
+  [ "$status" -eq 0 ]
+  [ -f "$CHEZMOI_SOURCE/.mgitconfig" ]
+  [ ! -e "$CHEZMOI_LOG" ]
 }
 
 @test "bootstrap clones typed manifest members and recreates nested layout" {
