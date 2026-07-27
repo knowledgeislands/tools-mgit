@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] — 2026-07-27
+
+### Added
+
+- An installable `mgit(1)` manual covering commands, manifests, repository structures, worktrees, and exit statuses.
+
 ## [0.5.1] — 2026-07-21
 
 ### Added
@@ -78,3 +84,4 @@ Initial public release.
 [0.3.1]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.3.1
 [0.5.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.0
 [0.5.1]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.1
+[0.5.2]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.2

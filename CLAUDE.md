@@ -18,7 +18,8 @@ bun skills/ki-tools/scripts/audit-tools.ts ../tools-mgit
 ## Shape (what ki-tools expects)
 
 - [bin/mgit](./bin/mgit) — the executable (chmod +x); carries `MGIT_VERSION` and answers `--version`.
-- [install.sh](./install.sh) — the `curl | bash` installer; honours `MGIT_INSTALL_DIR` / `MGIT_VERSION`.
+- [man/mgit.1](./man/mgit.1) — the tracked `mgit(1)` manual, which must match the current command surface.
+- [install.sh](./install.sh) — the `curl | bash` installer; honours `MGIT_INSTALL_DIR`, `MGIT_MAN_INSTALL_DIR`, and `MGIT_VERSION`.
 - [tests/mgit.bats](./tests/mgit.bats) — the bats smoke suite.
 - [.github/workflows/ci.yml](./.github/workflows/ci.yml) — CI: `shellcheck` + `bats`.
 - Distribution: a companion formula in the [homebrew-tap](https://github.com/knowledgeislands/homebrew-tap) repo (`brew install knowledgeislands/tap/mgit`).

@@ -1,0 +1,199 @@
+.TH MGIT 1 "2026-07-27" "Knowledge Islands" "User Commands"
+.SH NAME
+mgit \- run commands across multiple Git repositories
+.SH SYNOPSIS
+.TP
+.B mgit
+List the repositories in the current set.
+.TP
+.B mgit [\fIoptions\fR] [\fIcommand\fR ...]
+Run
+.B git
+with the supplied command and arguments in every repository in the current set.
+.TP
+.B mgit [\fIoptions\fR] \-B \fIcommand\fR [\fIargument\fR ...]
+Run a command directly, without prefixing it with
+.BR git ,
+in every repository in the current set.
+.TP
+.B mgit register
+Generate
+.I .mgitconfig
+manifests for the current tree.
+.TP
+.B mgit bootstrap
+Clone missing repositories declared by the current
+.I .mgitconfig
+manifest.
+.TP
+.B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
+Convert every eligible repository in the current set between standard and nested structures.
+.TP
+.B mgit worktree \fIlist|status\fR
+List worktrees or show their branch and cleanliness.
+.TP
+.B mgit worktree add \fIBRANCH\fR
+Add a linked checkout for an existing remote branch in every structured repository.
+.TP
+.B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
+Remove one linked worktree.
+.TP
+.B mgit completion \fIbash|zsh\fR
+Print shell completion source.
+.SH DESCRIPTION
+.B mgit
+runs a Git command, or an arbitrary command with
+.BR \-B ,
+across a set of repositories.
+Before each invocation it prints the repository path and command.
+With no command it prints the repository paths that would be used.
+.PP
+The set comes from a
+.I .mgitconfig
+in the current directory when one is present.
+Otherwise,
+.B mgit
+walks the current tree for Git repositories, omitting repositories nested inside another repository.
+The
+.B \-I
+option always uses discovery instead of manifests.
+.SH OPTIONS
+.TP
+.BR \-P , " \-\-physical"
+Do not follow symlinked container directories.
+This is the default.
+Symlinked repositories are never followed.
+.TP
+.BR \-L , " \-\-follow-symlinks"
+Follow symlinked container directories while discovering repositories.
+.TP
+.BR \-B , " \-\-bare"
+Run the supplied command directly rather than as a
+.B git
+subcommand.
+.TP
+.BR \-I , " \-\-ignore"
+Ignore
+.I .mgitconfig
+files and discover repositories by walking the tree.
+.TP
+.BR \-h , " \-\-help"
+Print usage information and exit.
+.TP
+.BR \-V , " \-\-version"
+Print the version and exit.
+.SH COMMANDS
+.SS register
+.B mgit register
+scans the current tree and writes a
+.I .mgitconfig
+in every container directory, listing child containers and repositories.
+It also writes a manifest in a repository that owns cross-repository symlinks.
+The command does not descend into repositories, always performs a fresh scan, and overwrites generated manifests.
+.PP
+When Chezmoi is installed and configured, generated manifests below its target directory are added to Chezmoi's source state.
+.SS bootstrap
+.B mgit bootstrap
+uses the manifest in the current directory to clone every missing typed repository entry with a source URL.
+It creates standard, nested, and bare repositories in their declared forms.
+Existing paths are never replaced: a present repository must match its declared structure, and directory entries must already exist.
+.SS structure
+.B mgit structure nested
+converts each eligible clean, attached standard checkout to a nested repository.
+.B mgit structure standard
+performs the reverse conversion only when the nested repository has its required
+.I main/
+checkout and no other linked worktrees.
+.PP
+Both forms require exactly one of
+.B \-\-dry-run
+to preview changes or
+.B \-\-yes
+to make them.
+.SS worktree
+.B mgit worktree list
+groups linked worktrees by their shared Git store.
+.B mgit worktree status
+shows each worktree's branch and cleanliness.
+.PP
+.B mgit worktree add \fIBRANCH\fR
+adds a checkout for an existing
+.B origin/\fIBRANCH\fR
+to every structured repository after preflighting the full set.
+.B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR
+removes one linked checkout and never removes the primary or required
+.I main/
+checkout.
+Pass
+.B \-\-force
+to discard dirty changes in that linked checkout.
+.SS completion
+.B mgit completion bash
+and
+.B mgit completion zsh
+print shell completion definitions to standard output.
+For example, source the Bash definition with:
+.PP
+.nf
+source <(mgit completion bash)
+.fi
+.SH MANIFESTS
+A
+.I .mgitconfig
+line may declare a child repository or container directory:
+.PP
+.nf
+standard path [-> clone-url]
+nested path [-> clone-url]
+bare path [-> clone-url]
+dir path
+.fi
+.PP
+An untyped path remains valid for compatibility.
+A line of the form
+.B link -> target
+declares a symlink the current repository owns and whose target is in another repository.
+Blank lines and comments beginning with
+.B #
+are ignored.
+Relative paths are resolved from the manifest's directory; absolute and
+.B ~/
+paths are also accepted.
+.SH REPOSITORY STRUCTURES
+A standard repository is an ordinary checkout with a
+.I .git/
+directory.
+A nested repository is an
+.B mgit
+controller containing a
+.I .bare/
+shared Git store, a
+.I .git
+controller file, and a required
+.I main/
+checkout.
+Commands operate in live checkouts, never in the nested controller or bare store.
+.SH FILES
+.TP
+.I .mgitconfig
+Optional repository-set manifest in the current directory and nested container directories.
+.SH EXIT STATUS
+.TP
+.B 0
+The requested operation completed successfully.
+.TP
+.B 1
+An operation failed.
+.TP
+.B 2
+The command grammar was invalid, a required confirmation was absent, or an unsupported option was supplied.
+.PP
+For a fan-out command,
+.B mgit
+returns the exit status of the last command it invokes.
+.SH SEE ALSO
+.BR git (1),
+.BR git-worktree (1)
+.PP
+The project README and the worktree structures guide are available at
+.I https://github.com/knowledgeislands/tools-mgit .

@@ -18,7 +18,7 @@ brew install knowledgeislands/tap/mgit
 curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
 ```
 
-The installer drops `mgit` into `~/.local/bin` by default; set `MGIT_INSTALL_DIR` to change that, or `MGIT_VERSION` to pin a tag.
+The installer drops `mgit` into `~/.local/bin` by default; set `MGIT_INSTALL_DIR` to change that, or `MGIT_VERSION` to pin a tag. When the selected version contains it, it installs the [mgit(1) manual](man/mgit.1) in the corresponding `share/man/man1` directory; set `MGIT_MAN_INSTALL_DIR` to override that location.
 
 Requirements: `bash` (3.2+, the macOS system bash is fine) and `git`.
 

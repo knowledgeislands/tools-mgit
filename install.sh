@@ -4,14 +4,16 @@
 #   curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
 #
 # Environment overrides:
-#   MGIT_INSTALL_DIR   target directory for the mgit binary (default: $HOME/.local/bin)
-#   MGIT_VERSION       git ref to install: a tag like v0.1.0, or a branch (default: latest release)
+#   MGIT_INSTALL_DIR       target directory for the mgit binary (default: $HOME/.local/bin)
+#   MGIT_MAN_INSTALL_DIR   target directory for mgit(1) (default: matching share/man/man1 directory)
+#   MGIT_VERSION           git ref to install: a tag like v0.1.0, or a branch (default: latest release)
 #
 # Requires: bash, curl, and git (git is mgit's own runtime dependency).
 set -euo pipefail
 
 REPO="knowledgeislands/tools-mgit"
 INSTALL_DIR="${MGIT_INSTALL_DIR:-${PREFIX:-$HOME/.local/bin}}"
+MAN_INSTALL_DIR="${MGIT_MAN_INSTALL_DIR:-$(dirname "$INSTALL_DIR")/share/man/man1}"
 
 say()  { printf 'mgit-install: %s\n' "$*"; }
 die()  { printf 'mgit-install: error: %s\n' "$*" >&2; exit 1; }
@@ -28,16 +30,26 @@ if [ -z "$ref" ]; then
 fi
 
 src="https://raw.githubusercontent.com/$REPO/$ref/bin/mgit"
+man_src="https://raw.githubusercontent.com/$REPO/$ref/man/mgit.1"
 say "installing mgit ($ref) to $INSTALL_DIR"
 
 mkdir -p "$INSTALL_DIR"
+mkdir -p "$MAN_INSTALL_DIR"
 tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+man_tmp=$(mktemp)
+trap 'rm -f "$tmp" "$man_tmp"' EXIT
 curl -fsSL "$src" -o "$tmp" || die "download failed: $src"
 head -n1 "$tmp" | grep -q '^#!/usr/bin/env bash' || die "downloaded file is not the mgit script"
 
 install -m 0755 "$tmp" "$INSTALL_DIR/mgit"
 say "installed $INSTALL_DIR/mgit"
+if curl -fsSL "$man_src" -o "$man_tmp"; then
+  head -n1 "$man_tmp" | grep -q '^\.TH MGIT 1' || die "downloaded file is not the mgit manual"
+  install -m 0644 "$man_tmp" "$MAN_INSTALL_DIR/mgit.1"
+  say "installed $MAN_INSTALL_DIR/mgit.1"
+else
+  say "warning: manual unavailable for $ref; installed the executable only"
+fi
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) : ;;

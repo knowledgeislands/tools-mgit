@@ -112,7 +112,51 @@ make_fake_chezmoi() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.5.1" ]]
+  [[ "$output" == "mgit 0.5.2" ]]
+}
+
+@test "installer installs the manual and tolerates older releases without one" {
+  local fake_bin="$BATS_TEST_TMPDIR/fake-bin"
+  local install_bin="$BATS_TEST_TMPDIR/bin"
+  local install_man="$BATS_TEST_TMPDIR/man/man1"
+  local missing_man="$BATS_TEST_TMPDIR/missing-man/man1"
+  mkdir -p "$fake_bin"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case "$2" in' \
+    '  */bin/mgit) cp "$FAKE_MGIT" "$4" ;;' \
+    '  */man/mgit.1) [ -n "$FAKE_MAN" ] || exit 22; cp "$FAKE_MAN" "$4" ;;' \
+    '  *) exit 1 ;;' \
+    'esac' > "$fake_bin/curl"
+  chmod +x "$fake_bin/curl"
+
+  run env \
+    FAKE_MGIT="$MGIT" \
+    FAKE_MAN="$BATS_TEST_DIRNAME/../man/mgit.1" \
+    MGIT_INSTALL_DIR="$install_bin" \
+    MGIT_MAN_INSTALL_DIR="$install_man" \
+    MGIT_VERSION=test \
+    PATH="$fake_bin:$PATH" \
+    "$BATS_TEST_DIRNAME/../install.sh"
+
+  [ "$status" -eq 0 ]
+  [ -x "$install_bin/mgit" ]
+  cmp "$MGIT" "$install_bin/mgit"
+  cmp "$BATS_TEST_DIRNAME/../man/mgit.1" "$install_man/mgit.1"
+
+  run env \
+    FAKE_MGIT="$MGIT" \
+    FAKE_MAN="" \
+    MGIT_INSTALL_DIR="$install_bin" \
+    MGIT_MAN_INSTALL_DIR="$missing_man" \
+    MGIT_VERSION=older-release \
+    PATH="$fake_bin:$PATH" \
+    "$BATS_TEST_DIRNAME/../install.sh"
+
+  [ "$status" -eq 0 ]
+  [ -x "$install_bin/mgit" ]
+  [ ! -e "$missing_man/mgit.1" ]
+  [[ "$output" == *"manual unavailable for older-release"* ]]
 }
 
 @test "completion prints bash and zsh setup" {
