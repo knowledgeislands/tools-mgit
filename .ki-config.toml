@@ -6,6 +6,8 @@ visibility = "public"
 [ki-repo.checks]
 topics = false
 
+[ki-git]
+
 [ki-authoring]
 
 [ki-tools]
