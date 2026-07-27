@@ -29,7 +29,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgitconfig
-MGIT_VERSION=0.5.2
+MGIT_VERSION=0.6.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
@@ -57,6 +57,9 @@ Options:
   -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
   -B, --bare             Run bare; don't prefix command with git
   -I, --ignore           Ignore .mgitconfig files; walk the tree instead
+  -f, --filter GLOB      Limit the repo set to repos whose path matches GLOB;
+                         a bare pattern also matches a repo's last path
+                         component. Repeatable; repeats union.
   -h, --help             Show this message
   -V, --version          Print version and exit
 
@@ -103,7 +106,7 @@ _mgit() {
       COMPREPLY=( $(compgen -W 'bash zsh' -- "$cur") )
       ;;
     *)
-      COMPREPLY=( $(compgen -W 'register bootstrap structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -h --help -V --version' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'register bootstrap structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -f --filter -h --help -V --version' -- "$cur") )
       ;;
   esac
 }
@@ -132,6 +135,8 @@ _mgit() {
     '--bare[run command without git prefix]'
     '-I[ignore .mgitconfig files]'
     '--ignore[ignore .mgitconfig files]'
+    '-f[limit the repo set to paths matching a glob]:glob pattern:'
+    '--filter[limit the repo set to paths matching a glob]:glob pattern:'
     '-h[show help]'
     '--help[show help]'
     '-V[show version]'
@@ -1141,9 +1146,22 @@ worktree_command() {
   esac
 }
 
+# Glob match of display path $1 against the -f patterns: the whole path, or
+# the pattern against a trailing component (so 'mcp-*' selects the mcp repos
+# wherever they sit in the tree).
+filter_match() {
+  local path="$1" pattern
+  for pattern in "${filters[@]}"; do
+    # shellcheck disable=SC2254  # patterns must stay unquoted to glob
+    case "$path" in $pattern|*/$pattern) return 0 ;; esac
+  done
+  return 1
+}
+
 follow_symlinks=false
 bare=false
 read_config=true
+filters=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -1151,6 +1169,9 @@ while [ $# -gt 0 ]; do
     -L|--follow-symlinks) follow_symlinks=true ;;
     -B|--bare)            bare=true ;;
     -I|--ignore)          read_config=false ;;
+    -f|--filter)
+      [ $# -ge 2 ] || { printf 'mgit: %s requires a glob pattern\n' "$1" >&2; exit 2; }
+      filters+=("$2"); shift ;;
     -h|--help)            usage; exit 0 ;;
     -V|--version)         printf 'mgit %s\n' "$MGIT_VERSION"; exit 0 ;;
     --)                   shift; break ;;
@@ -1305,6 +1326,17 @@ while [ $qi -lt ${#queue[@]} ]; do
 done
 
 repo_units=("${final[@]+"${final[@]}"}")
+
+# -f narrows the final set only: discovery and manifest walking still cover the
+# whole hierarchy, so filters and symlink transitivity compose predictably.
+if [ ${#filters[@]} -gt 0 ]; then
+  kept=()
+  for r in "${repo_units[@]+"${repo_units[@]}"}"; do
+    filter_match "$r" && kept+=("$r")
+  done
+  repo_units=("${kept[@]+"${kept[@]}"}")
+fi
+
 repos=()
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
   c=$(canon_dir "$r") || continue

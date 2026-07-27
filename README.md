@@ -55,6 +55,9 @@ mgit status                   # git status in each repo
 mgit pull --ff-only           # fast-forward every repo
 mgit -B 'bun install'         # run a non-git command in each repo
 mgit                          # just list the discovered repos
+mgit -f 'mcp-*' status        # only the repos matching the glob
+mgit -f 'mcp-*' -B bun run build   # bare command on the filtered set
+
 ```
 
 ### Options
@@ -65,8 +68,11 @@ mgit                          # just list the discovered repos
 | `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos).        |
 | `-B`, `--bare`            | Run the command bare, without prefixing it with `git`.          |
 | `-I`, `--ignore`          | Ignore `.mgitconfig` files; discover repos by walking the tree. |
+| `-f`, `--filter GLOB`     | Limit the set to repos matching GLOB (repeatable). †            |
 | `-h`, `--help`            | Show usage.                                                     |
 | `-V`, `--version`         | Print the version.                                              |
+
+† The glob matches the repo's path relative to the cwd; a bare pattern also matches the repo's last path component, so `mcp-*` selects the mcp repos wherever they sit in the tree. Repeated `-f` options union. The filter narrows normal commands, the listing, and the `structure`/`worktree` set commands; `register` and `bootstrap` are unaffected.
 
 ## Worktrees
 

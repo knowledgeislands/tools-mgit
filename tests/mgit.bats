@@ -112,7 +112,7 @@ make_fake_chezmoi() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.5.2" ]]
+  [[ "$output" == "mgit 0.6.0" ]]
 }
 
 @test "installer installs the manual and tolerates older releases without one" {
@@ -445,6 +445,55 @@ make_fake_chezmoi() {
   [ -d "$TREE/repoA/.git" ]
   [ ! -d "$TREE/repoA/.bare" ]
   [ "$(git -C "$TREE/repoA" status --porcelain)" = "" ]
+}
+
+@test "--filter limits the repo set by glob" {
+  mkrepo "$TREE/mcp-a"
+  mkrepo "$TREE/mcp-b"
+  mkrepo "$TREE/sub/mcp-c"
+  mkrepo "$TREE/tools-d"
+
+  cd "$TREE"
+  run "$MGIT" -f 'mcp-*'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mcp-a"* ]]
+  [[ "$output" == *"mcp-b"* ]]
+  [[ "$output" == *"sub/mcp-c"* ]]
+  [[ "$output" != *"tools-d"* ]]
+
+  run "$MGIT" -f 'mcp-a' -f 'tools-*'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mcp-a"* ]]
+  [[ "$output" != *"mcp-b"* ]]
+  [[ "$output" == *"tools-d"* ]]
+}
+
+@test "--filter applies to bare commands and requires a pattern" {
+  mkrepo "$TREE/mcp-a"
+  mkrepo "$TREE/tools-b"
+
+  cd "$TREE"
+  run "$MGIT" -f 'mcp-*' -B pwd
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$TREE/mcp-a"* ]]
+  [[ "$output" != *"tools-b"* ]]
+
+  run "$MGIT" --filter
+  [ "$status" -eq 2 ]
+}
+
+@test "--filter selects whole repos, keeping their linked worktrees" {
+  mkrepo "$TREE/mcp-a"
+  make_managed_worktree_repo "$TREE/mcp-a"
+  git -C "$TREE/mcp-a" worktree add -q "$TREE/mcp-a/featureA" -b featureA
+  mkrepo "$TREE/tools-b"
+
+  cd "$TREE"
+  run "$MGIT" -f 'mcp-*'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mcp-a/main"* ]]
+  [[ "$output" == *"mcp-a/featureA"* ]]
+  [[ "$output" != *"tools-b"* ]]
 }
 
 # Helper: run a command, failing the test if it errors (for use inside subshells

@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-07-27
+
+### Added
+
+- `-f`/`--filter GLOB` limits the repository set to repos whose cwd-relative path (or last path component) matches a shell glob. Repeatable; repeats union. The filter narrows normal commands, the listing, and the `structure`/`worktree` set commands, and composes with `-B`; `register` and `bootstrap` are unaffected.
+
 ## [0.5.2] — 2026-07-27
 
 ### Added
@@ -85,3 +91,4 @@ Initial public release.
 [0.5.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.0
 [0.5.1]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.1
 [0.5.2]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.2
+[0.6.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.6.0

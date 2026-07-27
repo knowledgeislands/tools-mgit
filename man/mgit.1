@@ -77,6 +77,23 @@ Ignore
 .I .mgitconfig
 files and discover repositories by walking the tree.
 .TP
+.BR \-f , " \-\-filter" " \fIGLOB\fR"
+Limit the repository set to repositories whose path, relative to the current
+directory, matches the shell glob
+.IR GLOB .
+A bare pattern also matches a repository's last path component, so
+.B mgit \-f 'mcp\-*'
+selects the mcp repositories wherever they sit in the tree.
+The option is repeatable; a repository matching any pattern is kept.
+The filter narrows normal commands, the repository listing, and the
+.B structure
+and
+.B worktree
+set commands; it does not affect
+.B register
+or
+.BR bootstrap .
+.TP
 .BR \-h , " \-\-help"
 Print usage information and exit.
 .TP
