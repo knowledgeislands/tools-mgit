@@ -20,3 +20,11 @@ topics = false
 # no [ki-engineering]. The tap formula is governed separately by [ki-homebrew-tap] in
 # the homebrew-tap repo.
 [ki-tools]
+
+[ki-tokenomics]
+
+[ki-housekeeping-claude]
+
+[ki-tokenomics-claude]
+
+[ki-tokenomics-codex]
