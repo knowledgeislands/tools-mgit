@@ -8,11 +8,10 @@ A single standalone command-line tool: `mgit`, a pure-bash multi-repo git driver
 
 ## Governance
 
-This is a Knowledge Islands `tools-*` repo, governed by the **`ki-tools`** repo-structure skill (see the [ki-agentic-harness](https://github.com/knowledgeislands/ki-agentic-harness)). It declares `[ki-repo]` + `[ki-tools]` in [.ki-config.toml](./.ki-config.toml). Because it has no `package.json`, it does **not** self-audit via `bun run ki:audit`; it is audited **from the harness**, like the `mcp-*` repos:
+This is a Knowledge Islands `tools-*` repo, governed by the **`ki-tools`** repo-structure skill (see the [ki-agentic-harness](https://github.com/knowledgeislands/ki-agentic-harness)). It declares `[ki-repo]` + `[ki-tools]` in [.ki-config.toml](./.ki-config.toml). It has no `package.json`; run the native repository audit directly:
 
 ```sh
-# from the ki-agentic-harness checkout
-bun skills/ki-tools/scripts/audit-tools.ts ../tools-mgit
+ki repo audit --repo .
 ```
 
 ## Shape (what ki-tools expects)
