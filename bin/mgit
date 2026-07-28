@@ -996,10 +996,10 @@ structure_nested_repository() {
   stage="$parent/.${name}.mgit-nested-$stamp"
   failed="$parent/.${name}.mgit-failed-$stamp"
   backup="$root/.mgit-backup-$stamp"
-  [ ! -e "$stage" ] && [ ! -e "$failed" ] || {
+  if [ -e "$stage" ] || [ -e "$failed" ]; then
     printf 'mgit structure nested: staging path already exists for %s\n' "$root" >&2
     return 1
-  }
+  fi
 
   mv "$root" "$stage" || return 1
   if ! mkdir "$root" || ! mv "$stage/.git" "$root/.bare" || \
@@ -1008,7 +1008,9 @@ structure_nested_repository() {
      ! git -C "$root" worktree add main "$branch"; then
     printf 'mgit structure nested: conversion failed; restoring %s\n' "$root" >&2
     mv "$root" "$failed" 2>/dev/null || true
-    [ -d "$failed/.bare" ] && mv "$failed/.bare" "$stage/.git" 2>/dev/null || true
+    if [ -d "$failed/.bare" ]; then
+      mv "$failed/.bare" "$stage/.git" 2>/dev/null || true
+    fi
     mv "$stage" "$root" 2>/dev/null || true
     printf 'mgit structure nested: failed attempt retained at %s\n' "$failed" >&2
     return 1
@@ -1059,10 +1061,10 @@ validate_standard_structure() {
   local root="$1" paths=() path changes
   [ "$(repo_type "$root")" = nested ] || return 1
   while IFS= read -r path; do [ -n "$path" ] && paths+=("$path"); done < <(active_worktree_paths "$root")
-  [ ${#paths[@]} -eq 1 ] && [ "$(canon_dir "${paths[0]}")" = "$(canon_dir "$root/main")" ] || {
+  if [ ${#paths[@]} -ne 1 ] || [ "$(canon_dir "${paths[0]}")" != "$(canon_dir "$root/main")" ]; then
     printf 'mgit structure standard: skipping repository with non-main worktrees: %s\n' "$root" >&2
     return 1
-  }
+  fi
   changes=$(git -C "$root/main" status --porcelain) || return 1
   [ -z "$changes" ] || {
     printf 'mgit structure standard: skipping dirty main worktree: %s\n' "$root" >&2
