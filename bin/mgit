@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2088  # literal '~' in .mgitconfig path strings is intentional, not tilde expansion
+# shellcheck disable=SC2088  # literal '~' in TOML path strings is intentional, not tilde expansion
 # shellcheck disable=SC2016  # backticks inside single-quoted generated-comment strings are literal
 # Run a command across multiple git repositories.
 #
@@ -7,16 +7,14 @@
 # .git directory) or a nested structure (a .bare store, a .git controller file,
 # and a main/ checkout). Container dirs are the directories between the
 # cwd and repository roots. The repo set comes from a
-# .mgitconfig in the current directory if one exists; otherwise the tree is
+# .mgit-config.toml in the current directory if one exists; otherwise the tree is
 # walked for .git entries (dropping any nested under another repo).
 #
-# A .mgitconfig holds two kinds of lines:
+# A .mgit-config.toml manifest maps a child path to its member table under
+# `members`, and a repository-owned link to its target under `symlinks`. Paths
+# are relative to the file's dir, or ~-prefixed / absolute.
 #
-#     <path>               a member: a child container dir, or a child repo
-#                          (relative to the file's dir, or ~-prefixed / absolute)
-#     <link>  ->  <target> a symlink a repo owns, pointing into another repo
-#
-# `mgit register` writes a .mgitconfig in every container dir (listing its
+# `mgit register` writes a .mgit-config.toml in every container dir (listing its
 # children) and in every leaf dir that owns cross-repo symlinks (listing them).
 # It stops at leaf dirs — it never descends into a repo — and always scans
 # fresh, ignoring existing config (so it implies -I).
@@ -28,7 +26,7 @@
 #
 # '#' comments and blank lines are ignored.
 
-MGIT_CONFIG=.mgitconfig
+MGIT_CONFIG=.mgit-config.toml
 MGIT_VERSION=0.6.0
 
 CLEAR=$'\033[0m'
@@ -47,16 +45,15 @@ Usage: mgit [options] [command]
 Runs supplied command on multiple git repositories.
 
 A "leaf dir" has a .git child (a repo); "container dirs" are the directories
-between the cwd and the leaf dirs. The repo set comes from ./.mgitconfig if
-present, else by walking the tree. A .mgitconfig holds two kinds of lines:
-  <path>               a member: a child container dir, or a child repo
-  <link>  ->  <target>  a symlink a repo owns, into another git repo
+between the cwd and the leaf dirs. The repo set comes from ./.mgit-config.toml
+if present, else by walking the tree. Its TOML `members` and `symlinks` tables
+declare child directories/repositories and cross-repository symlinks.
 
 Options:
   -P, --physical         Don't follow symlinked container dirs (default)
   -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
   -B, --bare             Run bare; don't prefix command with git
-  -I, --ignore           Ignore .mgitconfig files; walk the tree instead
+  -I, --ignore           Ignore .mgit-config.toml files; walk the tree instead
   -f, --filter GLOB      Limit the repo set to repos whose path matches GLOB;
                          a bare pattern also matches a repo's last path
                          component. Repeatable; repeats union.
@@ -64,14 +61,14 @@ Options:
   -V, --version          Print version and exit
 
 Subcommand:
-  register               Write a .mgitconfig in every container dir (listing its
+  register               Write a .mgit-config.toml in every container dir (listing its
                          child containers/repos) and in every leaf dir that owns
                          cross-repo symlinks (listing them). Stops at leaf dirs,
                          never descending into a repo. Always scans fresh
                          (implies -I) and overwrites generated files. If chezmoi
                          manages the current path, also updates its source state.
   bootstrap              Clone missing repositories declared with a source URL in
-                         .mgitconfig, recreating standard, nested, and bare layouts.
+                         .mgit-config.toml, recreating standard, nested, and bare layouts.
   worktree list           List worktrees, grouped by shared Git store.
   worktree status         Show branch and cleanliness for every working tree.
   structure nested        Convert eligible standard repos to nested structure.
@@ -120,8 +117,8 @@ EOF
 _mgit() {
   local -a global_commands global_options
   global_commands=(
-    'register:generate .mgitconfig manifests'
-    'bootstrap:clone missing repositories declared in .mgitconfig'
+    'register:generate .mgit-config.toml manifests'
+    'bootstrap:clone missing repositories declared in .mgit-config.toml'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
@@ -133,8 +130,8 @@ _mgit() {
     '--follow-symlinks[follow symlinked container directories]'
     '-B[run command without git prefix]'
     '--bare[run command without git prefix]'
-    '-I[ignore .mgitconfig files]'
-    '--ignore[ignore .mgitconfig files]'
+    '-I[ignore .mgit-config.toml files]'
+    '--ignore[ignore .mgit-config.toml files]'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
     '-h[show help]'
@@ -333,7 +330,7 @@ relpath() {
   printf '%s' "$rel"
 }
 
-# Pick how to express target $2 in repo $1's .mgitconfig: relative to the repo
+# Pick how to express target $2 in repo $1's .mgit-config.toml: relative to the repo
 # for nearby targets, ~-prefixed or absolute for ones living far out of tree.
 choose_target() {
   local repoabs="$1" tabs="$2" rel
@@ -348,50 +345,177 @@ choose_target() {
   esac
 }
 
-# Parse dir $1's .mgitconfig, emitting one TAB-separated record per declaration:
-#   S|N|B<TAB><path><TAB><url>  typed repository member, with optional clone URL
-#   D<TAB><path>                directory member
-#   R<TAB><path>                legacy untyped member
-#   L<TAB><link><TAB><tgt>  a symlink declaration
+# Escape a value for a TOML basic string. Generated manifests only use basic
+# strings, so parsing does not require an external TOML implementation.
+toml_escape() {
+  local s="$1"
+  case "$s" in
+    *$'\n'*|*$'\r'*) return 1 ;;
+  esac
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
+toml_quote() {
+  local escaped
+  escaped=$(toml_escape "$1") || return 1
+  printf '"%s"' "$escaped"
+}
+
+# Read a TOML basic string. The supported escape sequences cover generated
+# manifests and allow manually maintained path, source, and target values.
+toml_string() {
+  local s="$1" result="" ch escape i
+  [ "${s#\"}" != "$s" ] && [ "${s%\"}" != "$s" ] || return 1
+  s=${s:1:${#s}-2}
+  i=0
+  while [ "$i" -lt "${#s}" ]; do
+    ch=${s:i:1}
+    if [ "$ch" = "\\" ]; then
+      i=$((i + 1))
+      [ "$i" -lt "${#s}" ] || return 1
+      escape=${s:i:1}
+      case "$escape" in
+        '"'|\\) result+="$escape" ;;
+        b) result+=$'\b' ;;
+        t) result+=$'\t' ;;
+        n) result+=$'\n' ;;
+        f) result+=$'\f' ;;
+        r) result+=$'\r' ;;
+        *) return 1 ;;
+      esac
+    elif [ "$ch" = '"' ]; then
+      return 1
+    else
+      result+="$ch"
+    fi
+    i=$((i + 1))
+  done
+  printf '%s' "$result"
+}
+
+# Strip a TOML comment without treating a # inside a basic string as a comment.
+toml_without_comment() {
+  local s="$1" result="" ch escaped=false quoted=false i
+  i=0
+  while [ "$i" -lt "${#s}" ]; do
+    ch=${s:i:1}
+    if [ "$escaped" = true ]; then
+      result+="$ch"
+      escaped=false
+    elif [ "$quoted" = true ] && [ "$ch" = "\\" ]; then
+      result+="$ch"
+      escaped=true
+    elif [ "$ch" = '"' ]; then
+      result+="$ch"
+      [ "$quoted" = true ] && quoted=false || quoted=true
+    elif [ "$ch" = '#' ] && [ "$quoted" = false ]; then
+      break
+    else
+      result+="$ch"
+    fi
+    i=$((i + 1))
+  done
+  printf '%s' "$result"
+}
+
+# Emit a keyed member table as the record form consumed by bootstrap and normal
+# repository-set traversal.
+parse_mgit_keyed_member() {
+  local type="$1" path="$2" source="$3" file="$4"
+  [ -z "$type" ] && [ -z "$path" ] && return
+  if [ -z "$type" ] || [ -z "$path" ]; then
+    printf 'mgit: %s: member requires type and path\n' "$file" >&2
+    return
+  fi
+  case "$type" in
+    standard) printf 'S\t%s\t%s\n' "$path" "$source" ;;
+    nested)   printf 'N\t%s\t%s\n' "$path" "$source" ;;
+    bare)     printf 'B\t%s\t%s\n' "$path" "$source" ;;
+    dir)      printf 'D\t%s\n' "$path" ;;
+    *)        printf 'mgit: %s: unsupported member type: %s\n' "$file" "$type" >&2 ;;
+  esac
+}
+
+# shellcheck disable=SC2094 # This parser only writes records to standard output.
 parse_mgit() {
-  local repo="$1" line link target type member source
+  local repo="$1" line key value section="" member_type="" member_path="" member_source=""
   [ -f "$repo/$MGIT_CONFIG" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%%#*}"
+    line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
     case "$line" in
-      "standard "*" -> "*|"nested "*" -> "*|"bare "*" -> "*)
-        type=${line%% *}
-        member=$(trim "${line#* }")
-        source=$(trim "${member#* -> }")
-        member=$(trim "${member%% -> *}")
-        case "$type" in
-          standard) printf 'S\t%s\t%s\n' "$member" "$source" ;;
-          nested)   printf 'N\t%s\t%s\n' "$member" "$source" ;;
-          bare)     printf 'B\t%s\t%s\n' "$member" "$source" ;;
-        esac
+      \#*) continue ;;
+      '[symlinks]')
+        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
+        section=symlinks
+        member_type=""; member_path=""; member_source=""
         ;;
-      *"->"*)
-        link=$(trim "${line%%->*}")
-        target=$(trim "${line#*->}")
-        if [ -z "$link" ] || [ -z "$target" ]; then
-          printf 'mgit: %s: malformed symlink line: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+      '[members."'*'"]')
+        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
+        value=$(printf '%s\n' "$line" | sed -n 's/^\[members\.\(\".*\"\)\]$/\1/p')
+        member_path=$(toml_string "$value") || {
+          printf 'mgit: %s: invalid member path: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+          section=""
           continue
-        fi
-        printf 'L\t%s\t%s\n' "$link" "$target"
+        }
+        section=member
+        member_type=""; member_source=""
+        ;;
+      \[*\])
+        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
+        printf 'mgit: %s: unsupported TOML table: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+        section=""
+        member_type=""; member_path=""; member_source=""
+        ;;
+      *=*)
+        key=$(printf '%s\n' "$line" | sed 's/=.*//')
+        key=$(trim "$key")
+        value=$(printf '%s\n' "$line" | sed 's/^[^=]*=//')
+        value=$(trim "$value")
+        case "$section" in
+          member)
+            case "$key" in
+              type|source)
+                value=$(toml_string "$value") || {
+                  printf 'mgit: %s: expected TOML basic string: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+                  continue
+                }
+                case "$key" in
+                  type) member_type="$value" ;;
+                  source) member_source="$value" ;;
+                esac
+                ;;
+              *) printf 'mgit: %s: unsupported member field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2 ;;
+            esac
+            ;;
+          symlinks)
+            key=$(toml_string "$key") || {
+              printf 'mgit: %s: expected TOML basic-string symlink path: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+              continue
+            }
+            value=$(toml_string "$value") || {
+              printf 'mgit: %s: expected TOML basic string: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+              continue
+            }
+            [ -n "$key" ] && [ -n "$value" ] && printf 'L\t%s\t%s\n' "$key" "$value"
+            ;;
+          '')
+            [ "$key" = version ] && [ "$value" = 1 ] || \
+              printf 'mgit: %s: unsupported TOML field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2
+            ;;
+          *) printf 'mgit: %s: unsupported TOML field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2 ;;
+        esac
         ;;
       *)
-        case "$line" in
-          "standard "*)  printf 'S\t%s\n' "${line#standard }" ;;
-          "nested "*)    printf 'N\t%s\n' "${line#nested }" ;;
-          "bare "*)      printf 'B\t%s\n' "${line#bare }" ;;
-          "dir "*)       printf 'D\t%s\n' "${line#dir }" ;;
-          *)              printf 'R\t%s\n' "$line" ;;
-        esac
+        printf 'mgit: %s: unsupported TOML statement: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
         ;;
     esac
   done < "$repo/$MGIT_CONFIG"
+  [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
 }
 
 # Expand a ~ prefix; leave absolute/relative paths untouched.
@@ -460,7 +584,8 @@ chezmoi_forget_manifest() {
 }
 
 # register, repo case: scan dir $1 for symlinks into *other* git repos and write
-# its .mgitconfig (symlink lines only). Removes a stale config if none are found.
+# its .mgit-config.toml (symlink entries only). Removes a stale config if none
+# are found.
 #
 # Heavy directories that never hold intentional cross-repo links (.git itself,
 # node_modules) are pruned from the scan. Symlinks resolving back inside this
@@ -468,7 +593,7 @@ chezmoi_forget_manifest() {
 # a cheap string check, so the expensive repo lookup only runs for the few links
 # that actually escape the repo.
 register_repo() {
-  local dir="$1" repoabs sl slabs tabs trepo i l width
+  local dir="$1" repoabs sl slabs tabs trepo i
   local found_links=() found_targets=()
   repoabs=$(canon_dir "$dir") || return 0
   [ -z "$repoabs" ] && return 0
@@ -494,13 +619,15 @@ register_repo() {
     fi
     return 0
   fi
-  width=0
-  for l in "${found_links[@]}"; do [ ${#l} -gt "$width" ] && width=${#l}; done
   {
-    printf '# .mgitconfig — generated by `mgit register`. "<link> -> <target>" is a\n'
-    printf '# symlink this repo owns, recorded so mgit pulls in the linked repo.\n'
+    printf '# Generated by `mgit register`.\n'
+    printf 'version = 1\n'
+    printf '\n[symlinks]\n'
     for i in "${!found_links[@]}"; do
-      printf '%-*s -> %s\n' "$width" "${found_links[$i]}" "${found_targets[$i]}"
+      toml_quote "${found_links[$i]}" || return 2
+      printf ' = '
+      toml_quote "${found_targets[$i]}" || return 2
+      printf '\n'
     done
   } > "$dir/$MGIT_CONFIG" || return 2
   chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
@@ -508,7 +635,7 @@ register_repo() {
   return 0
 }
 
-# register, recursive: write a .mgitconfig in every container dir (and every
+# register, recursive: write a .mgit-config.toml in every container dir (and every
 # leaf dir that owns symlinks). Returns 0 if $1 is or contains a repo (so its
 # parent should reference it), 1 otherwise.
 reg_seen=()
@@ -520,7 +647,7 @@ reg_is_seen() {
   return 1
 }
 register_tree() {
-  local dir="$1" child kids=() k canon kind child_kind source status
+  local dir="$1" child kid_types=() kid_paths=() kid_sources=() canon kind child_kind source status i
   # In -L mode, guard against symlink cycles by canonical path.
   if [ "$follow_symlinks" = true ]; then
     canon=$(canon_dir "$dir") || return 1
@@ -551,30 +678,40 @@ register_tree() {
       status=$?
       [ "$status" -eq 0 ] || return "$status"
       source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
-      if [ -n "$source" ]; then
-        kids+=("$child_kind $(basename "$child") -> $source")
-      else
-        kids+=("$child_kind $(basename "$child")")
-      fi
+      kid_types+=("$child_kind")
+      kid_paths+=("$(basename "$child")")
+      kid_sources+=("$source")
     else
       register_tree "$child"
       status=$?
       if [ "$status" -eq 0 ]; then
-        kids+=("dir $(basename "$child")")
+        kid_types+=(dir)
+        kid_paths+=("$(basename "$child")")
+        kid_sources+=("")
       elif [ "$status" -ne 1 ]; then
         return "$status"
       fi
     fi
   done
-  if [ ${#kids[@]} -gt 0 ]; then
+  if [ ${#kid_types[@]} -gt 0 ]; then
     {
-      printf '# mgit config (generated by `mgit register`).\n'
-      printf '# standard/nested/bare PATH = repository structure; append " -> URL" to bootstrap it.\n'
-      printf '# Structure labels are refreshed by register; Git remains the runtime source of truth.\n'
-      for k in "${kids[@]}"; do printf '%s\n' "$k"; done
+      printf '# Generated by `mgit register`.\n'
+      printf '# `members` maps child paths to repository structure or container entries.\n'
+      printf 'version = 1\n'
+      for i in "${!kid_types[@]}"; do
+        printf '\n[members.'
+        toml_quote "${kid_paths[$i]}" || return 2
+        printf ']\ntype = '
+        toml_quote "${kid_types[$i]}" || return 2
+        if [ "${kid_types[$i]}" != dir ] && [ -n "${kid_sources[$i]}" ]; then
+          printf '\nsource = '
+          toml_quote "${kid_sources[$i]}" || return 2
+        fi
+        printf '\n'
+      done
     } > "$dir/$MGIT_CONFIG" || return 2
     chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
-    printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kids[@]}"
+    printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
     return 0
   fi
   if [ -f "$dir/$MGIT_CONFIG" ]; then
@@ -586,7 +723,7 @@ register_tree() {
 
 # Bootstrap is deliberately manifest-driven: it never discovers arbitrary
 # repositories and never replaces an existing path. Typed repository entries
-# can append " -> URL"; register emits that URL from the repository's origin.
+# carry a `source` URL; register emits it from the repository's origin.
 bootstrap_seen=()
 bootstrap_seen_dir() {
   local needle="$1" item
@@ -696,7 +833,7 @@ bootstrap_command() {
     shift
   done
   [ -f "./$MGIT_CONFIG" ] || {
-    printf 'mgit bootstrap: no .mgitconfig in %s\n' "$(pwd)" >&2
+    printf 'mgit bootstrap: no .mgit-config.toml in %s\n' "$(pwd)" >&2
     return 1
   }
   bootstrap_tree "."
@@ -1221,7 +1358,7 @@ fi
 
 repos=()
 
-# Base set: a ./.mgitconfig manifest pins it (typed or legacy member lines,
+# Base set: a ./.mgit-config.toml manifest pins it (typed members,
 # plus the current dir itself if it's a repo); otherwise discover by walking.
 if [ "$read_config" = true ] && [ -f "./$MGIT_CONFIG" ]; then
   while IFS=$'\t' read -r kind a b; do
@@ -1261,8 +1398,8 @@ else
   done <<< "$found"
 fi
 
-# Walk the hierarchy: typed and legacy member lines that are repos are operated
-# on and member directories are recursed into; symlink (L) lines pull in the
+# Walk the hierarchy: typed members that are repos are operated on and member
+# directories are recursed into; symlink (L) entries pull in the
 # repo containing each target. Types are informative; Git verifies the live
 # structure at runtime. Transitive, with cycle/dup guards. Every repo is
 # displayed (and cd'd into) as a path relative to the cwd.
@@ -1281,7 +1418,7 @@ cwd_canon=$(canon_dir ".")
 # Path of canonical dir $1 relative to the cwd (e.g. hnr/kit-hnr, ../other/repo).
 disp() { relpath "$cwd_canon" "$1"; }
 
-queue=()  # canonical dirs whose .mgitconfig still needs walking
+queue=()  # canonical dirs whose .mgit-config.toml still needs walking
 
 # Seed from the base set, distinguishing repos (operate + walk) from grouping
 # directories (walk only).

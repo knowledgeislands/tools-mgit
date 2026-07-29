@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Replaced the line-based `.mgitconfig` manifest with the TOML `.mgit-config.toml` manifest. Members are keyed by path and use `type` plus an optional `source`; symlinks map their path to a target.
+
 ## [0.6.0] — 2026-07-27
 
 ### Added

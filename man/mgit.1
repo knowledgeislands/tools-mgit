@@ -18,12 +18,12 @@ in every repository in the current set.
 .TP
 .B mgit register
 Generate
-.I .mgitconfig
+.I .mgit-config.toml
 manifests for the current tree.
 .TP
 .B mgit bootstrap
 Clone missing repositories declared by the current
-.I .mgitconfig
+.I .mgit-config.toml
 manifest.
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
@@ -49,7 +49,7 @@ Before each invocation it prints the repository path and command.
 With no command it prints the repository paths that would be used.
 .PP
 The set comes from a
-.I .mgitconfig
+.I .mgit-config.toml
 in the current directory when one is present.
 Otherwise,
 .B mgit
@@ -74,7 +74,7 @@ subcommand.
 .TP
 .BR \-I , " \-\-ignore"
 Ignore
-.I .mgitconfig
+.I .mgit-config.toml
 files and discover repositories by walking the tree.
 .TP
 .BR \-f , " \-\-filter" " \fIGLOB\fR"
@@ -103,7 +103,7 @@ Print the version and exit.
 .SS register
 .B mgit register
 scans the current tree and writes a
-.I .mgitconfig
+.I .mgit-config.toml
 in every container directory, listing child containers and repositories.
 It also writes a manifest in a repository that owns cross-repository symlinks.
 The command does not descend into repositories, always performs a fresh scan, and overwrites generated manifests.
@@ -156,20 +156,53 @@ source <(mgit completion bash)
 .fi
 .SH MANIFESTS
 A
-.I .mgitconfig
-line may declare a child repository or container directory:
+.I .mgit-config.toml
+manifest uses TOML tables. Each child repository or container directory
+has a table under
+.BR members .
+The complete generated shape is:
 .PP
 .nf
-standard path [-> clone-url]
-nested path [-> clone-url]
-bare path [-> clone-url]
-dir path
+version = 1
+
+[members."platform"]
+type = "standard"
+source = "git@github.com:acme/platform.git"
+
+[members."workspace"]
+type = "nested"
+
+[members."archive.git"]
+type = "bare"
+
+[members."group"]
+type = "dir"
 .fi
 .PP
-An untyped path remains valid for compatibility.
-A line of the form
-.B link -> target
-declares a symlink the current repository owns and whose target is in another repository.
+The optional
+.B source
+field is a clone URL and applies to repository entries, not
+.B dir
+entries.
+Each
+.B type
+is one of
+.BR standard ,
+.BR nested ,
+.BR bare ,
+or
+.BR dir .
+The quoted member-table key is the member path.
+.PP
+The
+.B symlinks
+table maps a symlink the current repository owns to its target in another repository:
+.PP
+.nf
+[symlinks]
+"link" = "target"
+.fi
+.PP
 Blank lines and comments beginning with
 .B #
 are ignored.
@@ -192,7 +225,7 @@ checkout.
 Commands operate in live checkouts, never in the nested controller or bare store.
 .SH FILES
 .TP
-.I .mgitconfig
+.I .mgit-config.toml
 Optional repository-set manifest in the current directory and nested container directories.
 .SH EXIT STATUS
 .TP

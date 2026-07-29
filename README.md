@@ -2,168 +2,18 @@
 
 Run commands across many Git repositories and worktrees at once. `mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every checkout in the set, with the repo name printed before its output.
 
-The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgitconfig` manifest. The manifest is never required — reach for it when you want the set to be explicit and reproducible, or to span repos that live outside the current tree.
+The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgit-config.toml` manifest. The manifest is never required — reach for it when you want the set to be explicit and reproducible, or to span repos that live outside the current tree.
 
-## Install
+## Get started
 
-**Homebrew** (macOS / Linux):
-
-```sh
-brew install knowledgeislands/tap/mgit
-```
-
-**curl** (any system with bash + git):
+Install `mgit`, change to a workspace directory, then list its repositories or run a Git command:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+mgit
+mgit status
 ```
 
-The installer drops `mgit` into `~/.local/bin` by default; set `MGIT_INSTALL_DIR` to change that, or `MGIT_VERSION` to pin a tag. When the selected version contains it, it installs the [mgit(1) manual](man/mgit.1) in the corresponding `share/man/man1` directory; set `MGIT_MAN_INSTALL_DIR` to override that location.
-
-Requirements: `bash` (3.2+, the macOS system bash is fine) and `git`.
-
-### Shell completion
-
-`mgit` can print completion setup for Bash and Zsh. Add one of these to your shell configuration:
-
-```bash
-source <(mgit completion bash)
-```
-
-```zsh
-autoload -Uz compinit && compinit
-eval "$(mgit completion zsh)"
-```
-
-## Usage
-
-```text
-mgit [options] [command]      run `git <command>` in every repo
-mgit [options] -B [command]   run <command> bare (no leading `git`)
-mgit [options]                list the repos that would be operated on
-mgit register                 generate .mgitconfig manifests for a tree
-mgit bootstrap                populate missing repositories from .mgitconfig
-mgit structure <type>         change repositories to standard or nested structure
-mgit worktree <command>       inspect or manage worktrees for the tree
-mgit completion <shell>       print Bash or Zsh completion setup
-```
-
-Examples:
-
-```sh
-mgit status                   # git status in each repo
-mgit pull --ff-only           # fast-forward every repo
-mgit -B 'bun install'         # run a non-git command in each repo
-mgit                          # just list the discovered repos
-mgit -f 'mcp-*' status        # only the repos matching the glob
-mgit -f 'mcp-*' -B bun run build   # bare command on the filtered set
-
-```
-
-### Options
-
-| Option                    | Effect                                                          |
-| ------------------------- | --------------------------------------------------------------- |
-| `-P`, `--physical`        | Don't follow symlinked container dirs (default).                |
-| `-L`, `--follow-symlinks` | Follow symlinked container dirs (never symlinked repos).        |
-| `-B`, `--bare`            | Run the command bare, without prefixing it with `git`.          |
-| `-I`, `--ignore`          | Ignore `.mgitconfig` files; discover repos by walking the tree. |
-| `-f`, `--filter GLOB`     | Limit the set to repos matching GLOB (repeatable). †            |
-| `-h`, `--help`            | Show usage.                                                     |
-| `-V`, `--version`         | Print the version.                                              |
-
-† The glob matches the repo's path relative to the cwd; a bare pattern also matches the repo's last path component, so `mcp-*` selects the mcp repos wherever they sit in the tree. Repeated `-f` options union. The filter narrows normal commands, the listing, and the `structure`/`worktree` set commands; `register` and `bootstrap` are unaffected.
-
-## Worktrees
-
-`mgit` recognises two repository structures. A standard repository is an ordinary checkout with a `.git/` directory, optionally with sibling linked worktrees:
-
-```text
-repoB/
-├── .git/
-└── <files>
-
-repoB-featureA/   # optional sibling linked worktree
-```
-
-A nested repository is an `mgit`-managed container with a colocated bare store and child checkouts:
-
-```text
-repoA/
-├── .bare/      # shared Git store
-├── .git        # controller file pointing to ./.bare
-├── main/       # required default checkout
-└── featureA/   # optional branch checkout
-```
-
-`mgit register` records each logical repository only once. At runtime, ordinary commands resolve both structures to their active checkouts: `repoA/main` and `repoA/featureA` for nested repositories; `repoB` and `repoB-featureA` for standard repositories. They never run in `.bare/` or the nested controller directory.
-
-Change every eligible standard repository in the current set to nested structure with a mandatory preview and confirmation:
-
-```bash
-mgit structure nested --dry-run
-mgit structure nested --yes
-```
-
-This requires a clean, attached checkout without existing linked worktrees. It preserves the original files as a rollback backup. Change back only when a nested repository's sole checkout is `main/`:
-
-```bash
-mgit structure standard --dry-run
-mgit structure standard --yes
-```
-
-Add an existing remote branch to every standard and nested repository in the current set:
-
-```bash
-mgit worktree add featureA
-```
-
-This creates `repoA/featureA` for a nested repository and `repoB-featureA` for a standard repository. Each checkout is on local branch `featureA`, tracking `origin/featureA`. The command preflights every participating repository before changing any of them. Use `mgit worktree list` or `mgit worktree status` to inspect the full checkout set; `mgit worktree remove PATH --yes` safely removes a linked checkout and never the primary or required `main/` checkout.
-
-See [the worktree structures guide](docs/worktrees.md) for the complete layouts and safety rules.
-
-## The `.mgitconfig` model
-
-Without a manifest, `mgit` finds repos by walking the current tree for `.git` (dropping any repo nested inside another). A `.mgitconfig` makes the set explicit and lets it span repos that live outside the tree.
-
-A **leaf dir** holds a `.git` (it is a repo); the **container dirs** are the directories between your cwd and the leaf dirs. A generated `.mgitconfig` labels its members:
-
-```text
-standard <path>       conventional repository structure
-nested <path>         mgit-managed nested repository structure
-bare <path>           bare Git repository
-dir <path>            child directory containing more members
-<link>  ->  <target>  symlink this repo owns, pointing into another repository
-```
-
-Repository entries may append `-> <clone-url>`, for example `nested platform -> git@github.com:acme/platform.git`. `mgit register` writes that URL from `origin` when it exists. The structure labels make the generated file self-describing. Git remains the runtime source of truth, so rerun `mgit register` after a structure change to refresh them. At runtime `mgit` walks that hierarchy: container members are recursed into, repo members are operated on, and the repo containing each symlink target is pulled in too (transitively, with cycle guards). Git already tracks the symlinks themselves, so they return on clone — `mgit` only records where they point. Existing untyped member lines remain valid.
-
-### `mgit register`
-
-`mgit register` writes a `.mgitconfig` into every container dir (listing its child containers and repos) and into every leaf dir that owns cross-repo symlinks (listing them). It stops at leaf dirs — it never descends into a repo — and always scans fresh, overwriting generated manifests. Run it once to snapshot a workspace, and again whenever the layout changes.
-
-When [Chezmoi](https://www.chezmoi.io/) is installed and configured, `mgit register` adds each generated manifest below Chezmoi's target directory to the Chezmoi source state as well. It uses `chezmoi add`, so Chezmoi controls the source filename and layout. Manifests outside the target directory, and manifests generated inside Chezmoi's source directory, remain local only.
-
-### `mgit bootstrap`
-
-`mgit bootstrap` materializes a workspace from the `.mgitconfig` in the current directory. It clones every missing typed repository entry that has a `-> <clone-url>` suffix, then follows manifests that arrive with those clones. Standard repositories are cloned normally, bare repositories with `--bare`, and nested repositories into the `.bare/` plus `main/` layout.
-
-Bootstrap never replaces an existing path: a present repository is retained and checked for the declared structure; a non-repository path or structure mismatch is an error. Directory entries must already exist because they have no clone source. Use `mgit register` in an existing workspace to add each repository's `origin` URL before committing the manifests.
-
-## Development
-
-Two tools are needed to lint and test locally — the same ones CI runs:
-
-```sh
-brew install shellcheck bats-core
-```
-
-Then run the checks CI runs ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
-
-```sh
-shellcheck bin/mgit install.sh   # lint
-bats tests/                      # test
-```
+The [user guide](docs/user-guide/README.md) covers installation, command execution, repository-set manifests, and worktrees. The [developer guide](docs/developer/README.md) covers working from a local checkout. For exact command syntax, run `mgit --help` or read the installed `mgit(1)` manual.
 
 ## License
 

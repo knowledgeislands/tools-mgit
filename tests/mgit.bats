@@ -159,6 +159,25 @@ make_fake_chezmoi() {
   [[ "$output" == *"manual unavailable for older-release"* ]]
 }
 
+@test "installer --link links the local executable and manual" {
+  local install_bin="$BATS_TEST_TMPDIR/bin"
+  local install_man="$BATS_TEST_TMPDIR/man/man1"
+
+  run env \
+    MGIT_INSTALL_DIR="$install_bin" \
+    MGIT_MAN_INSTALL_DIR="$install_man" \
+    "$BATS_TEST_DIRNAME/../install.sh" --link
+
+  [ "$status" -eq 0 ]
+  [ -L "$install_bin/mgit" ]
+  [ -L "$install_man/mgit.1" ]
+  cmp "$MGIT" "$install_bin/mgit"
+  cmp "$BATS_TEST_DIRNAME/../man/mgit.1" "$install_man/mgit.1"
+  run "$install_bin/mgit" --version
+  [ "$status" -eq 0 ]
+  [ "$output" = "mgit 0.6.0" ]
+}
+
 @test "completion prints bash and zsh setup" {
   run "$MGIT" completion bash
   [ "$status" -eq 0 ]
@@ -192,12 +211,15 @@ make_fake_chezmoi() {
   mkrepo "$TREE/sub/c"
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  [ -f "$TREE/.mgitconfig" ]
-  [ -f "$TREE/sub/.mgitconfig" ]
-  grep -qx "standard a" "$TREE/.mgitconfig"
-  grep -qx "standard b" "$TREE/.mgitconfig"
-  grep -qx "dir sub" "$TREE/.mgitconfig"
-  grep -qx "standard c" "$TREE/sub/.mgitconfig"
+  [ -f "$TREE/.mgit-config.toml" ]
+  [ -f "$TREE/sub/.mgit-config.toml" ]
+  grep -Fx '[members."a"]' "$TREE/.mgit-config.toml"
+  grep -Fx '[members."b"]' "$TREE/.mgit-config.toml"
+  grep -Fx 'type = "standard"' "$TREE/.mgit-config.toml"
+  grep -Fx '[members."sub"]' "$TREE/.mgit-config.toml"
+  grep -Fx 'type = "dir"' "$TREE/.mgit-config.toml"
+  grep -Fx '[members."c"]' "$TREE/sub/.mgit-config.toml"
+  grep -Fx 'type = "standard"' "$TREE/sub/.mgit-config.toml"
 }
 
 @test "register records origin URLs for typed repository members" {
@@ -205,7 +227,7 @@ make_fake_chezmoi() {
 
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  grep -Fx "standard repoA -> $TREE/repoA.origin.git" "$TREE/.mgitconfig"
+  grep -Fx "source = \"$TREE/repoA.origin.git\"" "$TREE/.mgit-config.toml"
 }
 
 @test "register synchronizes generated manifests with chezmoi" {
@@ -216,17 +238,17 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  cmp "$TREE/.mgitconfig" "$CHEZMOI_SOURCE/dot_mgitconfig"
-  grep -Fx "standard repoA -> $BATS_TEST_TMPDIR/repoA.origin.git" "$CHEZMOI_SOURCE/dot_mgitconfig"
-  grep -Fx "add $CHEZMOI_TARGET/.mgitconfig" "$CHEZMOI_LOG"
+  cmp "$TREE/.mgit-config.toml" "$CHEZMOI_SOURCE/dot_mgit-config.toml"
+  grep -Fx "source = \"$BATS_TEST_TMPDIR/repoA.origin.git\"" "$CHEZMOI_SOURCE/dot_mgit-config.toml"
+  grep -Fx "add $CHEZMOI_TARGET/.mgit-config.toml" "$CHEZMOI_LOG"
 
   mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
   run "$MGIT" register
 
   [ "$status" -eq 1 ]
-  [ ! -e "$TREE/.mgitconfig" ]
-  [ ! -e "$CHEZMOI_SOURCE/dot_mgitconfig" ]
-  grep -Fx "forget $CHEZMOI_TARGET/.mgitconfig" "$CHEZMOI_LOG"
+  [ ! -e "$TREE/.mgit-config.toml" ]
+  [ ! -e "$CHEZMOI_SOURCE/dot_mgit-config.toml" ]
+  grep -Fx "forget $CHEZMOI_TARGET/.mgit-config.toml" "$CHEZMOI_LOG"
 }
 
 @test "register reports chezmoi synchronization failures" {
@@ -250,7 +272,7 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  [ -f "$CHEZMOI_SOURCE/.mgitconfig" ]
+  [ -f "$CHEZMOI_SOURCE/.mgit-config.toml" ]
   [ ! -e "$CHEZMOI_LOG" ]
 }
 
@@ -258,9 +280,30 @@ make_fake_chezmoi() {
   make_origin "$TREE/source-standard" "$TREE/standard.origin.git" standard
   make_origin "$TREE/source-nested" "$TREE/nested.origin.git" nested
   mkdir -p "$TREE/workspace/group"
-  printf 'standard standard-repo -> %s\nnested nested-repo -> %s\nbare bare-repo.git -> %s\ndir group\n' \
-    "$TREE/standard.origin.git" "$TREE/nested.origin.git" "$TREE/standard.origin.git" > "$TREE/workspace/.mgitconfig"
-  printf 'standard grouped-repo -> %s\n' "$TREE/standard.origin.git" > "$TREE/workspace/group/.mgitconfig"
+  printf '%s\n' \
+    'version = 1' \
+    '' \
+    '[members."standard-repo"]' \
+    'type = "standard"' \
+    "source = \"$TREE/standard.origin.git\"" \
+    '' \
+    '[members."nested-repo"]' \
+    'type = "nested"' \
+    "source = \"$TREE/nested.origin.git\"" \
+    '' \
+    '[members."bare-repo.git"]' \
+    'type = "bare"' \
+    "source = \"$TREE/standard.origin.git\"" \
+    '' \
+    '[members."group"]' \
+    'type = "dir"' \
+    > "$TREE/workspace/.mgit-config.toml"
+  printf '%s\n' \
+    'version = 1' \
+    '' \
+    '[members."grouped-repo"]' \
+    'type = "standard"' \
+    "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit-config.toml"
 
   cd "$TREE/workspace"
   run "$MGIT" bootstrap
@@ -279,7 +322,12 @@ make_fake_chezmoi() {
 }
 
 @test "bootstrap refuses a missing member without a clone URL" {
-  printf 'standard missing-repo\n' > "$TREE/.mgitconfig"
+  printf '%s\n' \
+    'version = 1' \
+    '' \
+    '[members."missing-repo"]' \
+    'type = "standard"' \
+    > "$TREE/.mgit-config.toml"
 
   cd "$TREE"
   run "$MGIT" bootstrap
@@ -294,7 +342,7 @@ make_fake_chezmoi() {
   mkrepo "$TREE/b"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  ! grep -q "repoB-branch-c" "$TREE/.mgitconfig"
+  ! grep -q "repoB-branch-c" "$TREE/.mgit-config.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"a"* ]]
@@ -305,21 +353,27 @@ make_fake_chezmoi() {
   mkrepo "$TREE/a"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  first=$(cat "$TREE/.mgitconfig")
+  first=$(cat "$TREE/.mgit-config.toml")
   "$MGIT" register >/dev/null
-  second=$(cat "$TREE/.mgitconfig")
+  second=$(cat "$TREE/.mgit-config.toml")
   [ "$first" = "$second" ]
 }
 
-@test "a cross-repo symlink is recorded as a link line" {
+@test "a cross-repo symlink is recorded as a TOML entry" {
   mkrepo "$TREE/a"
   mkrepo "$TREE/b"
   mkdir -p "$TREE/b/shared"                        # link target must be a real dir in repo b
   ( cd "$TREE/a" && ln -s ../b/shared link-to-b )
   cd "$TREE"
   "$MGIT" register >/dev/null
-  [ -f "$TREE/a/.mgitconfig" ]
-  grep -q -- "link-to-b -> ../b/shared" "$TREE/a/.mgitconfig"
+  [ -f "$TREE/a/.mgit-config.toml" ]
+  grep -Fx '[symlinks]' "$TREE/a/.mgit-config.toml"
+  grep -Fx '"link-to-b" = "../b/shared"' "$TREE/a/.mgit-config.toml"
+
+  cd "$TREE/a"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"../b"* ]]
 }
 
 @test "register records nested and standard structures once" {
@@ -331,14 +385,22 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -qx "nested repoA" "$TREE/.mgitconfig"
-  grep -qx "standard repoB" "$TREE/.mgitconfig"
-  ! grep -Eq '^(standard|nested|bare|dir) main$' "$TREE/.mgitconfig"
+  grep -Fx '[members."repoA"]' "$TREE/.mgit-config.toml"
+  grep -Fx 'type = "nested"' "$TREE/.mgit-config.toml"
+  grep -Fx '[members."repoB"]' "$TREE/.mgit-config.toml"
+  grep -Fx 'type = "standard"' "$TREE/.mgit-config.toml"
+  ! grep -Fx '[members."main"]' "$TREE/.mgit-config.toml"
 }
 
-@test "legacy untyped config members remain valid" {
+@test "TOML manifest members are read" {
   mkrepo "$TREE/repoA"
-  printf 'repoA\n' > "$TREE/.mgitconfig"
+  printf '%s\n' \
+    '# A comment with a # inside a string stays valid: "repo#A".' \
+    'version = 1' \
+    '' \
+    '[members."repoA"]' \
+    'type = "standard"' \
+    '# inline comments are allowed' > "$TREE/.mgit-config.toml"
 
   cd "$TREE"
   run "$MGIT"
