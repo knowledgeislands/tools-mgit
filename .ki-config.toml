@@ -1,21 +1,21 @@
-[ki-repo]
+["knowledgeislands/ki-agentic-harness:ki-repo"]
 supported_runtimes = ["claude-code", "codex"]
 visibility = "public"
 
 # Custom topics describe this standalone Bash CLI more accurately than the default set.
-[ki-repo.checks]
+["knowledgeislands/ki-agentic-harness:ki-repo".checks]
 topics = false
 
-[ki-git]
+["knowledgeislands/ki-agentic-harness:ki-git"]
 
-[ki-authoring]
+["knowledgeislands/ki-agentic-harness:ki-authoring"]
 
-[ki-tools]
+["knowledgeislands/ki-agentic-harness:ki-tools"]
 
-[ki-tokenomics]
+["knowledgeislands/ki-agentic-harness:ki-tokenomics"]
 
-[ki-housekeeping-claude]
+["knowledgeislands/ki-agentic-harness:ki-housekeeping-claude"]
 
-[ki-tokenomics-claude]
+["knowledgeislands/ki-agentic-harness:ki-tokenomics-claude"]
 
-[ki-tokenomics-codex]
+["knowledgeislands/ki-agentic-harness:ki-tokenomics-codex"]
