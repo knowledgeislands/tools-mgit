@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-07-29
+
+### Fixed
+
+- `mgit completion zsh` now registers `_mgit` with `compdef`, so the documented evaluated Zsh completion setup succeeds.
+
 ## [0.7.0] — 2026-07-29
 
 ### Added
@@ -102,4 +108,5 @@ Initial public release.
 [0.5.1]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.1
 [0.5.2]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.5.2
 [0.6.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.6.0
+[0.7.1]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.7.1
 [0.7.0]: https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.7.0
