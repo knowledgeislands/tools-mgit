@@ -27,7 +27,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgit-config.toml
-MGIT_VERSION=0.6.0
+MGIT_VERSION=0.7.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
