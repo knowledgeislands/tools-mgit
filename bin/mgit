@@ -152,7 +152,7 @@ _mgit() {
   esac
 }
 
-_mgit "$@"
+compdef _mgit mgit
 EOF
       ;;
     *)

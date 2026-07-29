@@ -190,9 +190,21 @@ make_fake_chezmoi() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
+  [[ "$output" == *"compdef _mgit mgit"* ]]
+  [[ "$output" != *'_mgit "$@"'* ]]
 
   run "$MGIT" completion fish
   [ "$status" -eq 2 ]
+}
+
+@test "zsh completion evaluates and registers mgit" {
+  run zsh -f -c '
+    autoload -Uz compinit && compinit -C
+    eval "$("$1" completion zsh)"
+    [[ ${_comps[mgit]} == _mgit ]]
+  ' zsh "$MGIT"
+
+  [ "$status" -eq 0 ]
 }
 
 @test "unknown option exits 2" {
