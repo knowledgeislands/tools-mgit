@@ -3,10 +3,10 @@ id: MGIT-CLI-001
 title: Add named repository groups
 theme: cli
 horizon: next
-status: ready
+status: in-progress
 blocks: []
 blocked-by: []
-baseline-ref: null
+baseline-ref: b88471f8cd2c0a02098d8e8cb66216755daba5f5
 transferred-from: knowledgeislands/tools-ki:KI-TOOL-CLI-011
 ---
 
