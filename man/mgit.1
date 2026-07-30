@@ -1,10 +1,12 @@
 .TH MGIT 1 "2026-07-30" "Knowledge Islands" "User Commands"
 .SH NAME
+.sp
 mgit \- run commands across multiple Git repositories
 .PP
 .SH SYNOPSIS
+.sp
 .SS General
-.PP
+.sp
 .TP
 .B mgit
 List the repositories in the current set.
@@ -20,7 +22,7 @@ Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
 .SS Workspace management
-.PP
+.sp
 .TP
 .B mgit register
 Generate
@@ -33,7 +35,7 @@ Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
 .SS Repository management
-.PP
+.sp
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
 Convert every eligible repository in the current set between standard and nested structures.
@@ -47,12 +49,12 @@ Add a linked checkout for an existing remote branch in every structured reposito
 .B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
 Remove one linked worktree.
 .SS Shell integration
-.PP
+.sp
 .TP
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
 .SH DESCRIPTION
-.PP
+.sp
 .B mgit
 runs a Git command, or an arbitrary command with
 .BR \-B ,
@@ -70,7 +72,7 @@ The
 .B \-I
 option always uses discovery instead of manifests.
 .SH OPTIONS
-.PP
+.sp
 .TP
 .BR \-P , " \-\-physical"
 Do not follow symlinked container directories.
@@ -127,9 +129,9 @@ Print usage information and exit.
 .BR \-V , " \-\-version"
 Print the version and exit.
 .SH COMMANDS
-.PP
+.sp
 .SS register
-.PP
+.sp
 .B mgit register
 scans the current tree and writes a
 .I .mgit-workspace.toml
@@ -142,14 +144,14 @@ Existing non-default groups are preserved.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target directory are added to Chezmoi's source state.
 .SS repair
-.PP
+.sp
 .B mgit repair
 uses the workspace manifest in the current directory to clone every missing repository in structural default groups with a source URL.
 It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their structural default groups.
 Existing paths are never replaced: a present repository must match its declared structure, and child workspace directories and manifests must already exist.
 .SS structure
-.PP
+.sp
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.
 .B mgit structure standard
@@ -163,7 +165,7 @@ to preview changes or
 .B \-\-yes
 to make them.
 .SS worktree
-.PP
+.sp
 .B mgit worktree list
 groups linked worktrees by their shared Git store.
 .B mgit worktree status
@@ -181,7 +183,7 @@ Pass
 .B \-\-force
 to discard dirty changes in that linked checkout.
 .SS completion
-.PP
+.sp
 .B mgit completion bash
 and
 .B mgit completion zsh
@@ -192,7 +194,7 @@ For example, source the Bash definition with:
 source <(mgit completion bash)
 .fi
 .SH WORKSPACE MANIFESTS
-.PP
+.sp
 A
 .I .mgit-workspace.toml
 manifest uses schema 1 and ordered member records in named groups.
@@ -270,7 +272,7 @@ Blank lines and comments beginning with
 .B #
 are ignored.
 .SH REPOSITORY STRUCTURES
-.PP
+.sp
 A standard repository is an ordinary checkout with a
 .I .git/
 directory.
@@ -285,7 +287,7 @@ controller file, and a required
 checkout.
 Commands operate in live checkouts, never in the nested controller or bare store.
 .SH FILES
-.PP
+.sp
 .TP
 .I .mgit-workspace.toml
 Optional schema-1 workspace manifest in a non-Git container directory.
@@ -294,7 +296,7 @@ Optional schema-1 workspace manifest in a non-Git container directory.
 .I .mgit-config.toml
 Optional repository-leaf symlink metadata.
 .SH EXIT STATUS
-.PP
+.sp
 .TP
 .B 0
 The requested operation completed successfully.
@@ -311,7 +313,7 @@ For a fan-out command,
 .B mgit
 returns the exit status of the last command it invokes.
 .SH SEE ALSO
-.PP
+.sp
 .BR git (1),
 .BR git-worktree (1)
 .PP
