@@ -107,6 +107,8 @@ make_fake_chezmoi() {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage: mgit"* ]]
+  [[ "$output" == *"Ignore .mgit-workspace.toml files; walk the tree instead"* ]]
+  [[ "$output" == *"declare path-keyed repositories and child workspaces"* ]]
 }
 
 @test "--version prints the version" {

@@ -10,9 +10,9 @@
 # .mgit-workspace.toml in the current directory if one exists; otherwise the tree
 # is walked for .git entries (dropping any nested under another repo).
 #
-# A .mgit-workspace.toml manifest defines ordered repository/workspace members
-# in named groups. A repository-owned .mgit-config.toml only maps a symlink to
-# its target under `symlinks`.
+# A .mgit-workspace.toml manifest defines path-keyed repository/workspace
+# members in named groups. A repository-owned .mgit-config.toml only maps a
+# symlink to its target under `symlinks`.
 #
 # `mgit register` writes a .mgit-workspace.toml in every container dir (listing
 # its children) and .mgit-config.toml in each leaf that owns cross-repo symlinks.
@@ -48,14 +48,14 @@ Runs supplied command on multiple git repositories.
 A "leaf dir" has a .git child (a repo); "container dirs" are the directories
 between the cwd and the leaf dirs. The repo set comes from
 ./.mgit-workspace.toml if present, else by walking the tree. Workspace groups
-declare ordered repositories and child workspaces; repository-owned
+declare path-keyed repositories and child workspaces; repository-owned
 .mgit-config.toml files declare cross-repository symlinks.
 
 Options:
   -P, --physical         Don't follow symlinked container dirs (default)
   -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
   -B, --bare             Run bare; don't prefix command with git
-  -I, --ignore           Ignore .mgit-config.toml files; walk the tree instead
+  -I, --ignore           Ignore .mgit-workspace.toml files; walk the tree instead
   -g, --group NAME       Select NAME from the cwd workspace instead of its default
   -f, --filter GLOB      Limit the repo set to repos whose path matches GLOB;
                          a bare pattern also matches a repo's last path
