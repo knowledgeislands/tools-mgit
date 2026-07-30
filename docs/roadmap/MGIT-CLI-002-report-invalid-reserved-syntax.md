@@ -3,7 +3,7 @@ id: MGIT-CLI-002
 title: Report invalid reserved syntax before help
 theme: cli
 horizon: next
-status: open
+status: ready
 blocks: []
 blocked-by: []
 baseline-ref: null

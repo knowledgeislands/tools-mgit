@@ -3,7 +3,7 @@ id: MGIT-CLI-001
 title: Add named repository groups
 theme: cli
 horizon: next
-status: open
+status: ready
 blocks: []
 blocked-by: []
 baseline-ref: null
