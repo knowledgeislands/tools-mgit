@@ -1,7 +1,9 @@
-.TH MGIT 1 "2026-07-27" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-07-30" "Knowledge Islands" "User Commands"
 .SH NAME
 mgit \- run commands across multiple Git repositories
+.PP
 .SH SYNOPSIS
+.SS General
 .TP
 .B mgit
 List the repositories in the current set.
@@ -15,6 +17,7 @@ with the supplied command and arguments in every repository in the current set.
 Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
+.SS Workspace management
 .TP
 .B mgit register
 Generate
@@ -25,6 +28,7 @@ manifests for the current tree.
 Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
+.SS Repository management
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
 Convert every eligible repository in the current set between standard and nested structures.
@@ -37,6 +41,7 @@ Add a linked checkout for an existing remote branch in every structured reposito
 .TP
 .B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
 Remove one linked worktree.
+.SS Shell integration
 .TP
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
@@ -108,6 +113,7 @@ Print usage information and exit.
 Print the version and exit.
 .SH COMMANDS
 .SS register
+.PP
 .B mgit register
 scans the current tree and writes a
 .I .mgit-workspace.toml
@@ -120,12 +126,14 @@ Existing non-default groups are preserved.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target directory are added to Chezmoi's source state.
 .SS repair
+.PP
 .B mgit repair
 uses the workspace manifest in the current directory to clone every missing repository in structural default groups with a source URL.
 It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their structural default groups.
 Existing paths are never replaced: a present repository must match its declared structure, and child workspace directories and manifests must already exist.
 .SS structure
+.PP
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.
 .B mgit structure standard
@@ -139,6 +147,7 @@ to preview changes or
 .B \-\-yes
 to make them.
 .SS worktree
+.PP
 .B mgit worktree list
 groups linked worktrees by their shared Git store.
 .B mgit worktree status
@@ -156,6 +165,7 @@ Pass
 .B \-\-force
 to discard dirty changes in that linked checkout.
 .SS completion
+.PP
 .B mgit completion bash
 and
 .B mgit completion zsh
