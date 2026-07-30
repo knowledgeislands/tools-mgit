@@ -270,8 +270,8 @@ assert_usage_error() {
   grep -Fx 'default = "default"' "$TREE/.mgit-workspace.toml"
   [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit-workspace.toml")" -eq 2 ]
   grep -Fx 'kind = "workspace"' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'path = "sub"' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'path = "c"' "$TREE/sub/.mgit-workspace.toml"
+  grep -Fx '[groups.default.members."sub"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.default.members."c"]' "$TREE/sub/.mgit-workspace.toml"
 
   cd "$TREE"
   run "$MGIT"
@@ -341,35 +341,30 @@ assert_usage_error() {
     'schema = 1' \
     'default = "default"' \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."standard-repo"]' \
     'kind = "repository"' \
-    'path = "standard-repo"' \
     'type = "standard"' \
     "source = \"$TREE/standard.origin.git\"" \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."nested-repo"]' \
     'kind = "repository"' \
-    'path = "nested-repo"' \
     'type = "nested"' \
     "source = \"$TREE/nested.origin.git\"" \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."bare-repo.git"]' \
     'kind = "repository"' \
-    'path = "bare-repo.git"' \
     'type = "bare"' \
     "source = \"$TREE/standard.origin.git\"" \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."group"]' \
     'kind = "workspace"' \
-    'path = "group"' \
     > "$TREE/workspace/.mgit-workspace.toml"
   printf '%s\n' \
     'schema = 1' \
     'default = "default"' \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."grouped-repo"]' \
     'kind = "repository"' \
-    'path = "grouped-repo"' \
     'type = "standard"' \
     "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit-workspace.toml"
 
@@ -394,9 +389,8 @@ assert_usage_error() {
     'schema = 1' \
     'default = "default"' \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."missing-repo"]' \
     'kind = "repository"' \
-    'path = "missing-repo"' \
     'type = "standard"' \
     > "$TREE/.mgit-workspace.toml"
 
@@ -459,28 +453,26 @@ assert_usage_error() {
     'schema = 1' \
     'default = "focus"' \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."a"]' \
     'kind = "repository"' \
-    'path = "a"' \
     'type = "standard"' \
     '' \
-    '[[groups.focus.members]]' \
+    '[groups.focus.members."b"]' \
     'kind = "repository"' \
-    'path = "b"' \
     '' \
-    '[[groups.focus.members]]' \
-    'kind = "repository"' \
-    'path = "a"' > "$TREE/.mgit-workspace.toml"
+    '[groups.focus.members."a"]' \
+    'kind = "repository"' > "$TREE/.mgit-workspace.toml"
 
   cd "$TREE"
   run "$MGIT" register
   [ "$status" -eq 0 ]
   grep -Fx 'default = "focus"' "$TREE/.mgit-workspace.toml"
-  [ "$(grep -cFx '[[groups.focus.members]]' "$TREE/.mgit-workspace.toml")" -eq 2 ]
+  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.focus.members."b"]' "$TREE/.mgit-workspace.toml"
 
   run "$MGIT"
   [ "$status" -eq 0 ]
-  [ "$output" = $'b\na' ]
+  [ "$output" = $'a\nb' ]
 
   run "$MGIT" --group default
   [ "$status" -eq 0 ]
@@ -492,9 +484,8 @@ assert_usage_error() {
   printf '%s\n' \
     'schema = 1' \
     'default = "default"' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."../a"]' \
     'kind = "repository"' \
-    'path = "../a"' \
     'type = "standard"' > "$TREE/.mgit-workspace.toml"
 
   cd "$TREE"
@@ -505,13 +496,11 @@ assert_usage_error() {
   printf '%s\n' \
     'schema = 1' \
     'default = "default"' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."a"]' \
     'kind = "repository"' \
-    'path = "a"' \
     'type = "standard"' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."a"]' \
     'kind = "repository"' \
-    'path = "a"' \
     'type = "standard"' > "$TREE/.mgit-workspace.toml"
   run "$MGIT"
   [ "$status" -eq 1 ]
@@ -525,15 +514,13 @@ assert_usage_error() {
   printf '%s\n' \
     'schema = 1' \
     'default = "default"' \
-    '[[groups.default.members]]' \
-    'kind = "workspace"' \
-    'path = "child"' > "$TREE/.mgit-workspace.toml"
+    '[groups.default.members."child"]' \
+    'kind = "workspace"' > "$TREE/.mgit-workspace.toml"
   printf '%s\n' \
     'schema = 1' \
     'default = "default"' \
-    '[[groups.default.members]]' \
-    'kind = "workspace"' \
-    'path = "loop"' > "$TREE/child/.mgit-workspace.toml"
+    '[groups.default.members."loop"]' \
+    'kind = "workspace"' > "$TREE/child/.mgit-workspace.toml"
 
   cd "$TREE"
   run "$MGIT" --group absent
@@ -571,11 +558,11 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -Fx 'path = "repoA"' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.default.members."repoA"]' "$TREE/.mgit-workspace.toml"
   grep -Fx 'type = "nested"' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'path = "repoB"' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.default.members."repoB"]' "$TREE/.mgit-workspace.toml"
   grep -Fx 'type = "standard"' "$TREE/.mgit-workspace.toml"
-  ! grep -Fx 'path = "main"' "$TREE/.mgit-workspace.toml"
+  ! grep -Fx '[groups.default.members."main"]' "$TREE/.mgit-workspace.toml"
 }
 
 @test "workspace members are read" {
@@ -585,9 +572,8 @@ assert_usage_error() {
     'schema = 1' \
     'default = "default"' \
     '' \
-    '[[groups.default.members]]' \
+    '[groups.default.members."repoA"]' \
     'kind = "repository"' \
-    'path = "repoA"' \
     'type = "standard"' \
     '# inline comments are allowed' > "$TREE/.mgit-workspace.toml"
 

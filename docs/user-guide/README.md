@@ -18,4 +18,4 @@ mgit
 mgit status
 ```
 
-By default, `mgit` discovers repository roots beneath the current directory. Use `mgit register` when the set should be explicit, reproducible, ordered, or divided into groups.
+By default, `mgit` discovers repository roots beneath the current directory. Use `mgit register` when the set should be explicit, reproducible, deterministic, or divided into groups.

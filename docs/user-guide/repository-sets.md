@@ -1,6 +1,6 @@
 # Define a repository set
 
-Without configuration, `mgit` walks the current directory for `.git` entries and drops a repository nested inside another repository. A `.mgit-workspace.toml` manifest at a non-Git container makes the set explicit, ordered, and reproducible, and can organise it into named groups.
+Without configuration, `mgit` walks the current directory for `.git` entries and drops a repository nested inside another repository. A `.mgit-workspace.toml` manifest at a non-Git container makes the set explicit, deterministic, and reproducible, and can organise it into named groups.
 
 ## Generate a manifest
 
@@ -16,30 +16,27 @@ When Chezmoi is configured, `mgit register` adds generated manifests that are be
 
 ## Manifest shape
 
-A workspace manifest has schema 1, a configured default group, and ordered member records. Members are either repositories or child workspaces.
+A workspace manifest has schema 1, a configured default group, and path-keyed member maps. Members are either repositories or child workspaces.
 
 ```toml
 schema = 1
 default = "default"
 
-[[groups.default.members]]
+[groups.default.members."platform"]
 kind = "repository"
-path = "platform"
 type = "standard"
 source = "git@github.com:acme/platform.git"
 
-[[groups.default.members]]
+[groups.default.members."group"]
 kind = "workspace"
-path = "group"
 
-[[groups.ci.members]]
+[groups.ci.members."platform"]
 kind = "repository"
-path = "platform"
 ```
 
-The structural `default` group is required. Its repository members require `type`, which is `standard`, `nested`, or `bare`, and can have a `source` clone URL. `mgit register` records that URL from `origin` when available. Workspace members have only `kind` and `path`. Non-default group repository members also have only `kind` and `path`; they select already-present repositories and do not declare structure or clone sources.
+The structural `default` group is required. Its repository members require `type`, which is `standard`, `nested`, or `bare`, and can have a `source` clone URL. `mgit register` records that URL from `origin` when available. Workspace members have only `kind`; their paths are map keys. Non-default group repository members also have only `kind`; they select already-present repositories and do not declare structure or clone sources.
 
-Member paths are safe relative paths below the manifest directory. Blank lines and comments are ignored.
+Member paths are safe relative map keys below the manifest directory. Blank lines and comments are ignored.
 
 At runtime, `mgit` uses the current workspace's configured default group, or the group selected with `-g` / `--group`. It recursively selects child workspaces using each child's configured default. Filters are applied after this workspace selection.
 

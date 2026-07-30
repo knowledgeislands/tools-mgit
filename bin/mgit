@@ -638,9 +638,37 @@ workspace_finish_member() {
   workspace_member_group=""
 }
 
-# Parse the deliberately small schema-1 workspace format into ordered global
-# record arrays. Unsupported or duplicate syntax is rejected instead of being
-# partially interpreted.
+workspace_sort_members() {
+  local i j group kind path type source previous_group previous_path
+  for ((i = 1; i < ${#workspace_record_paths[@]}; i += 1)); do
+    group="${workspace_record_groups[$i]}"
+    kind="${workspace_record_kinds[$i]}"
+    path="${workspace_record_paths[$i]}"
+    type="${workspace_record_types[$i]}"
+    source="${workspace_record_sources[$i]}"
+    j=$i
+    while [ "$j" -gt 0 ]; do
+      previous_group="${workspace_record_groups[$((j - 1))]}"
+      previous_path="${workspace_record_paths[$((j - 1))]}"
+      { [ "$previous_group" = "$group" ] && [[ "$previous_path" > "$path" ]]; } || [[ "$previous_group" > "$group" ]] || break
+      workspace_record_groups[j]="$previous_group"
+      workspace_record_kinds[j]="${workspace_record_kinds[j - 1]}"
+      workspace_record_paths[j]="$previous_path"
+      workspace_record_types[j]="${workspace_record_types[j - 1]}"
+      workspace_record_sources[j]="${workspace_record_sources[j - 1]}"
+      j=$((j - 1))
+    done
+    workspace_record_groups[j]="$group"
+    workspace_record_kinds[j]="$kind"
+    workspace_record_paths[j]="$path"
+    workspace_record_types[j]="$type"
+    workspace_record_sources[j]="$source"
+  done
+}
+
+# Parse the deliberately small schema-1 workspace map format into global record
+# arrays. Unsupported or duplicate syntax is rejected instead of being partially
+# interpreted.
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
   local file="$1" line key value group schema="" seen_schema=false seen_default=false
@@ -658,17 +686,27 @@ parse_workspace() {
     line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
-    if [[ "$line" =~ ^\[\[groups\.([A-Za-z0-9_-]+)\.members\]\]$ ]]; then
+    if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\]$ ]]; then
       workspace_finish_member "$file" || return 1
       group="${BASH_REMATCH[1]}"
       workspace_group_known "$group" || workspace_groups+=("$group")
+      continue
+    fi
+    if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\.(\".*\")\]$ ]]; then
+      workspace_finish_member "$file" || return 1
+      group="${BASH_REMATCH[1]}"
+      value=$(toml_string "${BASH_REMATCH[2]}") || {
+        printf 'mgit: %s: invalid workspace member path: %s\n' "$file" "$line" >&2
+        return 1
+      }
+      workspace_group_known "$group" || workspace_groups+=("$group")
       workspace_member_group="$group"
       workspace_member_kind=""
-      workspace_member_path=""
+      workspace_member_path="$value"
       workspace_member_type=""
       workspace_member_source=""
       workspace_member_seen_kind=false
-      workspace_member_seen_path=false
+      workspace_member_seen_path=true
       workspace_member_seen_type=false
       workspace_member_seen_source=false
       continue
@@ -730,13 +768,6 @@ parse_workspace() {
               }
               workspace_member_kind="$value"; workspace_member_seen_kind=true
               ;;
-            path)
-              [ "$workspace_member_seen_path" = false ] || {
-                printf 'mgit: %s: duplicate member path\n' "$file" >&2
-                return 1
-              }
-              workspace_member_path="$value"; workspace_member_seen_path=true
-              ;;
             type)
               [ "$workspace_member_seen_type" = false ] || {
                 printf 'mgit: %s: duplicate member type\n' "$file" >&2
@@ -765,6 +796,7 @@ parse_workspace() {
     esac
   done < "$file"
   workspace_finish_member "$file" || return 1
+  workspace_sort_members
   [ "$seen_schema" = true ] && [ "$schema" = 1 ] || {
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
     return 1
@@ -1018,10 +1050,10 @@ register_tree() {
       toml_quote "$old_default" || return 2
       printf '\n'
       for i in "${!kid_types[@]}"; do
-        printf '\n[[groups.default.members]]\nkind = '
-        toml_quote "${kid_kinds[$i]}" || return 2
-        printf '\npath = '
+        printf '\n[groups.default.members.'
         toml_quote "${kid_paths[$i]}" || return 2
+        printf ']\nkind = '
+        toml_quote "${kid_kinds[$i]}" || return 2
         if [ "${kid_kinds[$i]}" = repository ]; then
           printf '\ntype = '
           toml_quote "${kid_types[$i]}" || return 2
@@ -1034,10 +1066,10 @@ register_tree() {
       done
       for i in "${!old_groups[@]}"; do
         [ "${old_groups[$i]}" != default ] || continue
-        printf '\n[[groups.%s.members]]\nkind = ' "${old_groups[$i]}"
-        toml_quote "${old_kinds[$i]}" || return 2
-        printf '\npath = '
+        printf '\n[groups.%s.members.' "${old_groups[$i]}"
         toml_quote "${old_paths[$i]}" || return 2
+        printf ']\nkind = '
+        toml_quote "${old_kinds[$i]}" || return 2
         printf '\n'
       done
     } > "$dir/$MGIT_WORKSPACE" || return 2

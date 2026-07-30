@@ -197,36 +197,31 @@ source <(mgit completion bash)
 .sp
 A
 .I .mgit-workspace.toml
-manifest uses schema 1 and ordered member records in named groups.
+manifest uses schema 1 and path-keyed member maps in named groups.
 The complete generated shape is:
 .PP
 .nf
 schema = 1
 default = "default"
 
-[[groups.default.members]]
+[groups.default.members."platform"]
 kind = "repository"
-path = "platform"
 type = "standard"
 source = "git@github.com:acme/platform.git"
 
-[[groups.default.members]]
+[groups.default.members."workspace"]
 kind = "repository"
-path = "workspace"
 type = "nested"
 
-[[groups.default.members]]
+[groups.default.members."archive.git"]
 kind = "repository"
-path = "archive.git"
 type = "bare"
 
-[[groups.default.members]]
+[groups.default.members."group"]
 kind = "workspace"
-path = "group"
 
-[[groups.ci.members]]
+[groups.ci.members."platform"]
 kind = "repository"
-path = "platform"
 .fi
 .PP
 The structural
@@ -243,16 +238,14 @@ The optional
 .B source
 field is a clone URL and applies to default-group repository members.
 Workspace members use only
-.B kind
-and
-.BR path .
+.B kind ;
+their paths are map keys.
 Non-default group repository members also use only
-.B kind
-and
-.BR path ;
-they select already-present repositories and do not declare structure or clone sources.
+.B kind ;
+they select already-present repositories and do not declare structure or
+clone sources.
 .PP
-Member paths are safe relative paths below the manifest directory.
+Member paths are safe relative map keys below the manifest directory.
 The current workspace uses its configured default group, or a group named with
 .BR \-g / \-\-group .
 Child workspaces use their own configured defaults.
