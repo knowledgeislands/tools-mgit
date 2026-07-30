@@ -4,9 +4,9 @@
 mgit \- run commands across multiple Git repositories
 .PP
 .SH SYNOPSIS
-.sp
+.sp 1v
 .SS General
-.sp
+.sp 1v
 .TP
 .B mgit
 List the repositories in the current set.
@@ -22,7 +22,7 @@ Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
 .SS Workspace management
-.sp
+.sp 1v
 .TP
 .B mgit register
 Generate
@@ -35,7 +35,7 @@ Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
 .SS Repository management
-.sp
+.sp 1v
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
 Convert every eligible repository in the current set between standard and nested structures.
@@ -49,7 +49,7 @@ Add a linked checkout for an existing remote branch in every structured reposito
 .B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
 Remove one linked worktree.
 .SS Shell integration
-.sp
+.sp 1v
 .TP
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
