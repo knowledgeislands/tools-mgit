@@ -3,7 +3,7 @@ id: MGIT-CLI-002
 title: Report invalid reserved syntax before help
 theme: cli
 horizon: next
-status: acceptance
+status: done
 blocks: []
 blocked-by: []
 baseline-ref: a19713db01d1c620b6566e0f3d9804849c73507c
@@ -78,6 +78,10 @@ None known. Explicit acceptance remains required before closure.
 ### Mini recap
 
 The diagnostic boundary is restricted to mGit-owned syntax; arbitrary Git commands remain unmodified.
+
+## Done
+
+Accepted and closed by the user on 2026-07-30; selected for explicit pruning.
 
 ## Discussion
 

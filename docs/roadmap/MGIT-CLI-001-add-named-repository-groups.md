@@ -3,7 +3,7 @@ id: MGIT-CLI-001
 title: Add named repository groups
 theme: cli
 horizon: next
-status: acceptance
+status: done
 blocks: []
 blocked-by: []
 baseline-ref: b88471f8cd2c0a02098d8e8cb66216755daba5f5
@@ -86,6 +86,10 @@ None known. Explicit acceptance remains required before closure.
 ### Mini recap
 
 The workspace configuration now owns non-Git container membership while leaf config retains symlink metadata and repair source data remains on generated default repository records.
+
+## Done
+
+Accepted and closed by the user on 2026-07-30; selected for explicit pruning.
 
 ## Discussion
 
