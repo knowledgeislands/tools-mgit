@@ -2,9 +2,8 @@
 id: MGIT-CLI-002
 title: Report invalid reserved syntax before help
 theme: cli
-horizon: future
+horizon: next
 status: open
-candidate: true
 blocks: []
 blocked-by: []
 baseline-ref: null
@@ -18,6 +17,45 @@ Make invalid syntax for mGit's reserved commands and options fail explicitly eve
 ## Boundary
 
 Do not reject arbitrary Git subcommands or options that mGit deliberately fans out to Git. Do not add compatibility aliases for removed mGit commands, infer corrections for ambiguous input, or alter valid help and command dispatch.
+
+## Current state
+
+Global option parsing exits successfully as soon as it sees `--help`, even when an earlier or later option is invalid. Reserved-command argument loops use the same early-help pattern, so malformed syntax can be hidden by a help request. The final command grammar after `MGIT-CLI-001` includes `register`, `repair`, `structure`, `worktree`, and `completion`; every other positional command remains Git pass-through.
+
+## Steps
+
+1. Refactor global and reserved-command argument handling so it validates the complete mGit-owned grammar before honouring a help request. Keep a standalone valid `--help` exit at zero.
+2. For an invalid global option or malformed `register`, `repair`, `structure`, `worktree`, or `completion` syntax, emit `mgit: error:` with the offending token, return exit 2, then show the applicable usage text.
+3. Preserve arbitrary positional Git command and Git-option pass-through unchanged; the parser must not classify those tokens as mGit errors.
+4. Add Bats contract cases for invalid options before and after `--help`, invalid reserved-command arguments beside `--help`, valid help, and unchanged pass-through.
+
+## Files touched
+
+- `bin/mgit`
+- `tests/mgit.bats`
+
+## Verify
+
+Run focused Bats CLI-contract cases, then `shellcheck bin/mgit install.sh` and `bats tests/`. Confirm an invalid mGit-owned token produces an error and exit 2 before usage, while `mgit status --short` still reaches Git unchanged.
+
+## Dependencies / blocks
+
+No work-item dependency. In the approved batch this item runs after `MGIT-CLI-001`, so its tests and diagnostics use the final `repair` command grammar rather than the removed `bootstrap` spelling.
+
+## Delegation
+
+### Locked decisions
+
+The mGit-owned grammar is exactly global options plus `register`, `repair`, `structure`, `worktree`, and `completion`. Invalid mGit-owned syntax emits an `mgit: error:` usage failure with exit 2 even beside `--help`; arbitrary Git commands and Git options remain pass-through. Do not add a typo-correction alias or treat `bootstrap` as valid.
+
+### Escalate
+
+Stop if the parser cannot distinguish a proposed error case from legitimate Git pass-through without changing the documented public grammar, or if the final `repair` command shape differs from `MGIT-CLI-001`.
+
+### Rounds
+
+1. **Reserved-syntax parser and tests — mechanical, `gpt-5.6-terra`.** After `MGIT-CLI-001` has passed its core integration gate, implement complete owned-grammar validation and Bats cases. Done means every stated invalid case returns error then usage with exit 2, valid help remains zero, and pass-through remains unchanged. Scope: `bin/mgit`, `tests/mgit.bats`. The orchestrator reviews the executable diff adversarially and runs the focused cases plus ShellCheck.
+2. **Integration gate — orchestrator.** Run the full stated verification and record acceptance evidence. A failed check or any need to broaden owned syntax stops the item.
 
 ## Discussion
 
