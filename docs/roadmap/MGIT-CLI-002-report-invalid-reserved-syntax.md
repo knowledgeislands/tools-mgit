@@ -3,7 +3,7 @@ id: MGIT-CLI-002
 title: Report invalid reserved syntax before help
 theme: cli
 horizon: next
-status: in-progress
+status: acceptance
 blocks: []
 blocked-by: []
 baseline-ref: a19713db01d1c620b6566e0f3d9804849c73507c
@@ -56,6 +56,28 @@ Stop if the parser cannot distinguish a proposed error case from legitimate Git 
 
 1. **Reserved-syntax parser and tests — mechanical, `gpt-5.6-terra`.** After `MGIT-CLI-001` has passed its core integration gate, implement complete owned-grammar validation and Bats cases. Done means every stated invalid case returns error then usage with exit 2, valid help remains zero, and pass-through remains unchanged. Scope: `bin/mgit`, `tests/mgit.bats`. The orchestrator reviews the executable diff adversarially and runs the focused cases plus ShellCheck.
 2. **Integration gate — orchestrator.** Run the full stated verification and record acceptance evidence. A failed check or any need to broaden owned syntax stops the item.
+
+## Acceptance
+
+### Delivered
+
+Owned-syntax validation now reports an `mgit: error:` usage failure before help even when `--help` is adjacent to invalid syntax.
+
+### Summary of changes
+
+Global and reserved-command parsing validates complete owned grammar while retaining valid help and generic Git pass-through.
+
+### Verification
+
+`bash -n bin/mgit`, `shellcheck bin/mgit install.sh`, `bats tests/` (35 passing tests), and `git diff --check` passed. Delivery commit: `a0d45fadcacd6a36150f90700938ca86ade843b4`.
+
+### Outstanding concerns
+
+None known. Explicit acceptance remains required before closure.
+
+### Mini recap
+
+The diagnostic boundary is restricted to mGit-owned syntax; arbitrary Git commands remain unmodified.
 
 ## Discussion
 
