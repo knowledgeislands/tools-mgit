@@ -52,6 +52,7 @@ Remove one linked worktree.
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
 .SH DESCRIPTION
+.PP
 .B mgit
 runs a Git command, or an arbitrary command with
 .BR \-B ,
@@ -69,6 +70,7 @@ The
 .B \-I
 option always uses discovery instead of manifests.
 .SH OPTIONS
+.PP
 .TP
 .BR \-P , " \-\-physical"
 Do not follow symlinked container directories.
@@ -125,6 +127,7 @@ Print usage information and exit.
 .BR \-V , " \-\-version"
 Print the version and exit.
 .SH COMMANDS
+.PP
 .SS register
 .PP
 .B mgit register
@@ -189,6 +192,7 @@ For example, source the Bash definition with:
 source <(mgit completion bash)
 .fi
 .SH WORKSPACE MANIFESTS
+.PP
 A
 .I .mgit-workspace.toml
 manifest uses schema 1 and ordered member records in named groups.
@@ -266,6 +270,7 @@ Blank lines and comments beginning with
 .B #
 are ignored.
 .SH REPOSITORY STRUCTURES
+.PP
 A standard repository is an ordinary checkout with a
 .I .git/
 directory.
@@ -280,6 +285,7 @@ controller file, and a required
 checkout.
 Commands operate in live checkouts, never in the nested controller or bare store.
 .SH FILES
+.PP
 .TP
 .I .mgit-workspace.toml
 Optional schema-1 workspace manifest in a non-Git container directory.
@@ -288,6 +294,7 @@ Optional schema-1 workspace manifest in a non-Git container directory.
 .I .mgit-config.toml
 Optional repository-leaf symlink metadata.
 .SH EXIT STATUS
+.PP
 .TP
 .B 0
 The requested operation completed successfully.
@@ -304,6 +311,7 @@ For a fan-out command,
 .B mgit
 returns the exit status of the last command it invokes.
 .SH SEE ALSO
+.PP
 .BR git (1),
 .BR git-worktree (1)
 .PP
