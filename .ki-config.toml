@@ -1,4 +1,5 @@
 ["knowledgeislands/ki-agentic-harness:ki-repo"]
+repo_code = "MGIT"
 supported_runtimes = ["claude-code", "codex"]
 visibility = "public"
 
@@ -11,6 +12,10 @@ topics = false
 ["knowledgeislands/ki-agentic-harness:ki-authoring"]
 
 ["knowledgeislands/ki-agentic-harness:ki-tools"]
+
+["knowledgeislands/ki-agentic-harness:ki-roadmap"]
+["knowledgeislands/ki-agentic-harness:ki-roadmap".themes]
+CLI = "cli"
 
 ["knowledgeislands/ki-agentic-harness:ki-tokenomics"]
 
