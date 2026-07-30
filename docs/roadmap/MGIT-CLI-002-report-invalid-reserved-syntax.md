@@ -3,10 +3,10 @@ id: MGIT-CLI-002
 title: Report invalid reserved syntax before help
 theme: cli
 horizon: next
-status: ready
+status: in-progress
 blocks: []
 blocked-by: []
-baseline-ref: null
+baseline-ref: a19713db01d1c620b6566e0f3d9804849c73507c
 transferred-from: knowledgeislands/tools-ki:KI-TOOL-CLI-013
 ---
 
