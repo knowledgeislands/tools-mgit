@@ -183,7 +183,8 @@ make_fake_chezmoi() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
-  [[ "$output" == *"bootstrap"* ]]
+  [[ "$output" == *"repair"* ]]
+  [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
 
   run "$MGIT" completion zsh
@@ -217,21 +218,25 @@ make_fake_chezmoi() {
   [ "$status" -eq 2 ]
 }
 
-@test "register writes manifests listing members" {
+@test "register writes schema-1 workspaces in physical postorder" {
   mkrepo "$TREE/a"
   mkrepo "$TREE/b"
   mkrepo "$TREE/sub/c"
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  [ -f "$TREE/.mgit-config.toml" ]
-  [ -f "$TREE/sub/.mgit-config.toml" ]
-  grep -Fx '[members."a"]' "$TREE/.mgit-config.toml"
-  grep -Fx '[members."b"]' "$TREE/.mgit-config.toml"
-  grep -Fx 'type = "standard"' "$TREE/.mgit-config.toml"
-  grep -Fx '[members."sub"]' "$TREE/.mgit-config.toml"
-  grep -Fx 'type = "dir"' "$TREE/.mgit-config.toml"
-  grep -Fx '[members."c"]' "$TREE/sub/.mgit-config.toml"
-  grep -Fx 'type = "standard"' "$TREE/sub/.mgit-config.toml"
+  [ -f "$TREE/.mgit-workspace.toml" ]
+  [ -f "$TREE/sub/.mgit-workspace.toml" ]
+  grep -Fx 'schema = 1' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'default = "default"' "$TREE/.mgit-workspace.toml"
+  [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit-workspace.toml")" -eq 2 ]
+  grep -Fx 'kind = "workspace"' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'path = "sub"' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'path = "c"' "$TREE/sub/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a\nb\nsub/c' ]
 }
 
 @test "register records origin URLs for typed repository members" {
@@ -239,10 +244,10 @@ make_fake_chezmoi() {
 
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  grep -Fx "source = \"$TREE/repoA.origin.git\"" "$TREE/.mgit-config.toml"
+  grep -Fx "source = \"$TREE/repoA.origin.git\"" "$TREE/.mgit-workspace.toml"
 }
 
-@test "register synchronizes generated manifests with chezmoi" {
+@test "register replaces parent configs and synchronizes workspaces with chezmoi" {
   make_fake_chezmoi
   make_origin "$TREE/repoA" "$BATS_TEST_TMPDIR/repoA.origin.git" payload
 
@@ -250,17 +255,17 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  cmp "$TREE/.mgit-config.toml" "$CHEZMOI_SOURCE/dot_mgit-config.toml"
-  grep -Fx "source = \"$BATS_TEST_TMPDIR/repoA.origin.git\"" "$CHEZMOI_SOURCE/dot_mgit-config.toml"
-  grep -Fx "add $CHEZMOI_TARGET/.mgit-config.toml" "$CHEZMOI_LOG"
+  cmp "$TREE/.mgit-workspace.toml" "$CHEZMOI_SOURCE/dot_mgit-workspace.toml"
+  grep -Fx "source = \"$BATS_TEST_TMPDIR/repoA.origin.git\"" "$CHEZMOI_SOURCE/dot_mgit-workspace.toml"
+  grep -Fx "add $CHEZMOI_TARGET/.mgit-workspace.toml" "$CHEZMOI_LOG"
 
   mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
   run "$MGIT" register
 
   [ "$status" -eq 1 ]
-  [ ! -e "$TREE/.mgit-config.toml" ]
-  [ ! -e "$CHEZMOI_SOURCE/dot_mgit-config.toml" ]
-  grep -Fx "forget $CHEZMOI_TARGET/.mgit-config.toml" "$CHEZMOI_LOG"
+  [ ! -e "$TREE/.mgit-workspace.toml" ]
+  [ ! -e "$CHEZMOI_SOURCE/dot_mgit-workspace.toml" ]
+  grep -Fx "forget $CHEZMOI_TARGET/.mgit-workspace.toml" "$CHEZMOI_LOG"
 }
 
 @test "register reports chezmoi synchronization failures" {
@@ -284,41 +289,52 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  [ -f "$CHEZMOI_SOURCE/.mgit-config.toml" ]
+  [ -f "$CHEZMOI_SOURCE/.mgit-workspace.toml" ]
   [ ! -e "$CHEZMOI_LOG" ]
 }
 
-@test "bootstrap clones typed manifest members and recreates nested layout" {
+@test "repair materializes structural defaults and recreates nested layout" {
   make_origin "$TREE/source-standard" "$TREE/standard.origin.git" standard
   make_origin "$TREE/source-nested" "$TREE/nested.origin.git" nested
   mkdir -p "$TREE/workspace/group"
   printf '%s\n' \
-    'version = 1' \
+    'schema = 1' \
+    'default = "default"' \
     '' \
-    '[members."standard-repo"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "standard-repo"' \
     'type = "standard"' \
     "source = \"$TREE/standard.origin.git\"" \
     '' \
-    '[members."nested-repo"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "nested-repo"' \
     'type = "nested"' \
     "source = \"$TREE/nested.origin.git\"" \
     '' \
-    '[members."bare-repo.git"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "bare-repo.git"' \
     'type = "bare"' \
     "source = \"$TREE/standard.origin.git\"" \
     '' \
-    '[members."group"]' \
-    'type = "dir"' \
-    > "$TREE/workspace/.mgit-config.toml"
+    '[[groups.default.members]]' \
+    'kind = "workspace"' \
+    'path = "group"' \
+    > "$TREE/workspace/.mgit-workspace.toml"
   printf '%s\n' \
-    'version = 1' \
+    'schema = 1' \
+    'default = "default"' \
     '' \
-    '[members."grouped-repo"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "grouped-repo"' \
     'type = "standard"' \
-    "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit-config.toml"
+    "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit-workspace.toml"
 
   cd "$TREE/workspace"
-  run "$MGIT" bootstrap
+  run "$MGIT" repair
 
   [ "$status" -eq 0 ]
   [ "$(cat "$TREE/workspace/standard-repo/payload")" = standard ]
@@ -328,25 +344,34 @@ make_fake_chezmoi() {
   [ "$(git -C "$TREE/workspace/bare-repo.git" rev-parse --is-bare-repository)" = true ]
   [ "$(cat "$TREE/workspace/group/grouped-repo/payload")" = standard ]
 
-  run "$MGIT" bootstrap
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   [[ "$output" == *"present "*"standard-repo"* ]]
 }
 
-@test "bootstrap refuses a missing member without a clone URL" {
+@test "repair refuses a missing member without a clone URL" {
   printf '%s\n' \
-    'version = 1' \
+    'schema = 1' \
+    'default = "default"' \
     '' \
-    '[members."missing-repo"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "missing-repo"' \
     'type = "standard"' \
-    > "$TREE/.mgit-config.toml"
+    > "$TREE/.mgit-workspace.toml"
 
   cd "$TREE"
-  run "$MGIT" bootstrap
+  run "$MGIT" repair
 
   [ "$status" -eq 1 ]
   [ ! -e "$TREE/missing-repo" ]
   [[ "$output" == *"no clone URL"* ]]
+
+  touch "$TREE/missing-repo"
+  run "$MGIT" repair
+  [ "$status" -eq 1 ]
+  [ -f "$TREE/missing-repo" ]
+  [[ "$output" == *"refusing to replace non-repository path"* ]]
 }
 
 @test "bare mgit lists the discovered repos" {
@@ -354,7 +379,7 @@ make_fake_chezmoi() {
   mkrepo "$TREE/b"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  ! grep -q "repoB-branch-c" "$TREE/.mgit-config.toml"
+  ! grep -q "repoB-branch-c" "$TREE/.mgit-workspace.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"a"* ]]
@@ -365,10 +390,119 @@ make_fake_chezmoi() {
   mkrepo "$TREE/a"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  first=$(cat "$TREE/.mgit-config.toml")
+  first=$(cat "$TREE/.mgit-workspace.toml")
   "$MGIT" register >/dev/null
-  second=$(cat "$TREE/.mgit-config.toml")
+  second=$(cat "$TREE/.mgit-workspace.toml")
   [ "$first" = "$second" ]
+}
+
+@test "register removes obsolete parent config and preserves leaf config behavior" {
+  mkrepo "$TREE/a"
+  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
+  mkdir -p "$TREE/b/shared"
+  mkrepo "$TREE/b"
+  ( cd "$TREE/a" && ln -s ../b/shared link-to-b )
+
+  cd "$TREE"
+  run "$MGIT" register
+
+  [ "$status" -eq 0 ]
+  [ ! -e "$TREE/.mgit-config.toml" ]
+  [ -f "$TREE/.mgit-workspace.toml" ]
+  [ -f "$TREE/a/.mgit-config.toml" ]
+}
+
+@test "register preserves named groups and their selected order" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "focus"' \
+    '' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "a"' \
+    'type = "standard"' \
+    '' \
+    '[[groups.focus.members]]' \
+    'kind = "repository"' \
+    'path = "b"' \
+    '' \
+    '[[groups.focus.members]]' \
+    'kind = "repository"' \
+    'path = "a"' > "$TREE/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  grep -Fx 'default = "focus"' "$TREE/.mgit-workspace.toml"
+  [ "$(grep -cFx '[[groups.focus.members]]' "$TREE/.mgit-workspace.toml")" -eq 2 ]
+
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'b\na' ]
+
+  run "$MGIT" --group default
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a\nb' ]
+}
+
+@test "workspace selection rejects malformed, duplicate, and unsafe paths" {
+  mkrepo "$TREE/a"
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "default"' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "../a"' \
+    'type = "standard"' > "$TREE/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unsafe workspace member path"* ]]
+
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "default"' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "a"' \
+    'type = "standard"' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "a"' \
+    'type = "standard"' > "$TREE/.mgit-workspace.toml"
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"duplicate member path"* ]]
+}
+
+@test "workspace selection rejects invalid groups and unsafe workspace cycles" {
+  mkrepo "$TREE/a"
+  mkdir "$TREE/child"
+  ln -s .. "$TREE/child/loop"
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "default"' \
+    '[[groups.default.members]]' \
+    'kind = "workspace"' \
+    'path = "child"' > "$TREE/.mgit-workspace.toml"
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "default"' \
+    '[[groups.default.members]]' \
+    'kind = "workspace"' \
+    'path = "loop"' > "$TREE/child/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT" --group absent
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unknown workspace group"* ]]
+
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unsafe or missing workspace path"* ]]
 }
 
 @test "a cross-repo symlink is recorded as a TOML entry" {
@@ -397,22 +531,25 @@ make_fake_chezmoi() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -Fx '[members."repoA"]' "$TREE/.mgit-config.toml"
-  grep -Fx 'type = "nested"' "$TREE/.mgit-config.toml"
-  grep -Fx '[members."repoB"]' "$TREE/.mgit-config.toml"
-  grep -Fx 'type = "standard"' "$TREE/.mgit-config.toml"
-  ! grep -Fx '[members."main"]' "$TREE/.mgit-config.toml"
+  grep -Fx 'path = "repoA"' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'type = "nested"' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'path = "repoB"' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'type = "standard"' "$TREE/.mgit-workspace.toml"
+  ! grep -Fx 'path = "main"' "$TREE/.mgit-workspace.toml"
 }
 
-@test "TOML manifest members are read" {
+@test "workspace members are read" {
   mkrepo "$TREE/repoA"
   printf '%s\n' \
     '# A comment with a # inside a string stays valid: "repo#A".' \
-    'version = 1' \
+    'schema = 1' \
+    'default = "default"' \
     '' \
-    '[members."repoA"]' \
+    '[[groups.default.members]]' \
+    'kind = "repository"' \
+    'path = "repoA"' \
     'type = "standard"' \
-    '# inline comments are allowed' > "$TREE/.mgit-config.toml"
+    '# inline comments are allowed' > "$TREE/.mgit-workspace.toml"
 
   cd "$TREE"
   run "$MGIT"

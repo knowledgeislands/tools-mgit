@@ -18,12 +18,12 @@ in every repository in the current set.
 .TP
 .B mgit register
 Generate
-.I .mgit-config.toml
+.I .mgit-workspace.toml
 manifests for the current tree.
 .TP
-.B mgit bootstrap
-Clone missing repositories declared by the current
-.I .mgit-config.toml
+.B mgit repair
+Clone missing repositories declared by structural default groups in the current
+.I .mgit-workspace.toml
 manifest.
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
@@ -49,7 +49,7 @@ Before each invocation it prints the repository path and command.
 With no command it prints the repository paths that would be used.
 .PP
 The set comes from a
-.I .mgit-config.toml
+.I .mgit-workspace.toml
 in the current directory when one is present.
 Otherwise,
 .B mgit
@@ -74,8 +74,14 @@ subcommand.
 .TP
 .BR \-I , " \-\-ignore"
 Ignore
-.I .mgit-config.toml
+.I .mgit-workspace.toml
 files and discover repositories by walking the tree.
+.TP
+.BR \-g , " \-\-group" " \fINAME\fR"
+Select group
+.I NAME
+from the workspace in the current directory instead of that workspace's configured default.
+Child workspaces use their own configured defaults.
 .TP
 .BR \-f , " \-\-filter" " \fIGLOB\fR"
 Limit the repository set to repositories whose path, relative to the current
@@ -85,6 +91,7 @@ A bare pattern also matches a repository's last path component, so
 .B mgit \-f 'mcp\-*'
 selects the mcp repositories wherever they sit in the tree.
 The option is repeatable; a repository matching any pattern is kept.
+Workspace selection occurs before filtering.
 The filter narrows normal commands, the repository listing, and the
 .B structure
 and
@@ -92,7 +99,7 @@ and
 set commands; it does not affect
 .B register
 or
-.BR bootstrap .
+.BR repair .
 .TP
 .BR \-h , " \-\-help"
 Print usage information and exit.
@@ -103,17 +110,21 @@ Print the version and exit.
 .SS register
 .B mgit register
 scans the current tree and writes a
+.I .mgit-workspace.toml
+in every non-Git container directory, listing child workspaces and repositories.
+It writes a
 .I .mgit-config.toml
-in every container directory, listing child containers and repositories.
-It also writes a manifest in a repository that owns cross-repository symlinks.
-The command does not descend into repositories, always performs a fresh scan, and overwrites generated manifests.
+only in a repository that owns cross-repository symlinks.
+The command does not descend into repositories, always performs a fresh scan, and replaces generated structural default-group records.
+Existing non-default groups are preserved.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target directory are added to Chezmoi's source state.
-.SS bootstrap
-.B mgit bootstrap
-uses the manifest in the current directory to clone every missing typed repository entry with a source URL.
+.SS repair
+.B mgit repair
+uses the workspace manifest in the current directory to clone every missing repository in structural default groups with a source URL.
 It creates standard, nested, and bare repositories in their declared forms.
-Existing paths are never replaced: a present repository must match its declared structure, and directory entries must already exist.
+It recursively follows child workspaces through their structural default groups.
+Existing paths are never replaced: a present repository must match its declared structure, and child workspace directories and manifests must already exist.
 .SS structure
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.
@@ -154,47 +165,72 @@ For example, source the Bash definition with:
 .nf
 source <(mgit completion bash)
 .fi
-.SH MANIFESTS
+.SH WORKSPACE MANIFESTS
 A
-.I .mgit-config.toml
-manifest uses TOML tables. Each child repository or container directory
-has a table under
-.BR members .
+.I .mgit-workspace.toml
+manifest uses schema 1 and ordered member records in named groups.
 The complete generated shape is:
 .PP
 .nf
-version = 1
+schema = 1
+default = "default"
 
-[members."platform"]
+[[groups.default.members]]
+kind = "repository"
+path = "platform"
 type = "standard"
 source = "git@github.com:acme/platform.git"
 
-[members."workspace"]
+[[groups.default.members]]
+kind = "repository"
+path = "workspace"
 type = "nested"
 
-[members."archive.git"]
+[[groups.default.members]]
+kind = "repository"
+path = "archive.git"
 type = "bare"
 
-[members."group"]
-type = "dir"
+[[groups.default.members]]
+kind = "workspace"
+path = "group"
+
+[[groups.ci.members]]
+kind = "repository"
+path = "platform"
 .fi
 .PP
-The optional
-.B source
-field is a clone URL and applies to repository entries, not
-.B dir
-entries.
-Each
-.B type
-is one of
+The structural
+.B default
+group is required.
+Its repository members require
+.BR type ,
+which is one of
 .BR standard ,
 .BR nested ,
-.BR bare ,
 or
-.BR dir .
-The quoted member-table key is the member path.
+.BR bare .
+The optional
+.B source
+field is a clone URL and applies to default-group repository members.
+Workspace members use only
+.B kind
+and
+.BR path .
+Non-default group repository members also use only
+.B kind
+and
+.BR path ;
+they select already-present repositories and do not declare structure or clone sources.
 .PP
-The
+Member paths are safe relative paths below the manifest directory.
+The current workspace uses its configured default group, or a group named with
+.BR \-g / \-\-group .
+Child workspaces use their own configured defaults.
+.PP
+Repository-owned
+.I .mgit-config.toml
+files have a separate leaf-only purpose: their
 .B symlinks
 table maps a symlink the current repository owns to its target in another repository:
 .PP
@@ -206,9 +242,6 @@ table maps a symlink the current repository owns to its target in another reposi
 Blank lines and comments beginning with
 .B #
 are ignored.
-Relative paths are resolved from the manifest's directory; absolute and
-.B ~/
-paths are also accepted.
 .SH REPOSITORY STRUCTURES
 A standard repository is an ordinary checkout with a
 .I .git/
@@ -225,8 +258,11 @@ checkout.
 Commands operate in live checkouts, never in the nested controller or bare store.
 .SH FILES
 .TP
+.I .mgit-workspace.toml
+Optional schema-1 workspace manifest in a non-Git container directory.
+.TP
 .I .mgit-config.toml
-Optional repository-set manifest in the current directory and nested container directories.
+Optional repository-leaf symlink metadata.
 .SH EXIT STATUS
 .TP
 .B 0

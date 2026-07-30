@@ -2,7 +2,9 @@
 
 Run commands across many Git repositories and worktrees at once. `mgit status`, `mgit pull`, `mgit -B npm test` — each runs in every checkout in the set, with the repo name printed before its output.
 
-The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgit-config.toml` manifest. The manifest is never required — reach for it when you want the set to be explicit and reproducible, or to span repos that live outside the current tree.
+The set of repositories is **determined at runtime** by walking the directory tree for `.git`, or **predetermined** by an optional checked-in `.mgit-workspace.toml` manifest. Workspace manifests are never required — reach for them when you want the set to be explicit, reproducible, ordered, or divided into groups.
+
+`mgit register` generates workspace manifests for non-Git containers. Repository leaf directories use `.mgit-config.toml` only for cross-repository symlink metadata.
 
 ## Get started
 

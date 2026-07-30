@@ -6,7 +6,7 @@
 
 - [Install and configure your shell](installation.md) covers Homebrew, the installer, requirements, and completion.
 - [Run commands across repositories](running-commands.md) covers discovery, commands, filters, and options.
-- [Define a repository set](repository-sets.md) covers `.mgit-config.toml`, `register`, and `bootstrap`.
+- [Define a repository set](repository-sets.md) covers `.mgit-workspace.toml`, groups, `register`, and `repair`.
 - [Manage worktrees](worktrees.md) covers standard and nested repository structures, migration, and linked worktrees.
 
 ## Quick start
@@ -18,4 +18,4 @@ mgit
 mgit status
 ```
 
-By default, `mgit` discovers repository roots beneath the current directory. Use `mgit register` when the set should be explicit, reproducible, or include repositories outside that tree.
+By default, `mgit` discovers repository roots beneath the current directory. Use `mgit register` when the set should be explicit, reproducible, ordered, or divided into groups.

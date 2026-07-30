@@ -7,15 +7,15 @@
 # .git directory) or a nested structure (a .bare store, a .git controller file,
 # and a main/ checkout). Container dirs are the directories between the
 # cwd and repository roots. The repo set comes from a
-# .mgit-config.toml in the current directory if one exists; otherwise the tree is
-# walked for .git entries (dropping any nested under another repo).
+# .mgit-workspace.toml in the current directory if one exists; otherwise the tree
+# is walked for .git entries (dropping any nested under another repo).
 #
-# A .mgit-config.toml manifest maps a child path to its member table under
-# `members`, and a repository-owned link to its target under `symlinks`. Paths
-# are relative to the file's dir, or ~-prefixed / absolute.
+# A .mgit-workspace.toml manifest defines ordered repository/workspace members
+# in named groups. A repository-owned .mgit-config.toml only maps a symlink to
+# its target under `symlinks`.
 #
-# `mgit register` writes a .mgit-config.toml in every container dir (listing its
-# children) and in every leaf dir that owns cross-repo symlinks (listing them).
+# `mgit register` writes a .mgit-workspace.toml in every container dir (listing
+# its children) and .mgit-config.toml in each leaf that owns cross-repo symlinks.
 # It stops at leaf dirs — it never descends into a repo — and always scans
 # fresh, ignoring existing config (so it implies -I).
 #
@@ -27,6 +27,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_CONFIG=.mgit-config.toml
+MGIT_WORKSPACE=.mgit-workspace.toml
 MGIT_VERSION=0.7.1
 
 CLEAR=$'\033[0m'
@@ -37,7 +38,7 @@ usage() {
   cat <<'EOF'
 Usage: mgit [options] [command]
        mgit [options] register
-       mgit bootstrap
+       mgit repair
        mgit structure <standard|nested> <--dry-run|--yes>
        mgit worktree <list|status|add|remove> [options]
        mgit completion <bash|zsh>
@@ -45,15 +46,17 @@ Usage: mgit [options] [command]
 Runs supplied command on multiple git repositories.
 
 A "leaf dir" has a .git child (a repo); "container dirs" are the directories
-between the cwd and the leaf dirs. The repo set comes from ./.mgit-config.toml
-if present, else by walking the tree. Its TOML `members` and `symlinks` tables
-declare child directories/repositories and cross-repository symlinks.
+between the cwd and the leaf dirs. The repo set comes from
+./.mgit-workspace.toml if present, else by walking the tree. Workspace groups
+declare ordered repositories and child workspaces; repository-owned
+.mgit-config.toml files declare cross-repository symlinks.
 
 Options:
   -P, --physical         Don't follow symlinked container dirs (default)
   -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
   -B, --bare             Run bare; don't prefix command with git
   -I, --ignore           Ignore .mgit-config.toml files; walk the tree instead
+  -g, --group NAME       Select NAME from the cwd workspace instead of its default
   -f, --filter GLOB      Limit the repo set to repos whose path matches GLOB;
                          a bare pattern also matches a repo's last path
                          component. Repeatable; repeats union.
@@ -61,14 +64,15 @@ Options:
   -V, --version          Print version and exit
 
 Subcommand:
-  register               Write a .mgit-config.toml in every container dir (listing its
-                         child containers/repos) and in every leaf dir that owns
-                         cross-repo symlinks (listing them). Stops at leaf dirs,
+  register               Write a .mgit-workspace.toml in every container dir
+                         (listing its child workspaces/repos) and
+                         .mgit-config.toml in every leaf that owns cross-repo
+                         symlinks. Stops at leaf dirs,
                          never descending into a repo. Always scans fresh
                          (implies -I) and overwrites generated files. If chezmoi
                          manages the current path, also updates its source state.
-  bootstrap              Clone missing repositories declared with a source URL in
-                         .mgit-config.toml, recreating standard, nested, and bare layouts.
+  repair                 Clone missing repositories declared by workspace default
+                         groups, recreating standard, nested, and bare layouts.
   worktree list           List worktrees, grouped by shared Git store.
   worktree status         Show branch and cleanliness for every working tree.
   structure nested        Convert eligible standard repos to nested structure.
@@ -103,7 +107,7 @@ _mgit() {
       COMPREPLY=( $(compgen -W 'bash zsh' -- "$cur") )
       ;;
     *)
-      COMPREPLY=( $(compgen -W 'register bootstrap structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -f --filter -h --help -V --version' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'register repair structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -f --filter -h --help -V --version' -- "$cur") )
       ;;
   esac
 }
@@ -117,8 +121,8 @@ EOF
 _mgit() {
   local -a global_commands global_options
   global_commands=(
-    'register:generate .mgit-config.toml manifests'
-    'bootstrap:clone missing repositories declared in .mgit-config.toml'
+    'register:generate workspace manifests and repository symlink metadata'
+    'repair:clone missing repositories declared by workspace defaults'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
@@ -132,6 +136,8 @@ _mgit() {
     '--bare[run command without git prefix]'
     '-I[ignore .mgit-config.toml files]'
     '--ignore[ignore .mgit-config.toml files]'
+    '-g[select a workspace group]:group name:'
+    '--group[select a workspace group]:group name:'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
     '-h[show help]'
@@ -421,8 +427,8 @@ toml_without_comment() {
   printf '%s' "$result"
 }
 
-# Emit a keyed member table as the record form consumed by bootstrap and normal
-# repository-set traversal.
+# Emit a legacy keyed member record. Container membership is no longer consumed;
+# repository-owned symlink records remain the live leaf format.
 parse_mgit_keyed_member() {
   local type="$1" path="$2" source="$3" file="$4"
   [ -z "$type" ] && [ -z "$path" ] && return
@@ -516,6 +522,239 @@ parse_mgit() {
     esac
   done < "$repo/$MGIT_CONFIG"
   [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
+}
+
+workspace_default=""
+workspace_groups=()
+workspace_record_groups=()
+workspace_record_kinds=()
+workspace_record_paths=()
+workspace_record_types=()
+workspace_record_sources=()
+workspace_member_group=""
+workspace_member_kind=""
+workspace_member_path=""
+workspace_member_type=""
+workspace_member_source=""
+workspace_member_seen_kind=false
+workspace_member_seen_path=false
+workspace_member_seen_type=false
+workspace_member_seen_source=false
+
+workspace_path_safe() {
+  case "$1" in
+    ""|/*|~*|.|..|./*|../*|*/./*|*/../*|*/.|*/..|*//*|*/)
+      return 1
+      ;;
+    *$'\n'*|*$'\r'*|*$'\t'*) return 1 ;;
+  esac
+}
+
+workspace_group_known() {
+  local needle="$1" item
+  for item in "${workspace_groups[@]+"${workspace_groups[@]}"}"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+workspace_finish_member() {
+  local file="$1" i
+  [ -n "$workspace_member_group" ] || return 0
+  if [ "$workspace_member_seen_kind" != true ] || [ "$workspace_member_seen_path" != true ]; then
+    printf 'mgit: %s: workspace member requires kind and path\n' "$file" >&2
+    return 1
+  fi
+  case "$workspace_member_kind" in
+    repository)
+      if [ "$workspace_member_group" = default ]; then
+        if [ "$workspace_member_seen_type" != true ]; then
+          printf 'mgit: %s: default repository member requires type\n' "$file" >&2
+          return 1
+        fi
+        case "$workspace_member_type" in standard|nested|bare) ;; *)
+          printf 'mgit: %s: unsupported repository type: %s\n' "$file" "$workspace_member_type" >&2
+          return 1
+        esac
+      elif [ "$workspace_member_seen_type" = true ] || [ "$workspace_member_seen_source" = true ]; then
+        printf 'mgit: %s: non-default groups must not contain type or source\n' "$file" >&2
+        return 1
+      fi
+      ;;
+    workspace)
+      if [ "$workspace_member_seen_type" = true ] || [ "$workspace_member_seen_source" = true ]; then
+        printf 'mgit: %s: workspace members may only contain kind and path\n' "$file" >&2
+        return 1
+      fi
+      ;;
+    *)
+      printf 'mgit: %s: unsupported member kind: %s\n' "$file" "$workspace_member_kind" >&2
+      return 1
+      ;;
+  esac
+  workspace_path_safe "$workspace_member_path" || {
+    printf 'mgit: %s: unsafe workspace member path: %s\n' "$file" "$workspace_member_path" >&2
+    return 1
+  }
+  for i in "${!workspace_record_paths[@]}"; do
+    if [ "${workspace_record_groups[$i]}" = "$workspace_member_group" ] &&
+       [ "${workspace_record_paths[$i]}" = "$workspace_member_path" ]; then
+      printf 'mgit: %s: duplicate member path in group %s: %s\n' \
+        "$file" "$workspace_member_group" "$workspace_member_path" >&2
+      return 1
+    fi
+  done
+  workspace_record_groups+=("$workspace_member_group")
+  workspace_record_kinds+=("$workspace_member_kind")
+  workspace_record_paths+=("$workspace_member_path")
+  workspace_record_types+=("$workspace_member_type")
+  workspace_record_sources+=("$workspace_member_source")
+  workspace_member_group=""
+}
+
+# Parse the deliberately small schema-1 workspace format into ordered global
+# record arrays. Unsupported or duplicate syntax is rejected instead of being
+# partially interpreted.
+# shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
+parse_workspace() {
+  local file="$1" line key value group schema="" seen_schema=false seen_default=false
+  workspace_default=""
+  workspace_groups=()
+  workspace_record_groups=()
+  workspace_record_kinds=()
+  workspace_record_paths=()
+  workspace_record_types=()
+  workspace_record_sources=()
+  workspace_member_group=""
+  [ -f "$file" ] || { printf 'mgit: workspace manifest not found: %s\n' "$file" >&2; return 1; }
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=$(toml_without_comment "$line")
+    line=$(trim "$line")
+    [ -z "$line" ] && continue
+    if [[ "$line" =~ ^\[\[groups\.([A-Za-z0-9_-]+)\.members\]\]$ ]]; then
+      workspace_finish_member "$file" || return 1
+      group="${BASH_REMATCH[1]}"
+      workspace_group_known "$group" || workspace_groups+=("$group")
+      workspace_member_group="$group"
+      workspace_member_kind=""
+      workspace_member_path=""
+      workspace_member_type=""
+      workspace_member_source=""
+      workspace_member_seen_kind=false
+      workspace_member_seen_path=false
+      workspace_member_seen_type=false
+      workspace_member_seen_source=false
+      continue
+    fi
+    case "$line" in
+      \[*)
+        printf 'mgit: %s: unsupported TOML table: %s\n' "$file" "$line" >&2
+        return 1
+        ;;
+      *=*)
+        key=$(trim "${line%%=*}")
+        value=$(trim "${line#*=}")
+        if [ -z "$workspace_member_group" ]; then
+          case "$key" in
+            schema)
+              [ "$seen_schema" = false ] || {
+                printf 'mgit: %s: duplicate schema field\n' "$file" >&2
+                return 1
+              }
+              [ "$value" = 1 ] || {
+                printf 'mgit: %s: unsupported workspace schema: %s\n' "$file" "$value" >&2
+                return 1
+              }
+              schema=1
+              seen_schema=true
+              ;;
+            default)
+              [ "$seen_default" = false ] || {
+                printf 'mgit: %s: duplicate default field\n' "$file" >&2
+                return 1
+              }
+              workspace_default=$(toml_string "$value") || {
+                printf 'mgit: %s: default must be a TOML basic string\n' "$file" >&2
+                return 1
+              }
+              case "$workspace_default" in
+                ""|*[!A-Za-z0-9_-]*)
+                  printf 'mgit: %s: invalid default group: %s\n' "$file" "$workspace_default" >&2
+                  return 1
+                  ;;
+              esac
+              seen_default=true
+              ;;
+            *)
+              printf 'mgit: %s: unsupported workspace field: %s\n' "$file" "$key" >&2
+              return 1
+              ;;
+          esac
+        else
+          value=$(toml_string "$value") || {
+            printf 'mgit: %s: member field must be a TOML basic string: %s\n' "$file" "$line" >&2
+            return 1
+          }
+          case "$key" in
+            kind)
+              [ "$workspace_member_seen_kind" = false ] || {
+                printf 'mgit: %s: duplicate member kind\n' "$file" >&2
+                return 1
+              }
+              workspace_member_kind="$value"; workspace_member_seen_kind=true
+              ;;
+            path)
+              [ "$workspace_member_seen_path" = false ] || {
+                printf 'mgit: %s: duplicate member path\n' "$file" >&2
+                return 1
+              }
+              workspace_member_path="$value"; workspace_member_seen_path=true
+              ;;
+            type)
+              [ "$workspace_member_seen_type" = false ] || {
+                printf 'mgit: %s: duplicate member type\n' "$file" >&2
+                return 1
+              }
+              workspace_member_type="$value"; workspace_member_seen_type=true
+              ;;
+            source)
+              [ "$workspace_member_seen_source" = false ] || {
+                printf 'mgit: %s: duplicate member source\n' "$file" >&2
+                return 1
+              }
+              workspace_member_source="$value"; workspace_member_seen_source=true
+              ;;
+            *)
+              printf 'mgit: %s: unsupported member field: %s\n' "$file" "$key" >&2
+              return 1
+              ;;
+          esac
+        fi
+        ;;
+      *)
+        printf 'mgit: %s: unsupported TOML statement: %s\n' "$file" "$line" >&2
+        return 1
+        ;;
+    esac
+  done < "$file"
+  workspace_finish_member "$file" || return 1
+  [ "$seen_schema" = true ] && [ "$schema" = 1 ] || {
+    printf 'mgit: %s: missing schema = 1\n' "$file" >&2
+    return 1
+  }
+  [ "$seen_default" = true ] || {
+    printf 'mgit: %s: missing default group\n' "$file" >&2
+    return 1
+  }
+  workspace_group_known default || {
+    printf 'mgit: %s: missing structural default group\n' "$file" >&2
+    return 1
+  }
+  workspace_group_known "$workspace_default" || {
+    printf 'mgit: %s: selected default group does not exist: %s\n' "$file" "$workspace_default" >&2
+    return 1
+  }
 }
 
 # Expand a ~ prefix; leave absolute/relative paths untouched.
@@ -635,9 +874,10 @@ register_repo() {
   return 0
 }
 
-# register, recursive: write a .mgit-config.toml in every container dir (and every
-# leaf dir that owns symlinks). Returns 0 if $1 is or contains a repo (so its
-# parent should reference it), 1 otherwise.
+# register, recursive: physically scan in postorder, writing a workspace
+# manifest in every non-Git container and leaf symlink metadata in repositories.
+# Returns 0 if $1 is or contains a repo (so its parent should reference it), 1
+# otherwise.
 reg_seen=()
 reg_is_seen() {
   local needle="$1" x
@@ -646,14 +886,61 @@ reg_is_seen() {
   done
   return 1
 }
-register_tree() {
-  local dir="$1" child kid_types=() kid_paths=() kid_sources=() canon kind child_kind source status i
-  # In -L mode, guard against symlink cycles by canonical path.
-  if [ "$follow_symlinks" = true ]; then
-    canon=$(canon_dir "$dir") || return 1
-    reg_is_seen "$canon" && return 1
-    reg_seen+=("$canon")
+
+register_repo_preflight() {
+  local dir="$1" repoabs sl slabs tabs trepo target
+  repoabs=$(canon_dir "$dir") || return 1
+  while IFS= read -r sl; do
+    sl="${sl#./}"
+    [ -z "$sl" ] && continue
+    git -C "$dir" check-ignore -q "$sl" 2>/dev/null && continue
+    slabs="$dir/$sl"
+    tabs=$(canon_any "$slabs") || continue
+    case "$tabs" in "$repoabs"/*) continue ;; esac
+    trepo=$(repo_of "$tabs")
+    [ -n "$trepo" ] || continue
+    target=$(choose_target "$repoabs" "$tabs")
+    toml_escape "$sl" >/dev/null || {
+      printf 'mgit register: symlink path cannot be represented in TOML: %s\n' "$sl" >&2
+      return 1
+    }
+    toml_escape "$target" >/dev/null || {
+      printf 'mgit register: symlink target cannot be represented in TOML: %s\n' "$target" >&2
+      return 1
+    }
+  done < <(cd "$dir" && find . \( -name .git -o -name node_modules \) -prune \
+             -o -type l -print 2>/dev/null | sort)
+}
+
+register_preflight_tree() {
+  local dir="$1" child kind source
+  kind=$(repo_type "$dir")
+  if [ "$kind" != unknown ]; then
+    [ "$kind" != standard ] || register_repo_preflight "$dir"
+    return $?
   fi
+  [ ! -f "$dir/$MGIT_WORKSPACE" ] || parse_workspace "$dir/$MGIT_WORKSPACE" || return 1
+  for child in "$dir"/*/; do
+    [ -d "$child" ] || continue
+    child="${child%/}"
+    [ -L "$child" ] && continue
+    kind=$(repo_type "$child")
+    if [ "$kind" != unknown ]; then
+      source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
+      toml_escape "$(basename "$child")" >/dev/null || return 1
+      [ -z "$source" ] || toml_escape "$source" >/dev/null || {
+        printf 'mgit register: repository source cannot be represented in TOML: %s\n' "$source" >&2
+        return 1
+      }
+    fi
+    register_preflight_tree "$child" || return 1
+  done
+}
+
+register_tree() {
+  local dir="$1" child kid_kinds=() kid_types=() kid_paths=() kid_sources=()
+  local kind child_kind source status i old_default=default
+  local old_groups=() old_kinds=() old_paths=()
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
@@ -666,18 +953,14 @@ register_tree() {
   for child in "$dir"/*/; do
     [ -d "$child" ] || continue          # no subdirs (glob didn't match)
     child="${child%/}"
-    if [ -L "$child" ]; then
-      # Follow symlinked dirs only in -L mode, and only container dirs — a
-      # symlinked leaf repo is skipped (it's an alias of a real repo).
-      [ "$follow_symlinks" = true ] || continue
-      [ "$(repo_type "$child")" != unknown ] && continue
-    fi
+    [ -L "$child" ] && continue
     child_kind=$(repo_type "$child")
     if [ "$child_kind" != unknown ]; then
       register_tree "$child"
       status=$?
       [ "$status" -eq 0 ] || return "$status"
       source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
+      kid_kinds+=(repository)
       kid_types+=("$child_kind")
       kid_paths+=("$(basename "$child")")
       kid_sources+=("$source")
@@ -685,7 +968,8 @@ register_tree() {
       register_tree "$child"
       status=$?
       if [ "$status" -eq 0 ]; then
-        kid_types+=(dir)
+        kid_kinds+=(workspace)
+        kid_types+=("")
         kid_paths+=("$(basename "$child")")
         kid_sources+=("")
       elif [ "$status" -ne 1 ]; then
@@ -693,26 +977,55 @@ register_tree() {
       fi
     fi
   done
+  if [ -f "$dir/$MGIT_WORKSPACE" ]; then
+    parse_workspace "$dir/$MGIT_WORKSPACE" || return 2
+    old_default="$workspace_default"
+    old_groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
+    old_kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
+    old_paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
+  fi
   if [ ${#kid_types[@]} -gt 0 ]; then
     {
       printf '# Generated by `mgit register`.\n'
-      printf '# `members` maps child paths to repository structure or container entries.\n'
-      printf 'version = 1\n'
+      printf 'schema = 1\n'
+      printf 'default = '
+      toml_quote "$old_default" || return 2
+      printf '\n'
       for i in "${!kid_types[@]}"; do
-        printf '\n[members.'
+        printf '\n[[groups.default.members]]\nkind = '
+        toml_quote "${kid_kinds[$i]}" || return 2
+        printf '\npath = '
         toml_quote "${kid_paths[$i]}" || return 2
-        printf ']\ntype = '
-        toml_quote "${kid_types[$i]}" || return 2
-        if [ "${kid_types[$i]}" != dir ] && [ -n "${kid_sources[$i]}" ]; then
+        if [ "${kid_kinds[$i]}" = repository ]; then
+          printf '\ntype = '
+          toml_quote "${kid_types[$i]}" || return 2
+        fi
+        if [ "${kid_kinds[$i]}" = repository ] && [ -n "${kid_sources[$i]}" ]; then
           printf '\nsource = '
           toml_quote "${kid_sources[$i]}" || return 2
         fi
         printf '\n'
       done
-    } > "$dir/$MGIT_CONFIG" || return 2
-    chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
+      for i in "${!old_groups[@]}"; do
+        [ "${old_groups[$i]}" != default ] || continue
+        printf '\n[[groups.%s.members]]\nkind = ' "${old_groups[$i]}"
+        toml_quote "${old_kinds[$i]}" || return 2
+        printf '\npath = '
+        toml_quote "${old_paths[$i]}" || return 2
+        printf '\n'
+      done
+    } > "$dir/$MGIT_WORKSPACE" || return 2
+    chezmoi_add_manifest "$dir/$MGIT_WORKSPACE" || return 2
+    if [ -f "$dir/$MGIT_CONFIG" ]; then
+      chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
+      rm -f "$dir/$MGIT_CONFIG" || return 2
+    fi
     printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
     return 0
+  fi
+  if [ -f "$dir/$MGIT_WORKSPACE" ]; then
+    chezmoi_forget_manifest "$dir/$MGIT_WORKSPACE" || return 2
+    rm -f "$dir/$MGIT_WORKSPACE" || return 2
   fi
   if [ -f "$dir/$MGIT_CONFIG" ]; then
     chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
@@ -721,19 +1034,97 @@ register_tree() {
   return 1
 }
 
-# Bootstrap is deliberately manifest-driven: it never discovers arbitrary
-# repositories and never replaces an existing path. Typed repository entries
-# carry a `source` URL; register emits it from the repository's origin.
-bootstrap_seen=()
-bootstrap_seen_dir() {
+# Repair is deliberately workspace-driven: it never discovers arbitrary
+# repositories and never replaces an existing path. Structural default-group
+# repository entries carry the type and optional source emitted by register.
+repair_seen=()
+repair_preflight_workspaces=()
+repair_preflight_repositories=()
+repair_seen_dir() {
   local needle="$1" item
-  for item in "${bootstrap_seen[@]+"${bootstrap_seen[@]}"}"; do
+  for item in "${repair_seen[@]+"${repair_seen[@]}"}"; do
     [ "$item" = "$needle" ] && return 0
   done
   return 1
 }
 
-bootstrap_clone() {
+repair_preflight_seen() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+repair_preflight() {
+  local base="$1" canonical destination actual i identity
+  local groups=() kinds=() paths=() types=() sources=()
+  canonical=$(canon_dir "$base") || {
+    printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
+    return 1
+  }
+  repair_preflight_seen "$canonical" \
+    "${repair_preflight_workspaces[@]+"${repair_preflight_workspaces[@]}"}" && {
+    printf 'mgit repair: duplicate or cyclic workspace path: %s\n' "$canonical" >&2
+    return 1
+  }
+  repair_preflight_workspaces+=("$canonical")
+  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
+  kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
+  paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
+  types=("${workspace_record_types[@]+"${workspace_record_types[@]}"}")
+  sources=("${workspace_record_sources[@]+"${workspace_record_sources[@]}"}")
+  for i in "${!paths[@]}"; do
+    [ "${groups[$i]}" = default ] || continue
+    destination=$(resolve_path "${paths[$i]}" "$canonical")
+    case "${kinds[$i]}" in
+      workspace)
+        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+          printf 'mgit repair: workspace member is missing or unsafe: %s\n' "$destination" >&2
+          return 1
+        fi
+        [ -f "$destination/$MGIT_WORKSPACE" ] || {
+          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_WORKSPACE" >&2
+          return 1
+        }
+        repair_preflight "$destination" || return 1
+        ;;
+      repository)
+        identity="$destination"
+        if [ -e "$destination" ] || [ -L "$destination" ]; then
+          [ ! -L "$destination" ] || {
+            printf 'mgit repair: refusing repository symlink: %s\n' "$destination" >&2
+            return 1
+          }
+          actual=$(repo_type "$destination")
+          [ "$actual" != unknown ] || {
+            printf 'mgit repair: refusing to replace non-repository path: %s\n' "$destination" >&2
+            return 1
+          }
+          [ "${types[$i]}" = "$actual" ] || {
+            printf 'mgit repair: structure mismatch at %s (manifest: %s, found: %s)\n' \
+              "$destination" "${types[$i]}" "$actual" >&2
+            return 1
+          }
+          identity=$(canon_dir "$destination") || return 1
+        elif [ -z "${sources[$i]}" ]; then
+          printf 'mgit repair: no clone URL for missing member: %s\n' "$destination" >&2
+          return 1
+        fi
+        repair_preflight_seen "$identity" \
+          "${repair_preflight_repositories[@]+"${repair_preflight_repositories[@]}"}" && {
+          printf 'mgit repair: duplicate repository path: %s\n' "$identity" >&2
+          return 1
+        }
+        repair_preflight_repositories+=("$identity")
+        ;;
+    esac
+  done
+}
+
+repair_clone() {
   local kind="$1" destination="$2" source="$3" parent branch
   parent=$(dirname "$destination")
   mkdir -p "$parent" || return 1
@@ -748,95 +1139,119 @@ bootstrap_clone() {
       mkdir "$destination" || return 1
       if ! git clone --bare "$source" "$destination/.bare" || \
          ! printf 'gitdir: ./.bare\n' > "$destination/.git"; then
-        printf 'mgit bootstrap: nested clone failed; retained partial destination: %s\n' "$destination" >&2
+        printf 'mgit repair: nested clone failed; retained partial destination: %s\n' "$destination" >&2
         return 1
       fi
       branch=$(git --git-dir="$destination/.bare" symbolic-ref --quiet --short HEAD) || {
-        printf 'mgit bootstrap: cannot determine the default branch for %s\n' "$source" >&2
+        printf 'mgit repair: cannot determine the default branch for %s\n' "$source" >&2
         return 1
       }
       if ! git --git-dir="$destination/.bare" worktree add "$destination/main" "$branch"; then
-        printf 'mgit bootstrap: nested checkout failed; retained partial destination: %s\n' "$destination" >&2
+        printf 'mgit repair: nested checkout failed; retained partial destination: %s\n' "$destination" >&2
         return 1
       fi
       ;;
   esac
-  printf 'mgit bootstrap: cloned %s\n' "$destination"
+  printf 'mgit repair: cloned %s\n' "$destination"
 }
 
-bootstrap_tree() {
-  local base="$1" canonical kind member source destination actual failed=false
+repair_tree() {
+  local base="$1" canonical kind member source destination actual failed=false i
+  local groups=() kinds=() paths=() types=() sources=()
   canonical=$(canon_dir "$base") || {
-    printf 'mgit bootstrap: cannot read directory: %s\n' "$base" >&2
+    printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
     return 1
   }
-  bootstrap_seen_dir "$canonical" && return 0
-  bootstrap_seen+=("$canonical")
-  [ -f "$canonical/$MGIT_CONFIG" ] || return 0
+  repair_seen_dir "$canonical" && {
+    printf 'mgit repair: duplicate or cyclic workspace path: %s\n' "$canonical" >&2
+    return 1
+  }
+  repair_seen+=("$canonical")
+  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
+  kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
+  paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
+  types=("${workspace_record_types[@]+"${workspace_record_types[@]}"}")
+  sources=("${workspace_record_sources[@]+"${workspace_record_sources[@]}"}")
 
-  while IFS=$'\t' read -r kind member source; do
+  for i in "${!paths[@]}"; do
+    [ "${groups[$i]}" = default ] || continue
+    kind="${kinds[$i]}"
+    member="${paths[$i]}"
+    source="${sources[$i]}"
+    destination=$(resolve_path "$member" "$canonical")
     case "$kind" in
-      L) continue ;;  # Git restores tracked symlinks when their owning repo is cloned.
-      D)
-        destination=$(resolve_path "$(expand_tilde "$member")" "$canonical")
-        if [ ! -d "$destination" ]; then
-          printf 'mgit bootstrap: directory member is missing: %s\n' "$destination" >&2
+      workspace)
+        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+          printf 'mgit repair: workspace member is missing or unsafe: %s\n' "$destination" >&2
+          failed=true
+        elif [ ! -f "$destination/$MGIT_WORKSPACE" ]; then
+          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_WORKSPACE" >&2
           failed=true
         else
-          bootstrap_tree "$destination" || failed=true
+          repair_tree "$destination" || failed=true
         fi
         ;;
-      S|N|B|R)
-        destination=$(resolve_path "$(expand_tilde "$member")" "$canonical")
+      repository)
         if [ -e "$destination" ] || [ -L "$destination" ]; then
+          if [ -L "$destination" ]; then
+            printf 'mgit repair: refusing repository symlink: %s\n' "$destination" >&2
+            failed=true
+            continue
+          fi
           actual=$(repo_type "$destination")
           if [ "$actual" = unknown ]; then
-            printf 'mgit bootstrap: refusing to replace non-repository path: %s\n' "$destination" >&2
+            printf 'mgit repair: refusing to replace non-repository path: %s\n' "$destination" >&2
             failed=true
             continue
           fi
-          case "$kind:$actual" in
-            S:standard|N:nested|B:bare|R:*) ;;
-            *)
-              printf 'mgit bootstrap: structure mismatch at %s (manifest: %s, found: %s)\n' \
-                "$destination" "$kind" "$actual" >&2
-              failed=true
-              continue
-              ;;
-          esac
-          printf 'mgit bootstrap: present %s\n' "$destination"
+          if [ "${types[$i]}" != "$actual" ]; then
+            printf 'mgit repair: structure mismatch at %s (manifest: %s, found: %s)\n' \
+              "$destination" "${types[$i]}" "$actual" >&2
+            failed=true
+            continue
+          fi
+          printf 'mgit repair: present %s\n' "$destination"
         else
-          if [ "$kind" = R ] || [ -z "$source" ]; then
-            printf 'mgit bootstrap: no clone URL for missing member: %s\n' "$destination" >&2
+          if [ -z "$source" ]; then
+            printf 'mgit repair: no clone URL for missing member: %s\n' "$destination" >&2
             failed=true
             continue
           fi
-          bootstrap_clone "$kind" "$destination" "$(expand_tilde "$source")" || {
+          case "${types[$i]}" in
+            standard) kind=S ;;
+            nested) kind=N ;;
+            bare) kind=B ;;
+          esac
+          repair_clone "$kind" "$destination" "$(expand_tilde "$source")" || {
             failed=true
             continue
           }
         fi
-        bootstrap_tree "$destination" || failed=true
         ;;
     esac
-  done < <(parse_mgit "$canonical")
+  done
   [ "$failed" = false ]
 }
 
-bootstrap_command() {
+repair_command() {
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) usage; return 0 ;;
-      *) printf 'mgit bootstrap: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      *) printf 'mgit repair: unexpected argument: %s\n' "$1" >&2; return 2 ;;
     esac
-    # shellcheck disable=SC2317  # reachable once bootstrap grows an option that does not return
+    # shellcheck disable=SC2317  # reachable once repair grows an option that does not return
     shift
   done
-  [ -f "./$MGIT_CONFIG" ] || {
-    printf 'mgit bootstrap: no .mgit-config.toml in %s\n' "$(pwd)" >&2
+  [ -f "./$MGIT_WORKSPACE" ] || {
+    printf 'mgit repair: no .mgit-workspace.toml in %s\n' "$(pwd)" >&2
     return 1
   }
-  bootstrap_tree "."
+  repair_preflight_workspaces=()
+  repair_preflight_repositories=()
+  repair_preflight "." || return 1
+  repair_seen=()
+  repair_tree "."
 }
 
 worktree_paths=()
@@ -1285,6 +1700,76 @@ worktree_command() {
   esac
 }
 
+selected_workspace_dirs=()
+selected_repo_dirs=()
+
+selected_path_seen() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+select_workspace() {
+  local base="$1" requested_group="$2" canonical group destination actual i
+  local groups=() kinds=() paths=()
+  canonical=$(canon_dir "$base") || {
+    printf 'mgit: cannot read workspace directory: %s\n' "$base" >&2
+    return 1
+  }
+  selected_path_seen "$canonical" "${selected_workspace_dirs[@]+"${selected_workspace_dirs[@]}"}" && {
+    printf 'mgit: duplicate or cyclic workspace path: %s\n' "$canonical" >&2
+    return 1
+  }
+  selected_workspace_dirs+=("$canonical")
+  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  group="$requested_group"
+  [ -n "$group" ] || group="$workspace_default"
+  workspace_group_known "$group" || {
+    printf 'mgit: %s: unknown workspace group: %s\n' "$canonical/$MGIT_WORKSPACE" "$group" >&2
+    return 1
+  }
+  groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
+  kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
+  paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
+  for i in "${!paths[@]}"; do
+    [ "${groups[$i]}" = "$group" ] || continue
+    destination=$(resolve_path "${paths[$i]}" "$canonical")
+    case "${kinds[$i]}" in
+      workspace)
+        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+          printf 'mgit: unsafe or missing workspace path: %s\n' "$destination" >&2
+          return 1
+        fi
+        [ -f "$destination/$MGIT_WORKSPACE" ] || {
+          printf 'mgit: workspace manifest not found: %s\n' "$destination/$MGIT_WORKSPACE" >&2
+          return 1
+        }
+        select_workspace "$destination" "" || return 1
+        ;;
+      repository)
+        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+          printf 'mgit: unsafe or missing repository path: %s\n' "$destination" >&2
+          return 1
+        fi
+        destination=$(canon_dir "$destination") || return 1
+        actual=$(repo_type "$destination")
+        [ "$actual" != unknown ] || {
+          printf 'mgit: workspace member is not a repository: %s\n' "$destination" >&2
+          return 1
+        }
+        selected_path_seen "$destination" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" && {
+          printf 'mgit: duplicate repository path in workspace selection: %s\n' "$destination" >&2
+          return 1
+        }
+        selected_repo_dirs+=("$destination")
+        ;;
+    esac
+  done
+}
+
 # Glob match of display path $1 against the -f patterns: the whole path, or
 # the pattern against a trailing component (so 'mcp-*' selects the mcp repos
 # wherever they sit in the tree).
@@ -1301,6 +1786,7 @@ follow_symlinks=false
 bare=false
 read_config=true
 filters=()
+group_name=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -1308,6 +1794,10 @@ while [ $# -gt 0 ]; do
     -L|--follow-symlinks) follow_symlinks=true ;;
     -B|--bare)            bare=true ;;
     -I|--ignore)          read_config=false ;;
+    -g|--group)
+      [ $# -ge 2 ] || { printf 'mgit: %s requires a group name\n' "$1" >&2; exit 2; }
+      [ -z "$group_name" ] || { printf 'mgit: group may only be selected once\n' >&2; exit 2; }
+      group_name="$2"; shift ;;
     -f|--filter)
       [ $# -ge 2 ] || { printf 'mgit: %s requires a glob pattern\n' "$1" >&2; exit 2; }
       filters+=("$2"); shift ;;
@@ -1326,9 +1816,9 @@ if [ "${1:-}" = "completion" ]; then
   exit $?
 fi
 
-if [ "${1:-}" = "bootstrap" ]; then
+if [ "${1:-}" = "repair" ]; then
   shift
-  bootstrap_command "$@"
+  repair_command "$@"
   exit $?
 fi
 
@@ -1345,6 +1835,7 @@ if [ "${1:-}" = "register" ]; then
     shift
   done
   chezmoi_init
+  register_preflight_tree "." || exit 2
   if register_tree "."; then
     exit 0
   else
@@ -1358,14 +1849,16 @@ fi
 
 repos=()
 
-# Base set: a ./.mgit-config.toml manifest pins it (typed members,
-# plus the current dir itself if it's a repo); otherwise discover by walking.
-if [ "$read_config" = true ] && [ -f "./$MGIT_CONFIG" ]; then
-  while IFS=$'\t' read -r kind a b; do
-    case "$kind" in S|N|B|D|R) repos+=("$(expand_tilde "$a")") ;; esac
-  done < <(parse_mgit ".")
-  [ "$(repo_type ".")" != unknown ] && repos+=(".")
+# Base set: a direct cwd workspace selects an ordered group and recursively
+# expands child workspaces. There is deliberately no parent-config traversal.
+if [ "$read_config" = true ] && [ -f "./$MGIT_WORKSPACE" ]; then
+  select_workspace "." "$group_name" || exit 1
+  repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 else
+  [ -z "$group_name" ] || {
+    printf 'mgit: --group requires ./.mgit-workspace.toml\n' >&2
+    exit 1
+  }
   # Include the current directory itself when it is a repository.  In
   # particular, a bare store has no nested .git marker for `find` to discover.
   [ "$(repo_type ".")" != unknown ] && repos+=(".")
@@ -1398,11 +1891,8 @@ else
   done <<< "$found"
 fi
 
-# Walk the hierarchy: typed members that are repos are operated on and member
-# directories are recursed into; symlink (L) entries pull in the
-# repo containing each target. Types are informative; Git verifies the live
-# structure at runtime. Transitive, with cycle/dup guards. Every repo is
-# displayed (and cd'd into) as a path relative to the cwd.
+# Walk repository-owned symlink metadata. Symlink entries pull in the repository
+# containing each target, transitively, with cycle/duplicate guards.
 final=()
 seen=()
 
@@ -1420,8 +1910,7 @@ disp() { relpath "$cwd_canon" "$1"; }
 
 queue=()  # canonical dirs whose .mgit-config.toml still needs walking
 
-# Seed from the base set, distinguishing repos (operate + walk) from grouping
-# directories (walk only).
+# Seed from the ordered base set.
 for r in "${repos[@]+"${repos[@]}"}"; do
   c=$(canon_dir "$r")
   if [ -z "$c" ]; then
@@ -1436,7 +1925,7 @@ done
 qi=0
 while [ $qi -lt ${#queue[@]} ]; do
   repo="${queue[$qi]}"; qi=$((qi + 1))
-  while IFS=$'\t' read -r kind a b; do
+  while IFS=$'\t' read -r kind _ b; do
     case "$kind" in
       L)
         [ -z "$b" ] && continue
@@ -1448,17 +1937,6 @@ while [ $qi -lt ${#queue[@]} ]; do
         fi
         is_seen "$add" && continue
         seen+=("$add"); queue+=("$add"); final+=("$(disp "$add")")  # target is a repo
-        ;;
-      S|N|B|D|R)
-        [ -z "$a" ] && continue
-        add=$(canon_dir "$(resolve_path "$(expand_tilde "$a")" "$repo")")
-        if [ -z "$add" ]; then
-          printf 'mgit: %s: member not found: %s\n' "$repo/$MGIT_CONFIG" "$a" >&2
-          continue
-        fi
-        is_seen "$add" && continue
-        seen+=("$add"); queue+=("$add")
-        [ "$(repo_type "$add")" != unknown ] && final+=("$(disp "$add")")  # a repo member; dirs walk only
         ;;
     esac
   done < <(parse_mgit "$repo")
