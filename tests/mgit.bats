@@ -213,6 +213,46 @@ make_fake_chezmoi() {
   [ "$status" -eq 2 ]
 }
 
+assert_usage_error() {
+  run "$MGIT" "$@"
+  [ "$status" -eq 2 ]
+  [[ "$output" == mgit:\ error:* ]]
+  [[ "$output" == *"Usage: mgit"* ]]
+}
+
+@test "invalid owned syntax wins over help" {
+  assert_usage_error --nope --help
+  assert_usage_error --help --nope
+  assert_usage_error register extra --help
+  assert_usage_error register --help extra
+  assert_usage_error repair extra --help
+  assert_usage_error repair --help extra
+  assert_usage_error completion fish --help
+  assert_usage_error completion --help fish
+  assert_usage_error structure sideways --help
+  assert_usage_error structure nested --wat --help
+  assert_usage_error worktree nope --help
+  assert_usage_error worktree remove --wat --help
+}
+
+@test "standalone reserved-command help exits 0" {
+  for command in register repair structure worktree completion; do
+    run "$MGIT" "$command" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: mgit"* ]]
+  done
+}
+
+@test "ordinary Git command options remain pass-through" {
+  mkrepo "$TREE/repo"
+  cd "$TREE/repo"
+
+  run "$MGIT" status --short
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"git status --short"* ]]
+}
+
 @test "register rejects a stray argument" {
   run "$MGIT" register extra
   [ "$status" -eq 2 ]

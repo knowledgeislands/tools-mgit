@@ -83,6 +83,14 @@ Subcommand:
 EOF
 }
 
+# Syntax failures in mgit's own grammar are distinct from Git command failures:
+# they always identify the bad input and include the mgit usage text.
+usage_error() {
+  printf 'mgit: error: %s\n' "$*" >&2
+  usage >&2
+  return 2
+}
+
 completion_script() {
   case "${1:-}" in
     bash)
@@ -111,6 +119,7 @@ _mgit() {
       ;;
   esac
 }
+
 complete -F _mgit mgit
 EOF
       ;;
@@ -166,6 +175,23 @@ EOF
       return 2
       ;;
   esac
+}
+
+completion_command() {
+  local shell_name="" help=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help=true ;;
+      bash|zsh)
+        [ -z "$shell_name" ] || { usage_error "completion: unexpected argument: $1"; return; }
+        shell_name="$1" ;;
+      *) usage_error "completion: unexpected argument: $1"; return ;;
+    esac
+    shift
+  done
+  [ "$help" = false ] || { usage; return 0; }
+  [ -n "$shell_name" ] || { usage_error 'completion: expected bash or zsh'; return; }
+  completion_script "$shell_name"
 }
 
 # Trim leading/trailing whitespace.
@@ -1235,14 +1261,16 @@ repair_tree() {
 }
 
 repair_command() {
+  local help=false
   while [ $# -gt 0 ]; do
     case "$1" in
-      -h|--help) usage; return 0 ;;
-      *) printf 'mgit repair: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      -h|--help) help=true ;;
+      *) usage_error "repair: unexpected argument: $1"; return ;;
     esac
     # shellcheck disable=SC2317  # reachable once repair grows an option that does not return
     shift
   done
+  [ "$help" = false ] || { usage; return 0; }
   [ -f "./$MGIT_WORKSPACE" ] || {
     printf 'mgit repair: no .mgit-workspace.toml in %s\n' "$(pwd)" >&2
     return 1
@@ -1413,11 +1441,22 @@ worktree_default_path() {
 }
 
 worktree_add() {
-  local branch="${1:-}" unit root kind destination count=0 failed=false
-  [ $# -eq 1 ] || { printf 'mgit worktree add: BRANCH is required\n' >&2; return 2; }
+  local branch="" unit root kind destination count=0 failed=false help=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help=true ;;
+      -*) usage_error "worktree add: unknown option: $1"; return ;;
+      *)
+        [ -z "$branch" ] || { usage_error "worktree add: unexpected argument: $1"; return; }
+        branch="$1" ;;
+    esac
+    shift
+  done
+  [ "$help" = false ] || { usage; return 0; }
+  [ -n "$branch" ] || { usage_error 'worktree add: BRANCH is required'; return; }
   valid_worktree_name "${branch//\//-}" || {
-    printf 'mgit worktree add: invalid branch name: %s\n' "$branch" >&2
-    return 2
+    usage_error "worktree add: invalid branch name: $branch"
+    return
   }
 
   # Preflight every structured repository before creating any worktree. This
@@ -1456,23 +1495,24 @@ worktree_add() {
 }
 
 worktree_remove() {
-  local target="" force=false yes=false source source_kind canonical i found=false path gitdir common
+  local target="" force=false yes=false help=false source source_kind canonical i found=false path gitdir common
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes) yes=true ;;
       --force) force=true ;;
-      -h|--help) usage; return 0 ;;
-      -*) printf 'mgit worktree remove: unknown option: %s\n' "$1" >&2; return 2 ;;
+      -h|--help) help=true ;;
+      -*) usage_error "worktree remove: unknown option: $1"; return ;;
       *)
-        [ -z "$target" ] || { printf 'mgit worktree remove: only one PATH is allowed\n' >&2; return 2; }
+        [ -z "$target" ] || { usage_error "worktree remove: unexpected argument: $1"; return; }
         target="$1" ;;
     esac
     shift
   done
-  [ -n "$target" ] || { printf 'mgit worktree remove: PATH is required\n' >&2; return 2; }
+  [ "$help" = false ] || { usage; return 0; }
+  [ -n "$target" ] || { usage_error 'worktree remove: PATH is required'; return; }
   [ "$yes" = true ] || {
-    printf 'mgit worktree remove: refusing to remove without --yes\n' >&2
-    return 2
+    usage_error 'worktree remove: --yes is required'
+    return
   }
   source=$(worktree_source_repo) || return 1
   source_kind=$(repo_type "$source")
@@ -1575,20 +1615,21 @@ structure_nested_repository() {
 }
 
 structure_nested() {
-  local mode="" unit root kind branch failed=false
+  local mode="" unit root kind branch failed=false help=false
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run|--yes)
-        [ -z "$mode" ] || { printf 'mgit structure nested: choose one of --dry-run or --yes\n' >&2; return 2; }
+        [ -z "$mode" ] || { usage_error "structure nested: unexpected argument: $1"; return; }
         mode="$1" ;;
-      -h|--help) usage; return 0 ;;
-      *) printf 'mgit structure nested: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      -h|--help) help=true ;;
+      *) usage_error "structure nested: unexpected argument: $1"; return ;;
     esac
     shift
   done
+  [ "$help" = false ] || { usage; return 0; }
   [ -n "$mode" ] || {
-    printf 'mgit structure nested: use --dry-run to preview or --yes to change repositories\n' >&2
-    return 2
+    usage_error 'structure nested: --dry-run or --yes is required'
+    return
   }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
@@ -1650,16 +1691,19 @@ structure_standard_repository() {
 }
 
 structure_standard() {
-  local mode="" unit root kind failed=false
+  local mode="" unit root kind failed=false help=false
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run|--yes) [ -z "$mode" ] || return 2; mode="$1" ;;
-      -h|--help) usage; return 0 ;;
-      *) printf 'mgit structure standard: unexpected argument: %s\n' "$1" >&2; return 2 ;;
+      --dry-run|--yes)
+        [ -z "$mode" ] || { usage_error "structure standard: unexpected argument: $1"; return; }
+        mode="$1" ;;
+      -h|--help) help=true ;;
+      *) usage_error "structure standard: unexpected argument: $1"; return ;;
     esac
     shift
   done
-  [ -n "$mode" ] || { printf 'mgit structure standard: use --dry-run to preview or --yes to change repositories\n' >&2; return 2; }
+  [ "$help" = false ] || { usage; return 0; }
+  [ -n "$mode" ] || { usage_error 'structure standard: --dry-run or --yes is required'; return; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")
@@ -1684,7 +1728,10 @@ structure_command() {
   case "$target" in
     nested) structure_nested "$@" ;;
     standard) structure_standard "$@" ;;
-    *) printf 'mgit structure: expected standard or nested\n' >&2; return 2 ;;
+    -h|--help)
+      [ $# -eq 0 ] || { usage_error "structure: unexpected argument: $1"; return; }
+      usage ;;
+    *) usage_error "structure: unexpected argument: $target"; return ;;
   esac
 }
 
@@ -1692,11 +1739,23 @@ worktree_command() {
   local action="${1:-list}"
   [ $# -gt 0 ] && shift
   case "$action" in
-    list)   [ $# -eq 0 ] || { printf 'mgit worktree list: unexpected argument\n' >&2; return 2; }; worktree_list ;;
-    status) [ $# -eq 0 ] || { printf 'mgit worktree status: unexpected argument\n' >&2; return 2; }; worktree_status ;;
+    list|status)
+      local help=false
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -h|--help) help=true ;;
+          *) usage_error "worktree $action: unexpected argument: $1"; return ;;
+        esac
+        shift
+      done
+      [ "$help" = false ] || { usage; return 0; }
+      if [ "$action" = list ]; then worktree_list; else worktree_status; fi ;;
     add)    worktree_add "$@" ;;
     remove) worktree_remove "$@" ;;
-    *) printf 'mgit worktree: expected list, status, add, or remove\n' >&2; return 2 ;;
+    -h|--help)
+      [ $# -eq 0 ] || { usage_error "worktree: unexpected argument: $1"; return; }
+      usage ;;
+    *) usage_error "worktree: unexpected argument: $action"; return ;;
   esac
 }
 
@@ -1787,6 +1846,8 @@ bare=false
 read_config=true
 filters=()
 group_name=""
+show_help=false
+show_version=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -1795,45 +1856,54 @@ while [ $# -gt 0 ]; do
     -B|--bare)            bare=true ;;
     -I|--ignore)          read_config=false ;;
     -g|--group)
-      [ $# -ge 2 ] || { printf 'mgit: %s requires a group name\n' "$1" >&2; exit 2; }
-      [ -z "$group_name" ] || { printf 'mgit: group may only be selected once\n' >&2; exit 2; }
+      [ $# -ge 2 ] || { usage_error "$1 requires a group name"; exit $?; }
+      [ -z "$group_name" ] || { usage_error 'group may only be selected once'; exit $?; }
       group_name="$2"; shift ;;
     -f|--filter)
-      [ $# -ge 2 ] || { printf 'mgit: %s requires a glob pattern\n' "$1" >&2; exit 2; }
+      [ $# -ge 2 ] || { usage_error "$1 requires a glob pattern"; exit $?; }
       filters+=("$2"); shift ;;
-    -h|--help)            usage; exit 0 ;;
-    -V|--version)         printf 'mgit %s\n' "$MGIT_VERSION"; exit 0 ;;
+    -h|--help)            show_help=true ;;
+    -V|--version)         show_version=true ;;
     --)                   shift; break ;;
-    -*)                   printf 'mgit: unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+    -*)                   usage_error "unknown option: $1"; exit $? ;;
     *)                    break ;;
   esac
   shift
 done
 
+[ "$show_version" = false ] || { printf 'mgit %s\n' "$MGIT_VERSION"; exit 0; }
+
+if [ "$show_help" = true ] && [ $# -eq 0 ]; then
+  usage
+  exit 0
+fi
+
 if [ "${1:-}" = "completion" ]; then
   shift
-  completion_script "$@"
+  if [ "$show_help" = true ]; then completion_command "$@" --help; else completion_command "$@"; fi
   exit $?
 fi
 
 if [ "${1:-}" = "repair" ]; then
   shift
-  repair_command "$@"
+  if [ "$show_help" = true ]; then repair_command "$@" --help; else repair_command "$@"; fi
   exit $?
 fi
 
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
+  register_help="$show_help"
   shift
   while [ $# -gt 0 ]; do
     case "$1" in
-      -h|--help) usage; exit 0 ;;
-      *) printf 'mgit register: unexpected argument: %s\n' "$1" >&2; exit 2 ;;
+      -h|--help) register_help=true ;;
+      *) usage_error "register: unexpected argument: $1"; exit $? ;;
     esac
     # shellcheck disable=SC2317  # reachable once register grows an option that doesn't exit
     shift
   done
+  [ "$register_help" = false ] || { usage; exit 0; }
   chezmoi_init
   register_preflight_tree "." || exit 2
   if register_tree "."; then
@@ -1969,8 +2039,7 @@ for r in "${repo_units[@]+"${repo_units[@]}"}"; do
 done
 
 if [ "${1:-}" = "structure" ]; then
-  shift
-  structure_command "$@"
+  if [ "$show_help" = true ]; then structure_command "${@:2}" --help; else structure_command "${@:2}"; fi
   exit $?
 fi
 
@@ -1978,8 +2047,7 @@ fi
 # `git worktree` fan-out. It applies each operation according to the standard
 # or nested structure of every repository in the current multi-repository set.
 if [ "${1:-}" = "worktree" ]; then
-  shift
-  worktree_command "$@"
+  if [ "$show_help" = true ]; then worktree_command "${@:2}" --help; else worktree_command "${@:2}"; fi
   exit $?
 fi
 
@@ -1989,6 +2057,8 @@ if [ $# -eq 0 ]; then
   done
   exit 0
 fi
+
+[ "$show_help" = false ] || { usage; exit 0; }
 
 printed_cmd=$(printf '%q ' "$@")
 printed_cmd="${printed_cmd% }"
