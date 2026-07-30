@@ -3,7 +3,7 @@ id: MGIT-CLI-001
 title: Add named repository groups
 theme: cli
 horizon: next
-status: in-progress
+status: acceptance
 blocks: []
 blocked-by: []
 baseline-ref: b88471f8cd2c0a02098d8e8cb66216755daba5f5
@@ -64,6 +64,28 @@ Stop for a decision if preserving named groups would require lossy or unsafe mut
 1. **Workspace core — judgment, `gpt-5.6-sol`.** Implement the workspace parser, post-order registration, recursive selection, and `repair` source traversal in `bin/mgit`; add only the targeted Bats cases needed to drive that contract. Done means parent configuration is replaced only after preflight, repository-leaf metadata remains valid, default membership resolves recursively in declaration order, and `repair` remains non-destructive. Scope: `bin/mgit`, `tests/mgit.bats`. The orchestrator reviews the executable diff adversarially and runs focused Bats cases plus ShellCheck before integration.
 2. **Documentation and command surface — mechanical, `gpt-5.6-terra`.** After the core gate, update README, user guide, manual, usage, and completions for the exact implemented schema and `repair` command. Done means all public descriptions agree and contain no `bootstrap` compatibility claim. Scope: `README.md`, `docs/user-guide/`, `man/mgit.1`, and completion/help text in `bin/mgit`; serialize with the core worker where `bin/mgit` write contention remains. The orchestrator reviews the diff and runs the completion tests.
 3. **Integration gate — orchestrator.** Re-read every changed public contract, run `shellcheck bin/mgit install.sh`, `bats tests/`, and the roadmap audit, then record the result in the item acceptance packet. Any failed check, new external dependency, destructive migration issue, or public contract question stops the item.
+
+## Acceptance
+
+### Delivered
+
+Schema-1 container workspaces, leaf-only mGit configuration, ordered group selection, and the breaking `repair` command rename.
+
+### Summary of changes
+
+`register` now writes post-order `.mgit-workspace.toml` defaults and preserves named groups; `repair` safely reconciles default workspace members; documentation and completion describe the new surface.
+
+### Verification
+
+`shellcheck bin/mgit install.sh`, `bats tests/` (32 passing tests), and `ki repo audit --skill ki-roadmap` passed. Core delivery commit: `f68f0e30ebec67b3bea1bb3bbc5cece3e18eda5c`.
+
+### Outstanding concerns
+
+None known. Explicit acceptance remains required before closure.
+
+### Mini recap
+
+The workspace configuration now owns non-Git container membership while leaf config retains symlink metadata and repair source data remains on generated default repository records.
 
 ## Discussion
 
