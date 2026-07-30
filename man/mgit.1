@@ -4,9 +4,11 @@ mgit \- run commands across multiple Git repositories
 .PP
 .SH SYNOPSIS
 .SS General
+.PP
 .TP
 .B mgit
 List the repositories in the current set.
+.sp
 .TP
 .B mgit [\fIoptions\fR] [\fIcommand\fR ...]
 Run
@@ -18,17 +20,20 @@ Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
 .SS Workspace management
+.PP
 .TP
 .B mgit register
 Generate
 .I .mgit-workspace.toml
 manifests for the current tree.
+.sp
 .TP
 .B mgit repair
 Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
 .SS Repository management
+.PP
 .TP
 .B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
 Convert every eligible repository in the current set between standard and nested structures.
@@ -42,6 +47,7 @@ Add a linked checkout for an existing remote branch in every structured reposito
 .B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
 Remove one linked worktree.
 .SS Shell integration
+.PP
 .TP
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
@@ -68,25 +74,30 @@ option always uses discovery instead of manifests.
 Do not follow symlinked container directories.
 This is the default.
 Symlinked repositories are never followed.
+.sp
 .TP
 .BR \-L , " \-\-follow-symlinks"
 Follow symlinked container directories while discovering repositories.
+.sp
 .TP
 .BR \-B , " \-\-bare"
 Run the supplied command directly rather than as a
 .B git
 subcommand.
+.sp
 .TP
 .BR \-I , " \-\-ignore"
 Ignore
 .I .mgit-workspace.toml
 files and discover repositories by walking the tree.
+.sp
 .TP
 .BR \-g , " \-\-group" " \fINAME\fR"
 Select group
 .I NAME
 from the workspace in the current directory instead of that workspace's configured default.
 Child workspaces use their own configured defaults.
+.sp
 .TP
 .BR \-f , " \-\-filter" " \fIGLOB\fR"
 Limit the repository set to repositories whose path, relative to the current
@@ -105,9 +116,11 @@ set commands; it does not affect
 .B register
 or
 .BR repair .
+.sp
 .TP
 .BR \-h , " \-\-help"
 Print usage information and exit.
+.sp
 .TP
 .BR \-V , " \-\-version"
 Print the version and exit.
@@ -270,6 +283,7 @@ Commands operate in live checkouts, never in the nested controller or bare store
 .TP
 .I .mgit-workspace.toml
 Optional schema-1 workspace manifest in a non-Git container directory.
+.sp
 .TP
 .I .mgit-config.toml
 Optional repository-leaf symlink metadata.
@@ -277,9 +291,11 @@ Optional repository-leaf symlink metadata.
 .TP
 .B 0
 The requested operation completed successfully.
+.sp
 .TP
 .B 1
 An operation failed.
+.sp
 .TP
 .B 2
 The command grammar was invalid, a required confirmation was absent, or an unsupported option was supplied.
