@@ -2,7 +2,7 @@
 title = "mgit"
 description = "Run commands across many git repositories at once — auto-discovered at runtime or pinned by an optional .mgitconfig manifest."
 repo_code = "MGIT"
-supported_runtimes = ["claude-code", "codex"]
+supported_runtimes = ["claude-code", "chatgpt-codex"]
 visibility = "public"
 
 # Custom topics describe this standalone Bash CLI more accurately than the default set.
