@@ -826,9 +826,10 @@ expand_tilde() {
 
 # When chezmoi is configured, let it map generated manifests back into its
 # source state. This keeps chezmoi's naming, permissions, and source layout
-# authoritative instead of trying to reproduce them here. Only paths inside
-# chezmoi's target directory participate; its source directory itself is
-# deliberately excluded to avoid managing the source repository recursively.
+# authoritative instead of trying to reproduce them here. Synchronization is
+# best-effort: a manifest remains generated locally when chezmoi declines it.
+# Only paths inside chezmoi's target directory participate; its source
+# directory itself is deliberately excluded to avoid managing it recursively.
 chezmoi_enabled=false
 chezmoi_source_dir=""
 chezmoi_target_dir=""
@@ -861,8 +862,8 @@ chezmoi_add_manifest() {
   local path="$1" target
   target=$(chezmoi_target_file "$path") || return 0
   if ! chezmoi add "$target"; then
-    printf 'mgit register: failed to add manifest to chezmoi: %s\n' "$target" >&2
-    return 1
+    printf 'mgit register: warning: manifest remains local; chezmoi could not add it: %s\n' "$target" >&2
+    return 0
   fi
   printf 'mgit register: added to chezmoi: %s\n' "$target"
 }
@@ -873,9 +874,9 @@ chezmoi_forget_manifest() {
   # source-path succeeds only for an entry chezmoi already manages; an
   # unmanaged local manifest has nothing to remove from the source state.
   chezmoi source-path "$target" >/dev/null 2>&1 || return 0
-  if ! chezmoi forget "$target"; then
-    printf 'mgit register: failed to remove manifest from chezmoi: %s\n' "$target" >&2
-    return 1
+  if ! chezmoi forget --force "$target"; then
+    printf 'mgit register: warning: manifest removal remains local; chezmoi could not forget it: %s\n' "$target" >&2
+    return 0
   fi
   printf 'mgit register: removed from chezmoi: %s\n' "$target"
 }

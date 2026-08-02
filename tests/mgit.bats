@@ -93,9 +93,11 @@ make_fake_chezmoi() {
     '    printf "add %s\\n" "$2" >> "$CHEZMOI_LOG"' \
     '    ;;' \
     '  forget)' \
-    '    source=$(source_for "$2") || exit 1' \
+    '    [ "${CHEZMOI_FAIL_FORGET:-false}" = true ] && exit 1' \
+    '    target="${3:-$2}"' \
+    '    source=$(source_for "$target") || exit 1' \
     '    rm -f "$source"' \
-    '    printf "forget %s\\n" "$2" >> "$CHEZMOI_LOG"' \
+    '    printf "forget %s\\n" "$target" >> "$CHEZMOI_LOG"' \
     '    ;;' \
     '  *) exit 2 ;;' \
     'esac' > "$bin/chezmoi"
@@ -310,7 +312,7 @@ assert_usage_error() {
   grep -Fx "forget $CHEZMOI_TARGET/.mgit-workspace.toml" "$CHEZMOI_LOG"
 }
 
-@test "register reports chezmoi synchronization failures" {
+@test "register warns but succeeds when chezmoi cannot add a manifest" {
   make_fake_chezmoi
   export CHEZMOI_FAIL_ADD=true
   mkrepo "$TREE/repoA"
@@ -318,9 +320,29 @@ assert_usage_error() {
   cd "$TREE"
   run "$MGIT" register
 
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"failed to add manifest to chezmoi"* ]]
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/.mgit-workspace.toml" ]
+  [[ "$output" == *"warning: manifest remains local; chezmoi could not add it"* ]]
   [[ "$output" != *"no git repos found"* ]]
+}
+
+@test "register warns but removes a local manifest when chezmoi cannot forget it" {
+  make_fake_chezmoi
+  mkrepo "$TREE/repoA"
+
+  cd "$TREE"
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/.mgit-workspace.toml" ]
+
+  export CHEZMOI_FAIL_FORGET=true
+  mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
+  run "$MGIT" register
+
+  [ "$status" -eq 1 ]
+  [ ! -e "$TREE/.mgit-workspace.toml" ]
+  [ -e "$CHEZMOI_SOURCE/dot_mgit-workspace.toml" ]
+  [[ "$output" == *"warning: manifest removal remains local; chezmoi could not forget it"* ]]
 }
 
 @test "register does not manage manifests inside the chezmoi source directory" {

@@ -162,7 +162,9 @@ and replaces generated structural default-group records.
 Existing non-default groups are preserved.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target
-directory are added to Chezmoi's source state.
+directory are added to Chezmoi's source state when possible. A Chezmoi failure
+emits a warning but does not prevent a local manifest from being generated or
+removed.
 .SS repair
 \&
 .PP
