@@ -1,7 +1,7 @@
 ["knowledgeislands/ki-agentic-harness:ki-repo"]
 repository = "https://github.com/knowledgeislands/tools-mgit"
 title = "mgit"
-description = "Run commands across many git repositories at once — auto-discovered at runtime or pinned by an optional .mgitconfig manifest."
+description = "Run commands across many Git repositories at once — auto-discovered at runtime or pinned by an optional .mgit-workspace.toml manifest."
 repo_code = "MGIT"
 supported_runtimes = ["claude-code", "chatgpt-codex"]
 visibility = "public"
