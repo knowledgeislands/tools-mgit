@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-07-30" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-08-04" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -87,6 +87,32 @@ or container directories by default.
 The
 .B \-I
 option ignores workspace manifests and always uses discovery instead.
+.SH INSTALLATION
+\&
+.PP
+On macOS or Linux, install the published release with Homebrew:
+.PP
+.nf
+brew install knowledgeislands/tap/mgit
+.fi
+.PP
+On any system with Bash and Git, install the current release with:
+.PP
+.nf
+curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+.fi
+.PP
+The installer writes the executable to
+.I ~/.local/bin
+and the manual to
+.I ~/.local/share/man/man1
+by default. Set
+.B MGIT_INSTALL_DIR
+or
+.B MGIT_MAN_INSTALL_DIR
+to choose different locations. Set
+.B MGIT_VERSION
+to install a specific release tag or branch.
 .SH OPTIONS
 \&
 .TP
@@ -145,11 +171,16 @@ Print usage information and exit.
 .TP
 .BR \-V , " \-\-version"
 Print the version and exit.
-.SH COMMANDS
-\&
-.SS register
+.SH COMMAND GROUPS
 \&
 .PP
+mGit divides its commands into workspace management, repository management,
+and shell integration. Use
+.B \-\-help
+for the exact command grammar.
+.SS Workspace management
+\&
+.TP
 .B mgit register
 scans the current tree and writes a
 .I .mgit-workspace.toml
@@ -165,9 +196,7 @@ When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
 emits a warning but does not prevent a local manifest from being generated or
 removed.
-.SS repair
-\&
-.PP
+.TP
 .B mgit repair
 uses the workspace manifest in the current directory to clone every missing
 repository in structural default groups with a source URL.
@@ -175,9 +204,9 @@ It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their structural default groups.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
-.SS structure
+.SS Repository management
 \&
-.PP
+.TP
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.
 .B mgit structure standard
@@ -190,9 +219,7 @@ Both forms require exactly one of
 to preview changes or
 .B \-\-yes
 to make them.
-.SS worktree
-\&
-.PP
+.TP
 .B mgit worktree list
 groups linked worktrees by their shared Git store.
 .B mgit worktree status
@@ -214,17 +241,33 @@ checkout.
 Pass
 .B \-\-force
 to discard dirty changes in that linked checkout.
-.SS completion
+.SS Shell integration
 \&
-.PP
+.TP
 .B mgit completion bash
 and
 .B mgit completion zsh
 print shell completion definitions to standard output.
-For example, source the Bash definition with:
+.PP
+For Bash, source the definition from the shell configuration:
 .PP
 .nf
 source <(mgit completion bash)
+.fi
+.PP
+For Zsh, write the definition to a file named
+.I _mgit
+in a directory on
+.B fpath
+before
+.B compinit
+runs. For example:
+.PP
+.nf
+mkdir -p ~/.zsh/completions
+mgit completion zsh > ~/.zsh/completions/_mgit
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
 .fi
 .SH FILES
 \&
@@ -323,6 +366,28 @@ controller file, and a required
 checkout.
 Commands operate in live checkouts, never in the nested controller or bare
 store.
+.SH DEVELOPMENT INSTALLATIONS
+\&
+.PP
+For development against this checkout, run
+.B ./install.sh --link
+to link the current executable and manual into
+.B MGIT_INSTALL_DIR
+(default
+.IR ~/.local/bin )
+and
+.B MGIT_MAN_INSTALL_DIR
+(default: the corresponding
+.IR share/man/man1
+directory). The linked command follows changes to this checkout and does not
+download a release.
+.PP
+Link mode refuses to replace regular files. Use a dedicated development
+directory or invoke
+.B ./bin/mgit
+directly when comparing it with a Homebrew or release installation. Use
+.B man -l man/mgit.1
+to inspect the checked-out manual regardless of the configured manual path.
 .SH EXIT STATUS
 \&
 .TP
