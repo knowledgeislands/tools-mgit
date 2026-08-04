@@ -37,9 +37,13 @@ source <(mgit completion bash)
 For Zsh, add this:
 
 ```zsh
+mkdir -p ~/.zsh/completions
+mgit completion zsh > ~/.zsh/completions/_mgit
+fpath=(~/.zsh/completions $fpath)
 autoload -Uz compinit && compinit
-eval "$(mgit completion zsh)"
 ```
+
+Set `fpath` before `compinit` runs. Run the first two commands again after upgrading `mgit` to refresh the generated completion.
 
 ## Confirm the installation
 

@@ -15,7 +15,7 @@ mgit
 mgit status
 ```
 
-The [user guide](docs/user-guide/README.md) covers installation, command execution, repository-set manifests, and worktrees. The [developer guide](docs/developer/README.md) covers working from a local checkout. For exact command syntax, run `mgit --help` or read the installed `mgit(1)` manual.
+The [guides](docs/guides/README.md) cover installation, command execution, repository-set manifests, worktrees, and local development. For exact command syntax, run `mgit --help` or read the installed `mgit(1)` manual.
 
 ## License
 
