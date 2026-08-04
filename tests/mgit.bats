@@ -212,6 +212,33 @@ make_fake_chezmoi() {
   [ "$status" -eq 0 ]
 }
 
+@test "zsh completion passes worktree commands to _describe as an array" {
+  run zsh -f -c '
+    autoload -Uz compinit && compinit -C
+    eval "$("$1" completion zsh)"
+    _describe() { print -r -- "$@"; }
+    words=(mgit worktree "")
+    _mgit
+  ' zsh "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [ "$output" = '-t commands worktree command worktree_commands' ]
+}
+
+@test "zsh completion dispatches root commands to _describe directly" {
+  run zsh -f -c '
+    autoload -Uz compinit && compinit -C
+    eval "$("$1" completion zsh)"
+    _arguments() { state=(command); }
+    _describe() { print -r -- "$@"; }
+    words=(mgit "")
+    _mgit
+  ' zsh "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [ "$output" = '-t commands command global_commands' ]
+}
+
 @test "unknown option exits 2" {
   run "$MGIT" --nope
   [ "$status" -eq 2 ]
@@ -657,7 +684,7 @@ assert_usage_error() {
   [[ "$output" == *"repoB/main"* ]]
 }
 
-@test "worktree add uses nested and sibling destinations across the set" {
+@test "worktree add uses nested and standard-repository destinations across the set" {
   mkrepo "$TREE/repoA"
   add_origin_branch "$TREE/repoA" featureA
   make_managed_worktree_repo "$TREE/repoA"
@@ -672,9 +699,10 @@ assert_usage_error() {
   [ -f "$TREE/repoA/featureA/.git" ]
   [ "$(git -C "$TREE/repoA/featureA" branch --show-current)" = "featureA" ]
   [ "$(git -C "$TREE/repoA/featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
-  [ -f "$TREE/repoB-featureA/.git" ]
-  [ "$(git -C "$TREE/repoB-featureA" branch --show-current)" = "featureA" ]
-  [ "$(git -C "$TREE/repoB-featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
+  [ -f "$TREE/repoB/.git/mgit-worktrees/featureA/.git" ]
+  [ "$(git -C "$TREE/repoB/.git/mgit-worktrees/featureA" branch --show-current)" = "featureA" ]
+  [ "$(git -C "$TREE/repoB/.git/mgit-worktrees/featureA" rev-parse --abbrev-ref '@{upstream}')" = "origin/featureA" ]
+  [ ! -e "$TREE/repoB-featureA" ]
 }
 
 @test "worktree remove supports a standard sibling and protects the primary checkout" {

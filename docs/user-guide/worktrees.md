@@ -2,14 +2,14 @@
 
 `mgit` supports two structures for a logical repository.
 
-A standard repository is an ordinary checkout, with optional sibling linked worktrees managed by Git:
+A standard repository is an ordinary checkout. `mgit worktree add` places its linked worktrees under `.git/mgit-worktrees/`:
 
 ```text
 repoB/
 ├── .git/
+│   └── mgit-worktrees/
+│       └── featureA/   # optional linked worktree
 └── <files>
-
-repoB-featureA/   # optional linked worktree
 ```
 
 A nested repository uses mgit's colocated layout:
@@ -30,9 +30,9 @@ From a parent that contains one nested repository and one standard repository:
 
 ```text
 parent/
-├── repoA/              # nested repository
-├── repoB/              # standard repository
-└── repoB-featureA/     # repoB's linked sibling worktree
+├── repoA/                              # nested repository
+└── repoB/                              # standard repository
+    └── .git/mgit-worktrees/featureA/   # repoB's linked worktree
 ```
 
 run:
@@ -60,7 +60,7 @@ At runtime, `mgit status` expands that manifest to every active checkout:
 repoA/main
 repoA/featureA
 repoB
-repoB-featureA
+repoB/.git/mgit-worktrees/featureA
 ```
 
 ## Change a repository structure
@@ -91,6 +91,6 @@ To check out an existing branch from `origin` in every standard and nested repos
 mgit worktree add featureA
 ```
 
-For each nested repository, `mgit` creates `<repo>/featureA`; for each standard repository, it creates a sibling `<repo>-featureA`. Every checkout is on local branch `featureA` tracking `origin/featureA`. Before making any checkout, `mgit` verifies that every participating repository has the remote branch and no conflicting local branch or directory.
+For each nested repository, `mgit` creates `<repo>/featureA`; for each standard repository, it creates `<repo>/.git/mgit-worktrees/featureA`. Every checkout is on local branch `featureA` tracking `origin/featureA`. Before making any checkout, `mgit` verifies that every participating repository has the remote branch and no conflicting local branch or directory. Existing linked worktrees remain where Git created them; `mgit` does not move them.
 
 Use `mgit worktree list` or `mgit worktree status` to inspect the resulting checkout set. `mgit worktree remove PATH --yes` remains confirmation-gated and refuses to remove the standard primary checkout or the required nested `main/` checkout.

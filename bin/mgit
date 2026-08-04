@@ -128,7 +128,9 @@ EOF
 #compdef mgit
 
 _mgit() {
-  local -a global_commands global_options
+  local context state state_descr line
+  local -a global_commands global_options worktree_commands
+  typeset -A opt_args
   global_commands=(
     'register:generate workspace manifests and repository symlink metadata'
     'repair:clone missing repositories declared by workspace defaults'
@@ -154,16 +156,26 @@ _mgit() {
     '-V[show version]'
     '--version[show version]'
   )
+  worktree_commands=(
+    'list:list worktrees'
+    'status:show worktree status'
+    'add:add a remote branch'
+    'remove:remove a worktree'
+  )
   case $words[2] in
     structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '--yes[confirm changes]' ;;
     worktree)
       case $words[3] in
-        '') _describe -t commands 'worktree command' 'list:list worktrees' 'status:show worktree status' 'add:add a remote branch' 'remove:remove a worktree' ;;
+        '') _describe -t commands 'worktree command' worktree_commands ;;
         add) _message 'remote branch name' ;;
         remove) _arguments '--yes[confirm removal]' '--force[discard dirty changes]' ;;
       esac ;;
     completion) _arguments '1:shell:(bash zsh)' ;;
-    *) _arguments -s $global_options '1:command:_describe -t commands command global_commands' ;;
+    *)
+      _arguments -s $global_options '1:command:->command'
+      case $state in
+        command) _describe -t commands command global_commands ;;
+      esac ;;
   esac
 }
 
@@ -1462,13 +1474,10 @@ valid_worktree_name() {
 }
 
 worktree_default_path() {
-  local source="$1" name="$2" parent base
+  local source="$1" name="$2"
   case "$(repo_type "$source")" in
     nested) printf '%s/%s' "$source" "$name" ;;
-    standard)
-      parent=$(dirname "$source")
-      base=$(basename "$source")
-      printf '%s/%s-%s' "$parent" "$base" "$name" ;;
+    standard) printf '%s/.git/mgit-worktrees/%s' "$source" "$name" ;;
     *) return 1 ;;
   esac
 }

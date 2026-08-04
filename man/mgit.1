@@ -201,7 +201,12 @@ shows each worktree's branch and cleanliness.
 .B mgit worktree add \fIBRANCH\fR
 adds a checkout for an existing
 .B origin/\fIBRANCH\fR
-to every structured repository after preflighting the full set.
+to every structured repository after preflighting the full set. Nested
+repositories receive
+.I <repository>/<branch>
+checkouts; standard repositories receive
+.I <repository>/.git/mgit-worktrees/<branch>
+checkouts.
 .B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR
 removes one linked checkout and never removes the primary or required
 .I main/
@@ -303,7 +308,10 @@ are ignored.
 .PP
 A standard repository is an ordinary checkout with a
 .I .git/
-directory.
+directory. Worktrees added by
+.B mgit
+are placed below
+.IR .git/mgit-worktrees/ .
 A nested repository is an
 .B mgit
 controller containing a
