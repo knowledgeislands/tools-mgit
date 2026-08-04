@@ -244,6 +244,12 @@ make_fake_chezmoi() {
   [ "$status" -eq 2 ]
 }
 
+@test "worktree requires an explicit action" {
+  run "$MGIT" worktree
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"worktree: expected list, status, add, or remove"* ]]
+}
+
 assert_usage_error() {
   run "$MGIT" "$@"
   [ "$status" -eq 2 ]

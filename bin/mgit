@@ -1778,7 +1778,7 @@ structure_command() {
 }
 
 worktree_command() {
-  local action="${1:-list}"
+  local action="${1:-}"
   [ $# -gt 0 ] && shift
   case "$action" in
     list|status)
@@ -1797,6 +1797,7 @@ worktree_command() {
     -h|--help)
       [ $# -eq 0 ] || { usage_error "worktree: unexpected argument: $1"; return; }
       usage ;;
+    '') usage_error 'worktree: expected list, status, add, or remove'; return ;;
     *) usage_error "worktree: unexpected argument: $action"; return ;;
   esac
 }
