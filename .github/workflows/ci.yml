@@ -58,6 +58,17 @@ jobs:
       - name: Run shellcheck
         run: shellcheck bin/mgit install.sh
 
+  manual:
+    name: mandoc
+    needs: governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mandoc
+        run: sudo apt-get update && sudo apt-get install -y mandoc
+      - name: Lint manual
+        run: mandoc -T lint man/mgit.1
+
   test:
     name: bats
     needs: governance
