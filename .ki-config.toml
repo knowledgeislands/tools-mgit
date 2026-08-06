@@ -37,3 +37,5 @@ knowledge = []
 ["knowledgeislands/ki-agentic-harness:ki-tokenomics-claude"]
 
 ["knowledgeislands/ki-agentic-harness:ki-tokenomics-codex"]
+
+["knowledgeislands/ki-agentic-harness:ki-trades"]
