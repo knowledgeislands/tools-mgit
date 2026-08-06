@@ -23,7 +23,7 @@ topics = false
 CLI = "cli"
 
 ["knowledgeislands/ki-agentic-harness:ki-trades".exports_to]
-work = ["https://github.com/knowledgeislands/ki-agentic-harness", "https://github.com/knowledgeislands/tools-ki"]
+work = ["https://github.com/knowledgeislands/ki-agentic-harness", "https://github.com/knowledgeislands/tools-ki", "https://github.com/krisb/dotfiles"]
 knowledge = ["https://github.com/knowledgeislands/ki-agentic-harness"]
 
 ["knowledgeislands/ki-agentic-harness:ki-trades".imports_from]
