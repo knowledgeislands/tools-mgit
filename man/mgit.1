@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-08-04" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-08-06" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -34,6 +34,18 @@ manifests for the current tree.
 Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
+.TP
+.B mgit group create \fINAME\fR
+Create an empty named alternative workspace group.
+.TP
+.B mgit group delete \fINAME\fR
+Delete a named alternative workspace group.
+.TP
+.B mgit group add \fINAME\fR \fIMEMBER\fR
+Add a default-group member to an alternative group.
+.TP
+.B mgit group remove \fINAME\fR \fIMEMBER\fR
+Remove a member from an alternative group.
 .SS Repository management
 \&
 .TP
@@ -55,6 +67,9 @@ Remove one linked worktree.
 .TP
 .B mgit completion \fIbash|zsh\fR
 Print shell completion source.
+.TP
+.B mgit help [\fICOMMAND\fR [\fISUBCOMMAND\fR]]
+Print contextual help for an mgit command.
 .SH DESCRIPTION
 \&
 .PP
@@ -64,6 +79,25 @@ runs a Git command, or an arbitrary command with
 across a set of repositories.
 Before each invocation it prints the repository path and command.
 With no command it prints the repository paths that would be used.
+.PP
+The reserved command tree consists of
+.BR register ,
+.BR repair ,
+.BR group ,
+.BR structure ,
+.BR worktree ,
+.BR completion ,
+and
+.BR help .
+Their subcommands and arguments are validated by
+.BR mgit .
+Other commands are passed to Git unchanged, so
+.B mgit status --short
+means the same Git command in every selected repository.
+.B mgit help \fICOMMAND\fR
+and
+.B mgit \fICOMMAND\fR --help
+print help scoped to that command.
 .PP
 When the current directory contains a
 .I .mgit-workspace.toml
@@ -166,7 +200,7 @@ or
 .sp
 .TP
 .BR \-h , " \-\-help"
-Print usage information and exit.
+Print contextual help for the requested command and exit.
 .sp
 .TP
 .BR \-V , " \-\-version"
@@ -175,9 +209,11 @@ Print the version and exit.
 \&
 .PP
 mGit divides its commands into workspace management, repository management,
-and shell integration. Use
-.B \-\-help
-for the exact command grammar.
+and shell integration. Run
+.B mgit help
+for the command list and
+.B mgit help \fICOMMAND\fR
+for exact command grammar.
 .SS Workspace management
 \&
 .TP
@@ -204,6 +240,31 @@ It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their structural default groups.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
+.TP
+.B mgit group create \fINAME\fR
+creates an empty named alternative group in the current workspace manifest.
+.I NAME
+contains only letters, digits, hyphens, or underscores.
+The command refuses to replace an existing group.
+.TP
+.B mgit group delete \fINAME\fR
+removes a named alternative group from the current workspace manifest.
+The structural
+.B default
+group cannot be deleted.
+.TP
+.B mgit group add \fINAME\fR \fIMEMBER\fR
+adds a direct member of the structural
+.B default
+group to an alternative group.
+The member is recorded with its repository or workspace kind and cannot be
+added twice.
+.TP
+.B mgit group remove \fINAME\fR \fIMEMBER\fR
+removes a member from an alternative group.
+The group remains available when it has no members; use
+.B mgit group delete
+to remove it completely.
 .SS Repository management
 \&
 .TP
@@ -248,6 +309,9 @@ to discard dirty changes in that linked checkout.
 and
 .B mgit completion zsh
 print shell completion definitions to standard output.
+They complete the command hierarchy, command-local flags, and, where a current
+workspace manifest is available, default-group members and alternative group
+names for group management.
 .PP
 For Bash, source the definition from the shell configuration:
 .PP
@@ -323,6 +387,14 @@ Non-default group repository members also use only
 .B kind ;
 they select already-present repositories and do not declare structure or
 clone sources.
+.PP
+Use
+.B mgit group create engineering
+followed by
+.B mgit group add engineering tools-mgit
+to create an alternative group without editing TOML directly, then select it
+with
+.BR "mgit --group engineering" .
 .PP
 Member paths are safe relative map keys below the manifest directory.
 The current workspace uses its configured default group, or a group named with

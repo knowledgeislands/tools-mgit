@@ -109,8 +109,8 @@ make_fake_chezmoi() {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage: mgit"* ]]
-  [[ "$output" == *"Ignore .mgit-workspace.toml files; walk the tree instead"* ]]
-  [[ "$output" == *"declare path-keyed repositories and child workspaces"* ]]
+  [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
+  [[ "$output" == *"passed through to Git"* ]]
 }
 
 @test "--version prints the version" {
@@ -273,11 +273,106 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair structure worktree completion; do
+  for command in register repair group structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
   done
+}
+
+@test "help is contextual for reserved commands and their subcommands" {
+  run "$MGIT" register -h
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Usage: mgit register [options]"* ]]
+  [[ "$output" != *"Commands:"* ]]
+
+  run "$MGIT" help group create
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Usage: mgit group create <name>"* ]]
+
+  run "$MGIT" help group add
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Usage: mgit group add <name> <member>"* ]]
+
+  run "$MGIT" help worktree remove
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Usage: mgit worktree remove <path> --yes [--force]"* ]]
+}
+
+@test "reserved command trees reject unknown subcommands" {
+  run "$MGIT" group unknown
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"group: unknown command: unknown"* ]]
+
+  run "$MGIT" structure sideways
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"structure: unknown command: sideways"* ]]
+}
+
+@test "bash completion includes group commands" {
+  mkrepo "$TREE/a"
+  cd "$TREE"
+  "$MGIT" register >/dev/null
+  "$MGIT" group create engineering >/dev/null
+  eval "$("$MGIT" completion bash)"
+  COMP_WORDS=(mgit group "")
+  COMP_CWORD=2
+  _mgit
+  [[ " ${COMPREPLY[*]} " == *" create "* ]]
+  [[ " ${COMPREPLY[*]} " == *" delete "* ]]
+  [[ " ${COMPREPLY[*]} " == *" add "* ]]
+  [[ " ${COMPREPLY[*]} " == *" remove "* ]]
+
+  COMP_WORDS=(mgit --group e)
+  COMP_CWORD=2
+  _mgit
+  [[ " ${COMPREPLY[*]} " == *" engineering "* ]]
+
+  COMP_WORDS=(mgit group add "")
+  COMP_CWORD=3
+  _mgit
+  [[ " ${COMPREPLY[*]} " == *" engineering "* ]]
+
+  COMP_WORDS=(mgit group add engineering "")
+  COMP_CWORD=4
+  _mgit
+  [[ " ${COMPREPLY[*]} " == *" a "* ]]
+}
+
+@test "zsh completion exposes the complete group command inventory" {
+  run zsh -f -c '
+    autoload -Uz compinit && compinit -C
+    eval "$("$1" completion zsh)"
+    _describe() { print -r -- "$@"; }
+    words=(mgit group "")
+    _mgit
+  ' zsh "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [ "$output" = '-t commands group command group_commands' ]
+
+  run "$MGIT" completion zsh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"'create:create a named alternative group'"* ]]
+  [[ "$output" == *"'delete:delete a named alternative group'"* ]]
+  [[ "$output" == *"'add:add a default-group member to a group'"* ]]
+  [[ "$output" == *"'remove:remove a member from a group'"* ]]
+}
+
+@test "group commands reject incomplete and surplus arguments" {
+  mkrepo "$TREE/a"
+  cd "$TREE"
+  "$MGIT" register >/dev/null
+
+  assert_usage_error group create
+  assert_usage_error group create engineering a
+  assert_usage_error group delete
+  assert_usage_error group add
+  assert_usage_error group add engineering
+  assert_usage_error group add engineering a extra
+  assert_usage_error group remove
+  assert_usage_error group remove engineering
+  assert_usage_error group remove engineering a extra
 }
 
 @test "ordinary Git command options remain pass-through" {
@@ -534,6 +629,59 @@ assert_usage_error() {
   run "$MGIT" --group default
   [ "$status" -eq 0 ]
   [ "$output" = $'a\nb' ]
+}
+
+@test "group commands manage alternative workspace groups" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  cd "$TREE"
+  "$MGIT" register >/dev/null
+
+  run "$MGIT" group create engineering
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.engineering]' "$TREE/.mgit-workspace.toml"
+
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.engineering]' "$TREE/.mgit-workspace.toml"
+
+  run "$MGIT" group create engineering
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"group already exists"* ]]
+
+  run "$MGIT" group add engineering b
+  [ "$status" -eq 0 ]
+  run "$MGIT" group add engineering a
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.engineering.members."a"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit-workspace.toml"
+
+  run "$MGIT" --group engineering
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a\nb' ]
+
+  before=$(cat "$TREE/.mgit-workspace.toml")
+  run "$MGIT" group add engineering a
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"member already belongs"* ]]
+  [ "$(cat "$TREE/.mgit-workspace.toml")" = "$before" ]
+
+  run "$MGIT" group add engineering absent
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"not a direct default-group member"* ]]
+  [ "$(cat "$TREE/.mgit-workspace.toml")" = "$before" ]
+
+  run "$MGIT" group add default a
+  [ "$status" -eq 2 ]
+
+  run "$MGIT" group remove engineering a
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit-workspace.toml"
+  ! grep -Fq '[groups.engineering.members."a"]' "$TREE/.mgit-workspace.toml"
+
+  run "$MGIT" group delete engineering
+  [ "$status" -eq 0 ]
+  ! grep -Fq '[groups.engineering.members.' "$TREE/.mgit-workspace.toml"
 }
 
 @test "workspace selection rejects malformed, duplicate, and unsafe paths" {

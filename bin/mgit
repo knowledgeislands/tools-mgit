@@ -37,49 +37,174 @@ YELLOW=$'\033[33m'
 usage() {
   cat <<'EOF'
 Usage: mgit [options] [command]
-       mgit [options] register
-       mgit repair
-       mgit structure <standard|nested> <--dry-run|--yes>
-       mgit worktree <list|status|add|remove> [options]
-       mgit completion <bash|zsh>
 
-Runs supplied command on multiple git repositories.
+Run Git commands across multiple repositories and worktrees.
 
-A "leaf dir" has a .git child (a repo); "container dirs" are the directories
-between the cwd and the leaf dirs. The repo set comes from
-./.mgit-workspace.toml if present, else by walking the tree. Workspace groups
-declare path-keyed repositories and child workspaces; repository-owned
-.mgit-config.toml files declare cross-repository symlinks.
+With no command, list the repositories in the current set. Any command that is
+not one of the commands below is passed through to Git in every repository.
 
 Options:
-  -P, --physical         Don't follow symlinked container dirs (default)
-  -L, --follow-symlinks  Follow symlinked container dirs (never symlinked repos)
-  -B, --bare             Run bare; don't prefix command with git
-  -I, --ignore           Ignore .mgit-workspace.toml files; walk the tree instead
-  -g, --group NAME       Select NAME from the cwd workspace instead of its default
-  -f, --filter GLOB      Limit the repo set to repos whose path matches GLOB;
-                         a bare pattern also matches a repo's last path
-                         component. Repeatable; repeats union.
-  -h, --help             Show this message
-  -V, --version          Print version and exit
+  -P, --physical          don't follow symlinked container directories (default)
+  -L, --follow-symlinks   follow symlinked container directories
+  -B, --bare              run COMMAND directly instead of as a Git subcommand
+  -I, --ignore            ignore workspace manifests and discover repositories
+  -g, --group <name>      select a named group from the current workspace
+  -f, --filter <glob>     limit the repository set; repeatable
+  -h, --help              display help for command
+  -V, --version           print the CLI version
 
-Subcommand:
-  register               Write a .mgit-workspace.toml in every container dir
-                         (listing its child workspaces/repos) and
-                         .mgit-config.toml in every leaf that owns cross-repo
-                         symlinks. Stops at leaf dirs,
-                         never descending into a repo. Always scans fresh
-                         (implies -I) and overwrites generated files. If chezmoi
-                         manages the current path, also updates its source state.
-  repair                 Clone missing repositories declared by workspace default
-                         groups, recreating standard, nested, and bare layouts.
-  worktree list           List worktrees, grouped by shared Git store.
-  worktree status         Show branch and cleanliness for every working tree.
-  structure nested        Convert eligible standard repos to nested structure.
-  structure standard      Convert eligible nested repos to standard structure.
-  worktree add BRANCH     Add BRANCH from origin to every structured repo in the set.
-  worktree remove PATH    Remove a linked worktree; requires --yes.
-  completion SHELL       Print completion setup for bash or zsh.
+Commands:
+  register                generate workspace manifests and symlink metadata
+  repair                  clone missing default-group repositories
+  group                   create or delete named workspace groups
+  structure               convert repository structure across the current set
+  worktree                manage worktrees across the current set
+  completion              print shell completion setup
+  help [command]          display help for a command
+
+Run 'mgit help <command>' for detailed help on a command.
+EOF
+}
+
+register_usage() {
+  cat <<'EOF'
+Usage: mgit register [options]
+
+Generate .mgit-workspace.toml manifests for the current tree and record
+cross-repository symlinks in repository-owned .mgit-config.toml files.
+
+The command scans fresh, does not descend into repositories, and replaces the
+structural default group while preserving named alternative groups. When
+Chezmoi manages a generated manifest, its source state is updated too.
+
+Options:
+  -h, --help  display help for command
+EOF
+}
+
+repair_usage() {
+  cat <<'EOF'
+Usage: mgit repair [options]
+
+Clone missing repositories declared by structural default groups in the current
+.mgit-workspace.toml. Existing paths are never replaced.
+
+Options:
+  -h, --help  display help for command
+EOF
+}
+
+group_usage() {
+  cat <<'EOF'
+Usage: mgit group <command>
+
+Create and remove named alternative groups in the current workspace manifest.
+Group members must be direct members of the structural default group.
+
+Commands:
+  create <name>                  create an empty alternative group
+  delete <name>                  delete an alternative group
+  add <name> <member>            add a default-group member to a group
+  remove <name> <member>         remove a member from a group
+
+Run 'mgit help group <command>' for detailed help on a group command.
+EOF
+}
+
+group_create_usage() {
+  cat <<'EOF'
+Usage: mgit group create <name>
+
+Create an empty named alternative group in ./.mgit-workspace.toml. NAME must
+contain only letters, digits, hyphens, or underscores. Existing groups are
+never replaced. Add members with 'mgit group add <name> <member>'.
+EOF
+}
+
+group_delete_usage() {
+  cat <<'EOF'
+Usage: mgit group delete <name>
+
+Delete a named alternative group from ./.mgit-workspace.toml. The structural
+'default' group cannot be deleted.
+EOF
+}
+
+group_add_usage() {
+  cat <<'EOF'
+Usage: mgit group add <name> <member>
+
+Add a direct structural default-group member to an alternative group in
+./.mgit-workspace.toml. The structural 'default' group cannot be changed.
+EOF
+}
+
+group_remove_usage() {
+  cat <<'EOF'
+Usage: mgit group remove <name> <member>
+
+Remove MEMBER from an alternative group in ./.mgit-workspace.toml. An empty
+group remains available until deleted with 'mgit group delete <name>'.
+EOF
+}
+
+structure_usage() {
+  cat <<'EOF'
+Usage: mgit structure <standard|nested> <--dry-run|--yes>
+
+Convert eligible repositories in the current set between standard and nested
+structures. Use --dry-run to preview changes or --yes to apply them.
+
+Commands:
+  nested    convert standard repositories to nested structure
+  standard  convert nested repositories to standard structure
+EOF
+}
+
+worktree_usage() {
+  cat <<'EOF'
+Usage: mgit worktree <command>
+
+Manage worktrees for every structured repository in the current set.
+
+Commands:
+  list                  list worktrees grouped by shared Git store
+  status                show branch and cleanliness for every worktree
+  add <branch>          add a worktree for an existing local or origin branch
+  remove <path> --yes   remove one linked worktree
+
+Run 'mgit help worktree <command>' for detailed help on a worktree command.
+EOF
+}
+
+worktree_add_usage() {
+  cat <<'EOF'
+Usage: mgit worktree add <branch>
+
+Add a worktree for BRANCH to every standard or nested repository in the current
+set. BRANCH must exist locally or at origin in every affected repository.
+EOF
+}
+
+worktree_remove_usage() {
+  cat <<'EOF'
+Usage: mgit worktree remove <path> --yes [--force]
+
+Remove a linked worktree from the repository containing the current directory.
+The primary checkout and a nested repository's required main/ checkout cannot
+be removed.
+
+Options:
+  --yes    confirm removal
+  --force  discard changes in a dirty linked worktree
+EOF
+}
+
+completion_usage() {
+  cat <<'EOF'
+Usage: mgit completion <bash|zsh>
+
+Print a completion definition for Bash or Zsh.
 EOF
 }
 
@@ -91,33 +216,107 @@ usage_error() {
   return 2
 }
 
+usage_error_for() {
+  local usage_function="$1"
+  shift
+  printf 'mgit: error: %s\n' "$*" >&2
+  "$usage_function" >&2
+  return 2
+}
+
 completion_script() {
   case "${1:-}" in
     bash)
       cat <<'EOF'
 _mgit() {
-  local cur="${COMP_WORDS[COMP_CWORD]}" command subcommand
-  command="${COMP_WORDS[1]:-}"
-  subcommand="${COMP_WORDS[2]:-}"
+  local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
+  local i=1 command_index=0
+  local -a commands global_options
+  commands='register repair group structure worktree completion help'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -f --filter -h --help -V --version'
+  case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
+    -g|--group)
+      COMPREPLY=( $(compgen -W "$(_mgit_workspace_groups)" -- "$cur") )
+      return
+      ;;
+  esac
+  while (( i < COMP_CWORD )); do
+    word="${COMP_WORDS[i]}"
+    case "$word" in
+      -g|--group|-f|--filter) ((i += 2)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|-h|--help|-V|--version) ((i += 1)); continue ;;
+      --) ((i += 1)); break ;;
+      *) command="$word"; command_index=$i; break ;;
+    esac
+  done
+  if [[ -n "$command" ]]; then
+    subcommand="${COMP_WORDS[command_index + 1]:-}"
+  fi
   case "$command" in
+    register|repair)
+      COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
+      ;;
+    group)
+      case "$subcommand" in
+        '') COMPREPLY=( $(compgen -W 'create delete add remove --help -h' -- "$cur") ) ;;
+        create) COMPREPLY=() ;;
+        delete) COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") ) ;;
+        add)
+          if (( COMP_CWORD == command_index + 2 )); then
+            COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") )
+          else
+            COMPREPLY=( $(compgen -W "$(_mgit_default_members)" -- "$cur") )
+          fi ;;
+        remove)
+          if (( COMP_CWORD == command_index + 2 )); then
+            COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") )
+          else
+            COMPREPLY=( $(compgen -W "$(_mgit_group_members "${COMP_WORDS[command_index + 2]:-}")" -- "$cur") )
+          fi ;;
+      esac
+      ;;
     structure)
-      COMPREPLY=( $(compgen -W 'standard nested --dry-run --yes --help' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'standard nested --dry-run --yes --help -h' -- "$cur") )
       ;;
     worktree)
       case "$subcommand" in
-        '') COMPREPLY=( $(compgen -W 'list status add remove' -- "$cur") ) ;;
+        '') COMPREPLY=( $(compgen -W 'list status add remove --help -h' -- "$cur") ) ;;
+        list|status) COMPREPLY=( $(compgen -W '--help -h' -- "$cur") ) ;;
         add) COMPREPLY=() ;;
-        remove) COMPREPLY=( $(compgen -W '--yes --force --help' -- "$cur") ) ;;
+        remove) COMPREPLY=( $(compgen -W '--yes --force --help -h' -- "$cur") ) ;;
         *) COMPREPLY=() ;;
       esac
       ;;
     completion)
-      COMPREPLY=( $(compgen -W 'bash zsh' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'bash zsh --help -h' -- "$cur") )
+      ;;
+    help)
+      COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
       ;;
     *)
-      COMPREPLY=( $(compgen -W 'register repair structure worktree completion -P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -f --filter -h --help -V --version' -- "$cur") )
+      COMPREPLY=( $(compgen -W "$commands $global_options" -- "$cur") )
       ;;
   esac
+}
+
+_mgit_default_members() {
+  awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null
+}
+
+_mgit_alternative_groups() {
+  awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' \
+    .mgit-workspace.toml 2>/dev/null | sort -u
+}
+
+_mgit_workspace_groups() {
+  awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' \
+    .mgit-workspace.toml 2>/dev/null | sort -u
+}
+
+_mgit_group_members() {
+  local group="$1"
+  awk -F'[.\"]' -v group="$group" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' \
+    .mgit-workspace.toml 2>/dev/null
 }
 
 complete -F _mgit mgit
@@ -129,14 +328,16 @@ EOF
 
 _mgit() {
   local context state state_descr line
-  local -a global_commands global_options worktree_commands
+  local -a global_commands global_options group_commands worktree_commands
   typeset -A opt_args
   global_commands=(
     'register:generate workspace manifests and repository symlink metadata'
     'repair:clone missing repositories declared by workspace defaults'
+    'group:create or delete named workspace groups'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
+    'help:display help for a command'
   )
   global_options=(
     '-P[do not follow symlinked container directories]'
@@ -147,8 +348,8 @@ _mgit() {
     '--bare[run command without git prefix]'
     '-I[ignore .mgit-config.toml files]'
     '--ignore[ignore .mgit-config.toml files]'
-    '-g[select a workspace group]:group name:'
-    '--group[select a workspace group]:group name:'
+    '-g[select a workspace group]:group name:_mgit_workspace_groups'
+    '--group[select a workspace group]:group name:_mgit_workspace_groups'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
     '-h[show help]'
@@ -162,21 +363,62 @@ _mgit() {
     'add:add a remote branch'
     'remove:remove a worktree'
   )
+  group_commands=(
+    'create:create a named alternative group'
+    'delete:delete a named alternative group'
+    'add:add a default-group member to a group'
+    'remove:remove a member from a group'
+  )
   case $words[2] in
-    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '--yes[confirm changes]' ;;
+    register|repair) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    group)
+      case $words[3] in
+        '') _describe -t commands 'group command' group_commands ;;
+        create) _arguments '1:group name:' ;;
+        delete) _arguments '1:group name:_mgit_alternative_groups' ;;
+        add) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_default_members' ;;
+        remove) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_group_members' ;;
+      esac ;;
+    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '--yes[confirm changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
       case $words[3] in
         '') _describe -t commands 'worktree command' worktree_commands ;;
-        add) _message 'remote branch name' ;;
-        remove) _arguments '--yes[confirm removal]' '--force[discard dirty changes]' ;;
+        list|status) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+        add) _arguments '1:remote branch name:' '-h[display help for command]' '--help[display help for command]' ;;
+        remove) _arguments '1:worktree path:_files -/' '--yes[confirm removal]' '--force[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
       esac ;;
-    completion) _arguments '1:shell:(bash zsh)' ;;
+    completion) _arguments '1:shell:(bash zsh)' '-h[display help for command]' '--help[display help for command]' ;;
+    help) _describe -t commands command global_commands ;;
     *)
       _arguments -s $global_options '1:command:->command'
       case $state in
         command) _describe -t commands command global_commands ;;
       esac ;;
   esac
+}
+
+_mgit_default_members() {
+  local -a members
+  members=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null)"} )
+  _describe -t members 'workspace member' members
+}
+
+_mgit_alternative_groups() {
+  local -a groups
+  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' .mgit-workspace.toml 2>/dev/null | sort -u)"} )
+  _describe -t groups 'workspace group' groups
+}
+
+_mgit_workspace_groups() {
+  local -a groups
+  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' .mgit-workspace.toml 2>/dev/null | sort -u)"} )
+  _describe -t groups 'workspace group' groups
+}
+
+_mgit_group_members() {
+  local -a members
+  members=( ${(f)"$(awk -F'[.\"]' -v group="$words[4]" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null)"} )
+  _describe -t members 'workspace member' members
 }
 
 compdef _mgit mgit
@@ -195,14 +437,14 @@ completion_command() {
     case "$1" in
       -h|--help) help=true ;;
       bash|zsh)
-        [ -z "$shell_name" ] || { usage_error "completion: unexpected argument: $1"; return; }
+        [ -z "$shell_name" ] || { usage_error_for completion_usage "completion: unexpected argument: $1"; return; }
         shell_name="$1" ;;
-      *) usage_error "completion: unexpected argument: $1"; return ;;
+      *) usage_error_for completion_usage "completion: unexpected argument: $1"; return ;;
     esac
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
-  [ -n "$shell_name" ] || { usage_error 'completion: expected bash or zsh'; return; }
+  [ "$help" = false ] || { completion_usage; return 0; }
+  [ -n "$shell_name" ] || { usage_error_for completion_usage 'completion: expected bash or zsh'; return; }
   completion_script "$shell_name"
 }
 
@@ -698,6 +940,12 @@ parse_workspace() {
     line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
+    if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\]$ ]]; then
+      workspace_finish_member "$file" || return 1
+      group="${BASH_REMATCH[1]}"
+      workspace_group_known "$group" || workspace_groups+=("$group")
+      continue
+    fi
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\]$ ]]; then
       workspace_finish_member "$file" || return 1
       group="${BASH_REMATCH[1]}"
@@ -825,6 +1073,266 @@ parse_workspace() {
     printf 'mgit: %s: selected default group does not exist: %s\n' "$file" "$workspace_default" >&2
     return 1
   }
+}
+
+valid_workspace_group_name() {
+  case "$1" in
+    ""|*[!A-Za-z0-9_-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+default_member_kind() {
+  local path="$1" i
+  for i in "${!workspace_record_paths[@]}"; do
+    if [ "${workspace_record_groups[$i]}" = default ] && [ "${workspace_record_paths[$i]}" = "$path" ]; then
+      printf '%s' "${workspace_record_kinds[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Write the parsed workspace records in the canonical shape used by register.
+# Group changes are transactional: the original manifest remains intact unless
+# the complete replacement can be written and renamed successfully.
+write_workspace_manifest() {
+  local file="$1" temporary i group kind path emitted
+  workspace_sort_members
+  temporary=$(mktemp "${file}.mgit.XXXXXX") || return 1
+  if ! {
+    printf '# Generated by `mgit register`; named groups may be managed with `mgit group`.\n'
+    printf 'schema = 1\n'
+    printf 'default = '
+    toml_quote "$workspace_default" || return 1
+    printf '\n'
+    for group in "${workspace_groups[@]}"; do
+      emitted=false
+      for i in "${!workspace_record_paths[@]}"; do
+        [ "${workspace_record_groups[$i]}" = "$group" ] || continue
+        emitted=true
+        kind="${workspace_record_kinds[$i]}"
+        path="${workspace_record_paths[$i]}"
+        printf '\n[groups.%s.members.' "$group"
+        toml_quote "$path" || return 1
+        printf ']\nkind = '
+        toml_quote "$kind" || return 1
+        if [ "$group" = default ] && [ "$kind" = repository ]; then
+          printf '\ntype = '
+          toml_quote "${workspace_record_types[$i]}" || return 1
+          if [ -n "${workspace_record_sources[$i]}" ]; then
+            printf '\nsource = '
+            toml_quote "${workspace_record_sources[$i]}" || return 1
+          fi
+        fi
+        printf '\n'
+      done
+      [ "$emitted" = true ] || printf '\n[groups.%s]\n' "$group"
+    done
+  } > "$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+  mv "$temporary" "$file"
+}
+
+group_require_alternative() {
+  local action="$1" name="$2" usage_function="$3"
+  [ "$name" != default ] || {
+    usage_error_for "$usage_function" "group $action: default is the structural group and cannot be changed"
+    return $?
+  }
+  workspace_group_known "$name" || {
+    printf 'mgit group %s: group does not exist: %s\n' "$action" "$name" >&2
+    return 1
+  }
+}
+
+group_create() {
+  local name="$1"
+  valid_workspace_group_name "$name" || {
+    usage_error_for group_create_usage "group create: invalid group name: $name"
+    return
+  }
+  [ "$name" != default ] || {
+    usage_error_for group_create_usage 'group create: default is the structural group and cannot be created'
+    return
+  }
+  workspace_group_known "$name" && {
+    printf 'mgit group create: group already exists: %s\n' "$name" >&2
+    return 1
+  }
+  workspace_groups+=("$name")
+  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
+  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  printf 'mgit group create: created %s\n' "$name"
+}
+
+group_delete() {
+  local name="$1" i group
+  local new_groups=() new_kinds=() new_paths=() new_types=() new_sources=() new_group_names=()
+  group_require_alternative delete "$name" group_delete_usage || return $?
+  for i in "${!workspace_record_paths[@]}"; do
+    [ "${workspace_record_groups[$i]}" != "$name" ] || continue
+    new_groups+=("${workspace_record_groups[$i]}")
+    new_kinds+=("${workspace_record_kinds[$i]}")
+    new_paths+=("${workspace_record_paths[$i]}")
+    new_types+=("${workspace_record_types[$i]}")
+    new_sources+=("${workspace_record_sources[$i]}")
+  done
+  for group in "${workspace_groups[@]}"; do
+    [ "$group" = "$name" ] || new_group_names+=("$group")
+  done
+  workspace_groups=("${new_group_names[@]+"${new_group_names[@]}"}")
+  workspace_record_groups=("${new_groups[@]+"${new_groups[@]}"}")
+  workspace_record_kinds=("${new_kinds[@]+"${new_kinds[@]}"}")
+  workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
+  workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
+  workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
+  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
+  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  printf 'mgit group delete: deleted %s\n' "$name"
+}
+
+group_add() {
+  local name="$1" member="$2" kind i
+  group_require_alternative add "$name" group_add_usage || return $?
+  kind=$(default_member_kind "$member") || {
+    printf 'mgit group add: not a direct default-group member: %s\n' "$member" >&2
+    return 1
+  }
+  for i in "${!workspace_record_paths[@]}"; do
+    if [ "${workspace_record_groups[$i]}" = "$name" ] && [ "${workspace_record_paths[$i]}" = "$member" ]; then
+      printf 'mgit group add: member already belongs to %s: %s\n' "$name" "$member" >&2
+      return 1
+    fi
+  done
+  workspace_record_groups+=("$name")
+  workspace_record_kinds+=("$kind")
+  workspace_record_paths+=("$member")
+  workspace_record_types+=("")
+  workspace_record_sources+=("")
+  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
+  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  printf 'mgit group add: added %s to %s\n' "$member" "$name"
+}
+
+group_remove() {
+  local name="$1" member="$2" i found=false
+  local new_groups=() new_kinds=() new_paths=() new_types=() new_sources=()
+  group_require_alternative remove "$name" group_remove_usage || return $?
+  for i in "${!workspace_record_paths[@]}"; do
+    if [ "${workspace_record_groups[$i]}" = "$name" ] && [ "${workspace_record_paths[$i]}" = "$member" ]; then
+      found=true
+      continue
+    fi
+    new_groups+=("${workspace_record_groups[$i]}")
+    new_kinds+=("${workspace_record_kinds[$i]}")
+    new_paths+=("${workspace_record_paths[$i]}")
+    new_types+=("${workspace_record_types[$i]}")
+    new_sources+=("${workspace_record_sources[$i]}")
+  done
+  [ "$found" = true ] || {
+    printf 'mgit group remove: member does not belong to %s: %s\n' "$name" "$member" >&2
+    return 1
+  }
+  workspace_record_groups=("${new_groups[@]+"${new_groups[@]}"}")
+  workspace_record_kinds=("${new_kinds[@]+"${new_kinds[@]}"}")
+  workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
+  workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
+  workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
+  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
+  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  printf 'mgit group remove: removed %s from %s\n' "$member" "$name"
+}
+
+group_command() {
+  local action="${1:-}" name="" member="" help=false
+  [ $# -gt 0 ] && shift
+  case "$action" in
+    create)
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -h|--help) help=true ;;
+          *) break ;;
+        esac
+        shift
+      done
+      [ "$help" = false ] || { [ $# -eq 0 ] || { usage_error_for group_create_usage "group create: unexpected argument: $1"; return; }; group_create_usage; return 0; }
+      [ $# -gt 0 ] || { usage_error_for group_create_usage 'group create: NAME is required'; return; }
+      [ $# -eq 1 ] || { usage_error_for group_create_usage "group create: unexpected argument: $2"; return; }
+      name="$1"
+      ;;
+    delete)
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -h|--help) help=true ;;
+          *) [ -z "$name" ] || { usage_error_for group_delete_usage "group delete: unexpected argument: $1"; return; }; name="$1" ;;
+        esac
+        shift
+      done
+      [ "$help" = false ] || { [ -z "$name" ] || { usage_error_for group_delete_usage "group delete: unexpected argument: $name"; return; }; group_delete_usage; return 0; }
+      [ -n "$name" ] || { usage_error_for group_delete_usage 'group delete: NAME is required'; return; }
+      ;;
+    add|remove)
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -h|--help) help=true ;;
+          *)
+            if [ -z "$name" ]; then name="$1"; elif [ -z "$member" ]; then member="$1"; else
+              usage_error_for "group_${action}_usage" "group $action: unexpected argument: $1"; return
+            fi ;;
+        esac
+        shift
+      done
+      [ "$help" = false ] || {
+        [ -z "$name$member" ] || { usage_error_for "group_${action}_usage" "group $action: unexpected argument"; return; }
+        "group_${action}_usage"; return 0
+      }
+      [ -n "$name" ] && [ -n "$member" ] || { usage_error_for "group_${action}_usage" "group $action: NAME and MEMBER are required"; return; }
+      ;;
+    -h|--help|'')
+      [ $# -eq 0 ] || { usage_error_for group_usage "group: unexpected argument: $1"; return; }
+      group_usage
+      return 0 ;;
+    *) usage_error_for group_usage "group: unknown command: $action"; return ;;
+  esac
+  [ -f "./$MGIT_WORKSPACE" ] || { printf 'mgit group %s: no .mgit-workspace.toml in %s\n' "$action" "$(pwd)" >&2; return 1; }
+  parse_workspace "./$MGIT_WORKSPACE" || return 1
+  chezmoi_init
+  case "$action" in
+    create|delete) "group_$action" "$name" ;;
+    add|remove) "group_$action" "$name" "$member" ;;
+  esac
+}
+
+help_command() {
+  local command="${1:-}" subcommand="${2:-}"
+  case "$command" in
+    '') usage ;;
+    register) [ $# -eq 1 ] || { usage_error_for register_usage "help register: unexpected argument: $subcommand"; return; }; register_usage ;;
+    repair) [ $# -eq 1 ] || { usage_error_for repair_usage "help repair: unexpected argument: $subcommand"; return; }; repair_usage ;;
+    completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
+    structure)
+      case $# in
+        1) structure_usage ;;
+        2) case "$subcommand" in standard|nested) structure_usage ;; *) usage_error_for structure_usage "help structure: unknown command: $subcommand" ;; esac ;;
+        *) usage_error_for structure_usage "help structure: unexpected argument: ${3:-}" ;;
+      esac ;;
+    worktree)
+      case $# in
+        1) worktree_usage ;;
+        2) case "$subcommand" in list|status) worktree_usage ;; add) worktree_add_usage ;; remove) worktree_remove_usage ;; *) usage_error_for worktree_usage "help worktree: unknown command: $subcommand" ;; esac ;;
+        *) usage_error_for worktree_usage "help worktree: unexpected argument: ${3:-}" ;;
+      esac ;;
+    group)
+      case $# in
+        1) group_usage ;;
+        2) case "$subcommand" in create) group_create_usage ;; delete) group_delete_usage ;; add) group_add_usage ;; remove) group_remove_usage ;; *) usage_error_for group_usage "help group: unknown command: $subcommand" ;; esac ;;
+        *) usage_error_for group_usage "help group: unexpected argument: ${3:-}" ;;
+      esac ;;
+    *) usage_error "help: unknown mgit command: $command"; return ;;
+  esac
 }
 
 # Expand a ~ prefix; leave absolute/relative paths untouched.
@@ -1010,8 +1518,8 @@ register_preflight_tree() {
 
 register_tree() {
   local dir="$1" child kid_kinds=() kid_types=() kid_paths=() kid_sources=()
-  local kind child_kind source status i old_default=default
-  local old_groups=() old_kinds=() old_paths=()
+  local kind child_kind source status i group old_default=default
+  local old_group_names=() old_groups=() old_kinds=() old_paths=()
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
@@ -1051,6 +1559,7 @@ register_tree() {
   if [ -f "$dir/$MGIT_WORKSPACE" ]; then
     parse_workspace "$dir/$MGIT_WORKSPACE" || return 2
     old_default="$workspace_default"
+    old_group_names=("${workspace_groups[@]+"${workspace_groups[@]}"}")
     old_groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
     old_kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
     old_paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
@@ -1084,6 +1593,13 @@ register_tree() {
         printf ']\nkind = '
         toml_quote "${old_kinds[$i]}" || return 2
         printf '\n'
+      done
+      for group in "${old_group_names[@]}"; do
+        [ "$group" != default ] || continue
+        for i in "${!old_groups[@]}"; do
+          [ "${old_groups[$i]}" = "$group" ] && break
+        done
+        [ "${old_groups[$i]:-}" = "$group" ] || printf '\n[groups.%s]\n' "$group"
       done
     } > "$dir/$MGIT_WORKSPACE" || return 2
     chezmoi_add_manifest "$dir/$MGIT_WORKSPACE" || return 2
@@ -1310,12 +1826,12 @@ repair_command() {
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
-      *) usage_error "repair: unexpected argument: $1"; return ;;
+      *) usage_error_for repair_usage "repair: unexpected argument: $1"; return ;;
     esac
     # shellcheck disable=SC2317  # reachable once repair grows an option that does not return
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
+  [ "$help" = false ] || { repair_usage; return 0; }
   [ -f "./$MGIT_WORKSPACE" ] || {
     printf 'mgit repair: no .mgit-workspace.toml in %s\n' "$(pwd)" >&2
     return 1
@@ -1487,17 +2003,17 @@ worktree_add() {
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
-      -*) usage_error "worktree add: unknown option: $1"; return ;;
+      -*) usage_error_for worktree_add_usage "worktree add: unknown option: $1"; return ;;
       *)
-        [ -z "$branch" ] || { usage_error "worktree add: unexpected argument: $1"; return; }
+        [ -z "$branch" ] || { usage_error_for worktree_add_usage "worktree add: unexpected argument: $1"; return; }
         branch="$1" ;;
     esac
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
-  [ -n "$branch" ] || { usage_error 'worktree add: BRANCH is required'; return; }
+  [ "$help" = false ] || { worktree_add_usage; return 0; }
+  [ -n "$branch" ] || { usage_error_for worktree_add_usage 'worktree add: BRANCH is required'; return; }
   valid_worktree_name "${branch//\//-}" || {
-    usage_error "worktree add: invalid branch name: $branch"
+    usage_error_for worktree_add_usage "worktree add: invalid branch name: $branch"
     return
   }
 
@@ -1543,17 +2059,17 @@ worktree_remove() {
       --yes) yes=true ;;
       --force) force=true ;;
       -h|--help) help=true ;;
-      -*) usage_error "worktree remove: unknown option: $1"; return ;;
+      -*) usage_error_for worktree_remove_usage "worktree remove: unknown option: $1"; return ;;
       *)
-        [ -z "$target" ] || { usage_error "worktree remove: unexpected argument: $1"; return; }
+        [ -z "$target" ] || { usage_error_for worktree_remove_usage "worktree remove: unexpected argument: $1"; return; }
         target="$1" ;;
     esac
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
-  [ -n "$target" ] || { usage_error 'worktree remove: PATH is required'; return; }
+  [ "$help" = false ] || { worktree_remove_usage; return 0; }
+  [ -n "$target" ] || { usage_error_for worktree_remove_usage 'worktree remove: PATH is required'; return; }
   [ "$yes" = true ] || {
-    usage_error 'worktree remove: --yes is required'
+    usage_error_for worktree_remove_usage 'worktree remove: --yes is required'
     return
   }
   source=$(worktree_source_repo) || return 1
@@ -1661,16 +2177,16 @@ structure_nested() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run|--yes)
-        [ -z "$mode" ] || { usage_error "structure nested: unexpected argument: $1"; return; }
+        [ -z "$mode" ] || { usage_error_for structure_usage "structure nested: unexpected argument: $1"; return; }
         mode="$1" ;;
       -h|--help) help=true ;;
-      *) usage_error "structure nested: unexpected argument: $1"; return ;;
+      *) usage_error_for structure_usage "structure nested: unexpected argument: $1"; return ;;
     esac
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
+  [ "$help" = false ] || { structure_usage; return 0; }
   [ -n "$mode" ] || {
-    usage_error 'structure nested: --dry-run or --yes is required'
+    usage_error_for structure_usage 'structure nested: --dry-run or --yes is required'
     return
   }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
@@ -1737,15 +2253,15 @@ structure_standard() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run|--yes)
-        [ -z "$mode" ] || { usage_error "structure standard: unexpected argument: $1"; return; }
+        [ -z "$mode" ] || { usage_error_for structure_usage "structure standard: unexpected argument: $1"; return; }
         mode="$1" ;;
       -h|--help) help=true ;;
-      *) usage_error "structure standard: unexpected argument: $1"; return ;;
+      *) usage_error_for structure_usage "structure standard: unexpected argument: $1"; return ;;
     esac
     shift
   done
-  [ "$help" = false ] || { usage; return 0; }
-  [ -n "$mode" ] || { usage_error 'structure standard: --dry-run or --yes is required'; return; }
+  [ "$help" = false ] || { structure_usage; return 0; }
+  [ -n "$mode" ] || { usage_error_for structure_usage 'structure standard: --dry-run or --yes is required'; return; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")
@@ -1771,9 +2287,10 @@ structure_command() {
     nested) structure_nested "$@" ;;
     standard) structure_standard "$@" ;;
     -h|--help)
-      [ $# -eq 0 ] || { usage_error "structure: unexpected argument: $1"; return; }
-      usage ;;
-    *) usage_error "structure: unexpected argument: $target"; return ;;
+      [ $# -eq 0 ] || { usage_error_for structure_usage "structure: unexpected argument: $1"; return; }
+      structure_usage ;;
+    '') usage_error_for structure_usage 'structure: expected standard or nested'; return ;;
+    *) usage_error_for structure_usage "structure: unknown command: $target"; return ;;
   esac
 }
 
@@ -1786,19 +2303,19 @@ worktree_command() {
       while [ $# -gt 0 ]; do
         case "$1" in
           -h|--help) help=true ;;
-          *) usage_error "worktree $action: unexpected argument: $1"; return ;;
+          *) usage_error_for worktree_usage "worktree $action: unexpected argument: $1"; return ;;
         esac
         shift
       done
-      [ "$help" = false ] || { usage; return 0; }
+      [ "$help" = false ] || { worktree_usage; return 0; }
       if [ "$action" = list ]; then worktree_list; else worktree_status; fi ;;
     add)    worktree_add "$@" ;;
     remove) worktree_remove "$@" ;;
     -h|--help)
-      [ $# -eq 0 ] || { usage_error "worktree: unexpected argument: $1"; return; }
-      usage ;;
-    '') usage_error 'worktree: expected list, status, add, or remove'; return ;;
-    *) usage_error "worktree: unexpected argument: $action"; return ;;
+      [ $# -eq 0 ] || { usage_error_for worktree_usage "worktree: unexpected argument: $1"; return; }
+      worktree_usage ;;
+    '') usage_error_for worktree_usage 'worktree: expected list, status, add, or remove'; return ;;
+    *) usage_error_for worktree_usage "worktree: unknown command: $action"; return ;;
   esac
 }
 
@@ -1916,9 +2433,15 @@ done
 
 [ "$show_version" = false ] || { printf 'mgit %s\n' "$MGIT_VERSION"; exit 0; }
 
-if [ "$show_help" = true ] && [ $# -eq 0 ]; then
-  usage
-  exit 0
+if [ "$show_help" = true ]; then
+  help_command "$@"
+  exit $?
+fi
+
+if [ "${1:-}" = help ]; then
+  shift
+  help_command "$@"
+  exit $?
 fi
 
 if [ "${1:-}" = "completion" ]; then
@@ -1933,6 +2456,12 @@ if [ "${1:-}" = "repair" ]; then
   exit $?
 fi
 
+if [ "${1:-}" = "group" ]; then
+  shift
+  group_command "$@"
+  exit $?
+fi
+
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
@@ -1941,12 +2470,12 @@ if [ "${1:-}" = "register" ]; then
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) register_help=true ;;
-      *) usage_error "register: unexpected argument: $1"; exit $? ;;
+      *) usage_error_for register_usage "register: unexpected argument: $1"; exit $? ;;
     esac
     # shellcheck disable=SC2317  # reachable once register grows an option that doesn't exit
     shift
   done
-  [ "$register_help" = false ] || { usage; exit 0; }
+  [ "$register_help" = false ] || { register_usage; exit 0; }
   chezmoi_init
   register_preflight_tree "." || exit 2
   if register_tree "."; then

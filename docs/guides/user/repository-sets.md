@@ -38,6 +38,27 @@ The structural `default` group is required. Its repository members require `type
 
 Member paths are safe relative map keys below the manifest directory. Blank lines and comments are ignored.
 
+## Create an alternative group
+
+Create an empty named group, then add direct members of the structural `default` group without editing TOML:
+
+```bash
+mgit group create engineering
+mgit group add engineering ki-agentic-harness
+mgit group add engineering tools-mgit
+mgit group add engineering ki-specifications
+```
+
+The group name may contain letters, digits, hyphens, and underscores. `create` refuses an existing name, and `add` rejects a member that is not a direct default-group member. `remove` leaves the group available even when it has no members. To replace a group, delete it first:
+
+```bash
+mgit group delete engineering
+mgit group create engineering
+mgit group add engineering ki-agentic-harness
+mgit group add engineering tools-mgit
+mgit group add engineering ki-specifications
+```
+
 At runtime, `mgit` uses the current workspace's configured default group, or the group selected with `-g` / `--group`. It recursively selects child workspaces using each child's configured default. Filters are applied after this workspace selection.
 
 Repository-owned `.mgit-config.toml` files have a separate, leaf-only purpose: their `symlinks` table maps a symlink owned by that repository to a target in another repository. `mgit` includes the repository containing each declared target. Git restores tracked symlinks after cloning; this metadata lets `mgit` include the linked repository.
