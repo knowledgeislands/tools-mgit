@@ -5,7 +5,7 @@ theme: cli
 horizon: waiting-for
 status: draft
 blocks: []
-blocked-by: [MGIT-CLI-001]
+blocked-by: []
 baseline-ref: null
 ---
 
@@ -15,15 +15,15 @@ Let mGit consume the agreed canonical KI repository estate and store references 
 
 ## Context
 
-`MGIT-CLI-001` establishes the mGit-side parser, selection, registration, repair, and fixture evidence. The work trade adopted from `tools-ki` also requires the Harness `ki-repo` kind and store-role contract proposed by `TRD-d2cd35f7`. This item is the implementation successor once both conditions are met.
+The completed local discovery established the mGit-side parser, selection, registration, repair, and fixture evidence. The work trade adopted from `tools-ki` also requires the Harness `ki-repo` kind and store-role contract proposed by `TRD-d2cd35f7`. This item is the implementation successor once that external condition is met.
 
 ## Boundary
 
-Do not begin implementation until `MGIT-CLI-001` is done and Harness publishes the reviewable shared contract. Do not make source or legacy stores Git repositories, replace workspace-manifest selection authority, or write another repository.
+Do not begin implementation until Harness publishes the reviewable shared contract. Do not make source or legacy stores Git repositories, replace workspace-manifest selection authority, or write another repository.
 
 ## Dependencies / blocks
 
-Waiting for completion of `MGIT-CLI-001` and publication of the Harness `ki-repo` kind and store-role contract from `TRD-d2cd35f7`.
+Waiting for publication of the Harness `ki-repo` kind and store-role contract from `TRD-d2cd35f7`.
 
 ## Discussion
 
