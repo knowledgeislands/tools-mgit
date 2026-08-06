@@ -22,6 +22,14 @@ topics = false
 ["knowledgeislands/ki-agentic-harness:ki-roadmap".themes]
 CLI = "cli"
 
+["knowledgeislands/ki-agentic-harness:ki-trades".exports_to]
+work = ["https://github.com/knowledgeislands/tools-ki"]
+knowledge = []
+
+["knowledgeislands/ki-agentic-harness:ki-trades".imports_from]
+work = ["https://github.com/knowledgeislands/tools-ki"]
+knowledge = []
+
 ["knowledgeislands/ki-agentic-harness:ki-tokenomics"]
 
 ["knowledgeislands/ki-agentic-harness:ki-housekeeping-claude"]
