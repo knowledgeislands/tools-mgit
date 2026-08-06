@@ -268,8 +268,10 @@ assert_usage_error() {
   assert_usage_error completion --help fish
   assert_usage_error structure sideways --help
   assert_usage_error structure nested --wat --help
+  assert_usage_error structure nested --yes
   assert_usage_error worktree nope --help
   assert_usage_error worktree remove --wat --help
+  assert_usage_error worktree remove --yes
 }
 
 @test "standalone reserved-command help exits 0" {
@@ -296,7 +298,7 @@ assert_usage_error() {
 
   run "$MGIT" help worktree remove
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit worktree remove <path> --yes [--force]"* ]]
+  [[ "$output" == "Usage: mgit worktree remove <path> [--force]"* ]]
 }
 
 @test "reserved command trees reject unknown subcommands" {
@@ -824,7 +826,7 @@ assert_usage_error() {
   [[ "$output" == *"would restructure $TREE/repo A"* ]]
   [[ "$output" == *"would restructure $TREE/repoB"* ]]
 
-  run "$MGIT" structure nested --yes
+  run "$MGIT" structure nested
   [ "$status" -eq 0 ]
   [ -d "$TREE/repo A/.bare" ]
   [ -f "$TREE/repo A/.git" ]
@@ -864,11 +866,11 @@ assert_usage_error() {
   git -C "$TREE/repoA" worktree add -q -b featureA "$TREE/repoA-featureA"
 
   cd "$TREE/repoA"
-  run "$MGIT" worktree remove "$TREE/repoA-featureA" --yes
+  run "$MGIT" worktree remove "$TREE/repoA-featureA"
   [ "$status" -eq 0 ]
   [ ! -e "$TREE/repoA-featureA" ]
 
-  run "$MGIT" worktree remove "$TREE/repoA" --yes
+  run "$MGIT" worktree remove "$TREE/repoA"
   [ "$status" -eq 1 ]
   [[ "$output" == *"primary working tree"* ]]
 }
@@ -883,7 +885,7 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"would restructure $TREE/repoA"* ]]
 
-  run "$MGIT" structure standard --yes
+  run "$MGIT" structure standard
   [ "$status" -eq 0 ]
   [ -d "$TREE/repoA/.git" ]
   [ ! -d "$TREE/repoA/.bare" ]

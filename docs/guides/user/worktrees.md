@@ -72,7 +72,7 @@ Change all eligible standard repositories in the current `mgit` set to nested st
 
 ```bash
 mgit structure nested --dry-run
-mgit structure nested --yes
+mgit structure nested
 ```
 
 Each candidate must have a clean working tree, an attached branch, and no pre-existing linked worktrees. The current branch becomes `main/`; Git metadata moves into `.bare/`; the former files are retained as a timestamped rollback backup. A conversion failure restores the original checkout where possible and retains failed staging data for inspection.
@@ -81,7 +81,7 @@ To return to standard structure, remove every non-`main` worktree, ensure `main/
 
 ```bash
 mgit structure standard --dry-run
-mgit structure standard --yes
+mgit structure standard
 ```
 
 This promotes `main/` back to the repository root and retains the former workspace as a sibling backup.
@@ -96,4 +96,4 @@ mgit worktree add featureA
 
 For each nested repository, `mgit` creates `<repo>/featureA`; for each standard repository, it creates `<repo>/.git/mgit-worktrees/featureA`. Every checkout is on local branch `featureA` tracking `origin/featureA`. Before making any checkout, `mgit` verifies that every participating repository has the remote branch and no conflicting local branch or directory. Existing linked worktrees remain where Git created them; `mgit` does not move them.
 
-Use `mgit worktree list` or `mgit worktree status` to inspect the resulting checkout set. `mgit worktree remove PATH --yes` remains confirmation-gated and refuses to remove the standard primary checkout or the required nested `main/` checkout.
+Use `mgit worktree list` or `mgit worktree status` to inspect the resulting checkout set. `mgit worktree remove <path>` refuses to remove the standard primary checkout or the required nested `main/` checkout.

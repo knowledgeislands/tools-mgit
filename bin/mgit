@@ -150,10 +150,10 @@ EOF
 
 structure_usage() {
   cat <<'EOF'
-Usage: mgit structure <standard|nested> <--dry-run|--yes>
+Usage: mgit structure <standard|nested> [--dry-run]
 
 Convert eligible repositories in the current set between standard and nested
-structures. Use --dry-run to preview changes or --yes to apply them.
+structures. Apply changes by default; use --dry-run to preview them.
 
 Commands:
   nested    convert standard repositories to nested structure
@@ -171,7 +171,7 @@ Commands:
   list                  list worktrees grouped by shared Git store
   status                show branch and cleanliness for every worktree
   add <branch>          add a worktree for an existing local or origin branch
-  remove <path> --yes   remove one linked worktree
+  remove <path>         remove one linked worktree
 
 Run 'mgit help worktree <command>' for detailed help on a worktree command.
 EOF
@@ -188,21 +188,20 @@ EOF
 
 worktree_remove_usage() {
   cat <<'EOF'
-Usage: mgit worktree remove <path> --yes [--force]
+Usage: mgit worktree remove <path> [--force]
 
 Remove a linked worktree from the repository containing the current directory.
 The primary checkout and a nested repository's required main/ checkout cannot
 be removed.
 
 Options:
-  --yes    confirm removal
   --force  discard changes in a dirty linked worktree
 EOF
 }
 
 completion_usage() {
   cat <<'EOF'
-Usage: mgit completion <bash|zsh>
+Usage: mgit completion <shell>
 
 Print a completion definition for Bash or Zsh.
 EOF
@@ -276,14 +275,14 @@ _mgit() {
       esac
       ;;
     structure)
-      COMPREPLY=( $(compgen -W 'standard nested --dry-run --yes --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'standard nested --dry-run --help -h' -- "$cur") )
       ;;
     worktree)
       case "$subcommand" in
         '') COMPREPLY=( $(compgen -W 'list status add remove --help -h' -- "$cur") ) ;;
         list|status) COMPREPLY=( $(compgen -W '--help -h' -- "$cur") ) ;;
         add) COMPREPLY=() ;;
-        remove) COMPREPLY=( $(compgen -W '--yes --force --help -h' -- "$cur") ) ;;
+        remove) COMPREPLY=( $(compgen -W '--force --help -h' -- "$cur") ) ;;
         *) COMPREPLY=() ;;
       esac
       ;;
@@ -379,13 +378,13 @@ _mgit() {
         add) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_default_members' ;;
         remove) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_group_members' ;;
       esac ;;
-    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '--yes[confirm changes]' '-h[display help for command]' '--help[display help for command]' ;;
+    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
       case $words[3] in
         '') _describe -t commands 'worktree command' worktree_commands ;;
         list|status) _arguments '-h[display help for command]' '--help[display help for command]' ;;
         add) _arguments '1:remote branch name:' '-h[display help for command]' '--help[display help for command]' ;;
-        remove) _arguments '1:worktree path:_files -/' '--yes[confirm removal]' '--force[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
+        remove) _arguments '1:worktree path:_files -/' '--force[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
       esac ;;
     completion) _arguments '1:shell:(bash zsh)' '-h[display help for command]' '--help[display help for command]' ;;
     help) _describe -t commands command global_commands ;;
@@ -2053,10 +2052,9 @@ worktree_add() {
 }
 
 worktree_remove() {
-  local target="" force=false yes=false help=false source source_kind canonical i found=false path gitdir common
+  local target="" force=false help=false source source_kind canonical i found=false path gitdir common
   while [ $# -gt 0 ]; do
     case "$1" in
-      --yes) yes=true ;;
       --force) force=true ;;
       -h|--help) help=true ;;
       -*) usage_error_for worktree_remove_usage "worktree remove: unknown option: $1"; return ;;
@@ -2068,10 +2066,6 @@ worktree_remove() {
   done
   [ "$help" = false ] || { worktree_remove_usage; return 0; }
   [ -n "$target" ] || { usage_error_for worktree_remove_usage 'worktree remove: PATH is required'; return; }
-  [ "$yes" = true ] || {
-    usage_error_for worktree_remove_usage 'worktree remove: --yes is required'
-    return
-  }
   source=$(worktree_source_repo) || return 1
   source_kind=$(repo_type "$source")
   case "$source_kind" in standard|nested) ;; *)
@@ -2176,7 +2170,7 @@ structure_nested() {
   local mode="" unit root kind branch failed=false help=false
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run|--yes)
+      --dry-run)
         [ -z "$mode" ] || { usage_error_for structure_usage "structure nested: unexpected argument: $1"; return; }
         mode="$1" ;;
       -h|--help) help=true ;;
@@ -2185,10 +2179,6 @@ structure_nested() {
     shift
   done
   [ "$help" = false ] || { structure_usage; return 0; }
-  [ -n "$mode" ] || {
-    usage_error_for structure_usage 'structure nested: --dry-run or --yes is required'
-    return
-  }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")
@@ -2252,7 +2242,7 @@ structure_standard() {
   local mode="" unit root kind failed=false help=false
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run|--yes)
+      --dry-run)
         [ -z "$mode" ] || { usage_error_for structure_usage "structure standard: unexpected argument: $1"; return; }
         mode="$1" ;;
       -h|--help) help=true ;;
@@ -2261,7 +2251,6 @@ structure_standard() {
     shift
   done
   [ "$help" = false ] || { structure_usage; return 0; }
-  [ -n "$mode" ] || { usage_error_for structure_usage 'structure standard: --dry-run or --yes is required'; return; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
     root=$(canon_dir "$unit") || continue
     kind=$(repo_type "$root")

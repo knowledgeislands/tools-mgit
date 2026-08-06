@@ -49,7 +49,7 @@ Remove a member from an alternative group.
 .SS Repository management
 \&
 .TP
-.B mgit structure \fIstandard|nested\fR \fB\-\-dry-run|\-\-yes\fR
+.B mgit structure <standard|nested> [--dry-run]
 Convert every eligible repository in the current set between standard and
 nested structures.
 .TP
@@ -60,12 +60,12 @@ List worktrees or show their branch and cleanliness.
 Add a linked checkout for an existing remote branch in every structured
 repository.
 .TP
-.B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR [\fB\-\-force\fR]
+.B mgit worktree remove <path> [--force]
 Remove one linked worktree.
 .SS Shell integration
 \&
 .TP
-.B mgit completion \fIbash|zsh\fR
+.B mgit completion <shell>
 Print shell completion source.
 .TP
 .B mgit help [\fICOMMAND\fR [\fISUBCOMMAND\fR]]
@@ -275,11 +275,10 @@ performs the reverse conversion only when the nested repository has its required
 .I main/
 checkout and no other linked worktrees.
 .PP
-Both forms require exactly one of
+Both forms apply changes by default.
+Pass
 .B \-\-dry-run
-to preview changes or
-.B \-\-yes
-to make them.
+to preview changes instead.
 .TP
 .B mgit worktree list
 groups linked worktrees by their shared Git store.
@@ -295,7 +294,7 @@ repositories receive
 checkouts; standard repositories receive
 .I <repository>/.git/mgit-worktrees/<branch>
 checkouts.
-.B mgit worktree remove \fIPATH\fR \fB\-\-yes\fR
+.B mgit worktree remove <path>
 removes one linked checkout and never removes the primary or required
 .I main/
 checkout.
