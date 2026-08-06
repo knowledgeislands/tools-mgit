@@ -3,7 +3,7 @@ id: MGIT-CLI-001
 title: Map canonical estate
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 transferred-from: TRD-e9dbff6e
 blocks: [MGIT-CLI-002]
 blocked-by: []
@@ -77,6 +77,14 @@ Schema-1 and generated leaf configuration are both unsuitable for speculative KI
 ### Mini recap
 
 No new durable learning route is proposed. The observed boundary is retained in this canonical work record for the future contract comparison.
+
+### Acceptance
+
+Accepted by the user on 2026-08-06T07:57:56Z. The local discovery phase is complete; `MGIT-CLI-002` remains the retained implementation successor.
+
+## Done
+
+The local discovery boundary is accepted and retained as the evidence base for the later contract comparison. No runtime behaviour changed in this record.
 
 ## Discussion
 
