@@ -3,7 +3,7 @@ id: MGIT-CLI-001
 title: Map canonical estate
 theme: cli
 horizon: now
-status: in-progress
+status: awaiting-review
 transferred-from: TRD-e9dbff6e
 blocks: [MGIT-CLI-002]
 blocked-by: []
@@ -51,6 +51,32 @@ The adopted trade preserves the required shared boundary: canonical HTTPS home i
 ## Dependencies / blocks
 
 This discovery is ready and has no external blocker. `MGIT-CLI-002` remains blocked until this discovery is complete and the Harness publishes a reviewable `ki-repo` kind and store-role contract from the work proposed by `TRD-d2cd35f7`.
+
+## Review
+
+### Delivered
+
+Completed the local discovery boundary only. `MGIT-CLI-001` now records the parser, selection, registration, repair, and leaf-config evidence plus the required fixture matrix. `MGIT-CLI-002` retains all implementation work in `waiting-for`.
+
+### Summary of changes
+
+No mGit runtime, manifest schema, or test fixture changed. The roadmap split makes the contract-independent discovery reviewable while preserving the adopted work trade's eventual implementation outcome. Baseline: `1bf33a2cd6a6673063091247595493c24cc11498`. Delivery commits: `50499b7` and `20af445`.
+
+### Verification
+
+`bunx prettier --write -- docs/roadmap/MGIT-CLI-001-consume-canonical-estate.md` completed without changes. `bunx markdownlint-cli2 --fix docs/roadmap/MGIT-CLI-001-consume-canonical-estate.md` reported zero issues. `ki repo audit --skill ki-roadmap --repo .` passed.
+
+### Outstanding concerns
+
+The Harness `ki-repo` kind and store-role contract proposed by `TRD-d2cd35f7` has not been published. The discovery deliberately does not choose a local binding source, schema extension, or command surface; those decisions remain in `MGIT-CLI-002`.
+
+### Post-change review
+
+Schema-1 and generated leaf configuration are both unsuitable for speculative KI metadata: the former rejects unknown fields and registration would not preserve them, while the latter is regenerated for symlinks and current runtime set assembly consumes only symlink records. This preserves the workspace manifest's grouping and selection authority and keeps non-Git stores outside repair.
+
+### Mini recap
+
+No new durable learning route is proposed. The observed boundary is retained in this canonical work record for the future contract comparison.
 
 ## Discussion
 
