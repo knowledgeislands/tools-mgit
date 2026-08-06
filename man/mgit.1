@@ -35,16 +35,16 @@ Clone missing repositories declared by structural default groups in the current
 .I .mgit-workspace.toml
 manifest.
 .TP
-.B mgit group create \fINAME\fR
+.B mgit group create <name>
 Create an empty named alternative workspace group.
 .TP
-.B mgit group delete \fINAME\fR
+.B mgit group delete <name>
 Delete a named alternative workspace group.
 .TP
-.B mgit group add \fINAME\fR \fIMEMBER\fR
+.B mgit group add <name> <member>
 Add a default-group member to an alternative group.
 .TP
-.B mgit group remove \fINAME\fR \fIMEMBER\fR
+.B mgit group remove <name> <member>
 Remove a member from an alternative group.
 .SS Repository management
 \&
@@ -241,26 +241,26 @@ It recursively follows child workspaces through their structural default groups.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
 .TP
-.B mgit group create \fINAME\fR
+.B mgit group create <name>
 creates an empty named alternative group in the current workspace manifest.
 .I NAME
 contains only letters, digits, hyphens, or underscores.
 The command refuses to replace an existing group.
 .TP
-.B mgit group delete \fINAME\fR
+.B mgit group delete <name>
 removes a named alternative group from the current workspace manifest.
 The structural
 .B default
 group cannot be deleted.
 .TP
-.B mgit group add \fINAME\fR \fIMEMBER\fR
+.B mgit group add <name> <member>
 adds a direct member of the structural
 .B default
 group to an alternative group.
 The member is recorded with its repository or workspace kind and cannot be
 added twice.
 .TP
-.B mgit group remove \fINAME\fR \fIMEMBER\fR
+.B mgit group remove <name> <member>
 removes a member from an alternative group.
 The group remains available when it has no members; use
 .B mgit group delete
