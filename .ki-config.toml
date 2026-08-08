@@ -1,4 +1,7 @@
-["knowledgeislands/ki-agentic-harness:ki-repo"]
+[repo]
+harnesses = ["knowledgeislands/ki-agentic-harness"]
+
+[skills.ki-repo]
 repository = "https://github.com/knowledgeislands/tools-mgit"
 title = "mgit"
 description = "Run commands across many Git repositories at once — auto-discovered at runtime or pinned by an optional .mgit-workspace.toml manifest."
@@ -7,35 +10,33 @@ supported_runtimes = ["claude-code", "chatgpt-codex"]
 visibility = "public"
 
 # Custom topics describe this standalone Bash CLI more accurately than the default set.
-["knowledgeislands/ki-agentic-harness:ki-repo".checks]
+[skills.ki-repo.checks]
 topics = false
 
-["knowledgeislands/ki-agentic-harness:ki-git"]
+[skills.ki-git]
 
-["knowledgeislands/ki-agentic-harness:ki-authoring"]
+[skills.ki-authoring]
 
-["knowledgeislands/ki-agentic-harness:ki-guides"]
+[skills.ki-guides]
 
-["knowledgeislands/ki-agentic-harness:ki-tools"]
+[skills.ki-tools]
 
-["knowledgeislands/ki-agentic-harness:ki-roadmap"]
-["knowledgeislands/ki-agentic-harness:ki-roadmap".themes]
+[skills.ki-roadmap]
+[skills.ki-roadmap.themes]
 CLI = "cli"
 
-["knowledgeislands/ki-agentic-harness:ki-trades".exports_to]
-work = ["https://github.com/knowledgeislands/ki-agentic-harness", "https://github.com/knowledgeislands/ki-website", "https://github.com/knowledgeislands/tools-ki", "https://github.com/krisb/dotfiles"]
-knowledge = ["https://github.com/knowledgeislands/ki-agentic-harness", "https://github.com/knowledgeislands/ki-website"]
+[skills.ki-trades]
 
-["knowledgeislands/ki-agentic-harness:ki-trades".imports_from]
-work = ["https://github.com/knowledgeislands/ki-agentic-harness", "https://github.com/knowledgeislands/tools-ki"]
-knowledge = ["https://github.com/knowledgeislands/ki-agentic-harness"]
+[skills.ki-trades.routes]
+"knowledgeislands/ki-agentic-harness" = { export = ["work", "knowledge"], import = ["work", "knowledge"] }
+"knowledgeislands/ki-website" = { export = ["work", "knowledge"] }
+"knowledgeislands/tools-ki" = { export = ["work"], import = ["work"] }
+"krisb/dotfiles" = { export = ["work"] }
 
-["knowledgeislands/ki-agentic-harness:ki-tokenomics"]
+[skills.ki-tokenomics]
 
-["knowledgeislands/ki-agentic-harness:ki-housekeeping-claude"]
+[skills.ki-housekeeping-claude]
 
-["knowledgeislands/ki-agentic-harness:ki-tokenomics-claude"]
+[skills.ki-tokenomics-claude]
 
-["knowledgeislands/ki-agentic-harness:ki-tokenomics-codex"]
-
-["knowledgeislands/ki-agentic-harness:ki-trades"]
+[skills.ki-tokenomics-codex]
