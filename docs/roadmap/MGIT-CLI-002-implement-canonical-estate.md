@@ -1,6 +1,7 @@
 ---
-id: MGIT-002
+id: MGIT-CLI-002
 title: Implement canonical estate
+area: CLI
 theme: cli
 horizon: waiting-for
 status: draft

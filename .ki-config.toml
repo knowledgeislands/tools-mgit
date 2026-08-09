@@ -29,6 +29,9 @@ adapter = "roadmap"
 [skills.ki-change-management-roadmap]
 themes = ["cli"]
 
+[skills.ki-change-management-roadmap.areas]
+CLI = "cli"
+
 [skills.ki-repo-trades]
 
 [skills.ki-repo-trades.routes]
