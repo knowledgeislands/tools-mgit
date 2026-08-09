@@ -47,3 +47,13 @@ CLI = "cli"
 [skills.ki-tokenomics-claude]
 
 [skills.ki-tokenomics-codex]
+
+[skills.ki-agora]
+
+[skills.ki-agora.memberships.ki-all]
+home = "https://github.com/knowledgeislands/ki-agentic-harness"
+role = "maintainer"
+
+[skills.ki-agora.memberships.ki-fnd]
+home = "https://github.com/knowledgeislands/ki-agentic-harness"
+role = "maintainer"
