@@ -8,7 +8,7 @@ This is the runtime-neutral working convention for `mgit`. The [README](README.m
 
 ## Governance
 
-This is a Knowledge Islands `tools-*` repository, governed by the `ki-tools` repository-structure skill. It declares `ki-repo` and `ki-tools` in [.ki-config.toml](.ki-config.toml). Run the native repository audit directly:
+This is a Knowledge Islands `tools-*` repository, governed by the `ki-repo-tools` repository-structure skill. It declares `ki-repo`, `ki-repo-project`, and `ki-repo-tools` in [.ki-config.toml](.ki-config.toml). Run the native repository audit directly:
 
 ```sh
 ki repo audit --repo .
@@ -27,7 +27,7 @@ ki repo audit --repo .
 
 1. Bump `MGIT_VERSION` in [bin/mgit](bin/mgit) and add a Keep a Changelog- and SemVer-compliant section to [CHANGELOG.md](CHANGELOG.md).
 2. Tag `vX.Y.Z`, push the tag, then run `gh release create vX.Y.Z`.
-3. Update the formula's `url` and `sha256` in the Homebrew tap; that repository is governed by `ki-homebrew-tap`.
+3. Update the formula's `url` and `sha256` in the Homebrew tap; that repository is governed by `ki-repo-homebrew-tap`.
 
 ## Verification
 

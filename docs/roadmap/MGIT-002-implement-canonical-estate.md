@@ -1,5 +1,5 @@
 ---
-id: MGIT-CLI-002
+id: MGIT-002
 title: Implement canonical estate
 theme: cli
 horizon: waiting-for

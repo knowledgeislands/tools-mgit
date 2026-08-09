@@ -19,15 +19,19 @@ topics = false
 
 [skills.ki-guides]
 
-[skills.ki-tools]
+[skills.ki-repo-project]
 
-[skills.ki-roadmap]
-[skills.ki-roadmap.themes]
-CLI = "cli"
+[skills.ki-repo-tools]
 
-[skills.ki-trades]
+[skills.ki-change-management]
+adapter = "roadmap"
 
-[skills.ki-trades.routes]
+[skills.ki-change-management-roadmap]
+themes = ["cli"]
+
+[skills.ki-repo-trades]
+
+[skills.ki-repo-trades.routes]
 "knowledgeislands/ki-agentic-harness" = { export = ["work", "knowledge"], import = ["work", "knowledge"] }
 "knowledgeislands/ki-website" = { export = ["work", "knowledge"] }
 "knowledgeislands/tools-ki" = { export = ["work"], import = ["work"] }
