@@ -4,7 +4,7 @@ title: Support Agora sets
 area: CLI
 theme: cli
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 5fc140df96fcd2b62abc0e9bd14f06573faa320f
@@ -90,6 +90,10 @@ The NUL stream is captured before parsing, so a failing resolver cannot leave pa
 Baseline: `5fc140df96fcd2b62abc0e9bd14f06573faa320f`.
 
 Implementation: `6948640487a12d4561ecb7d7577fdb254d0038bb`.
+
+## Done
+
+Accepted on 2026-08-10 after review of the delivered selector, verification evidence, and outstanding-concern assessment. The record is retained as completion history.
 
 ## Discussion
 
