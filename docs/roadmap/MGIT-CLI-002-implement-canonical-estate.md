@@ -1,10 +1,10 @@
 ---
 id: MGIT-CLI-002
-title: Implement canonical estate
+title: Support Agora sets
 area: CLI
 theme: cli
-horizon: waiting-for
-status: draft
+horizon: next
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
@@ -12,22 +12,61 @@ baseline_ref: null
 
 ## Goal
 
-Let mGit consume the agreed canonical KI repository estate and store references while retaining each workspace manifest's authority over local grouping and selection.
+Let a user run an ordinary MGit command over the locally resolved members of a named Agora or the KI estate, without making MGit understand KI configuration.
 
 ## Context
 
-The completed local discovery established the mGit-side parser, selection, registration, repair, and fixture evidence. The work trade adopted from `tools-ki` also requires the Harness `ki-repo` kind and store-role contract proposed by `TRD-d2cd35f7`. This item is the implementation successor once that external condition is met.
+The Harness has published the repository-kind and store-role contract that originally blocked this record. `ki` now resolves registered local repositories for a reciprocal named Agora or the reserved `estate` selector. `tools-ki` now provides the V1 `ki agora roots <name>` resolver: it writes newline-delimited absolute roots by default and supports NUL-delimited roots through `--null` / `-0`. MGit consumes only the NUL form. Invalid, empty, missing, or non-reciprocal selections fail without roots on standard output; the resolver never clones repositories, infers membership from paths, or includes local source or legacy stores.
+
+MGit already selects a local repository set through discovery or a `.mgit-workspace.toml` manifest. Those path-based workspace groups remain separate from Agoras, which are portable declarations without local paths. Parsing `.ki-config.toml`, the local registry, or peer declarations in Bash would duplicate `ki` authority and couple MGit to an evolving configuration model.
 
 ## Boundary
 
-Do not begin implementation until Harness publishes the reviewable shared contract. Do not make source or legacy stores Git repositories, replace workspace-manifest selection authority, or write another repository.
+Do not parse KI declarations or the local KI registry in MGit. Do not create or alter an Agora, make source or legacy stores Git repositories, replace workspace-manifest selection authority, or write another repository. Existing MGit commands must continue to require only Bash and Git; any `ki` dependency applies only to an explicit Agora selection.
+
+Do not revive the retired `.mgit-config.toml` member-set model or use presentation output from `ki agora show` as a machine interface.
+
+## Current state
+
+MGit currently chooses its base set from a workspace manifest or filesystem discovery, then expands active worktrees and follows repository-owned symlink metadata. It has no external set selector, invokes no KI command, and does not recognise `--agora`.
+
+## Steps
+
+- [ ] Add a repeat-safe `-a` / `--agora <name>` global selector and reject its combination with workspace or discovery selectors and reserved management commands.
+- [ ] Invoke `ki agora roots --null <name>` exactly once, fail before selection on a missing or failing resolver, and validate the non-empty NUL-delimited physical repository roots it returns.
+- [ ] Use those exact roots as the base set, skipping discovery, workspace parsing, and symlink-metadata expansion; retain filtering and active-worktree expansion.
+- [ ] Document the selector in help, Bash and Zsh completion, the user guide, and `mgit(1)`.
+- [ ] Add hermetic Bats coverage for successful selection, NUL-safe paths, resolver failure, missing `ki`, selector conflicts, and no expansion beyond the returned set.
+
+## Files touched
+
+- `bin/mgit`
+- `tests/mgit.bats`
+- `README.md`
+- `docs/guides/user/running-commands.md`
+- `man/mgit.1`
+
+## Verify
+
+```sh
+shellcheck bin/mgit install.sh
+bats tests/
+ki repo audit --skill ki-authoring --repo .
+ki repo audit --skill ki-change-management-roadmap --repo .
+```
 
 ## Dependencies / blocks
 
-Waiting for publication of the Harness `ki-repo` kind and store-role contract from `TRD-d2cd35f7`.
+The V1 resolver is available. There are no unresolved local work-item dependencies.
 
 ## Discussion
 
+### MGit adapter
+
+`--agora <name>` invokes `ki` once, safely consumes the returned roots, and applies normal command fan-out and worktree handling to that fixed set. It does not read any KI file. Without `--agora`, MGit neither invokes nor requires `ki`.
+
+The selector is a read-only set source: `register`, `repair`, workspace-group mutation, `structure`, and `worktree` remain local-manifest or discovery operations. It rejects `--group`, `--ignore`, `--physical`, and `--follow-symlinks`; `--filter` narrows the resolved roots and `--bare` remains available. Skipping symlink-metadata expansion preserves the resolved Agora as the exact authoritative set rather than silently adding linked repositories.
+
 ### Promotion condition
 
-When both named conditions are met, move this item to `next` or `now`, compare the shared contract with the discovery fixture matrix, then shape the smallest compatible implementation and verification plan.
+The resolver is released, documented, and locally verified. This item is ready for implementation under the stated boundary and verification gates.
