@@ -4,7 +4,7 @@ area: CLI
 title: Specify workspace dispatch
 theme: cli
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 1e9f889ac9a228251be7dc46ab562792b616a312
@@ -88,6 +88,10 @@ No runtime behavior changed; the specification makes existing Bats-proven behavi
 ### Mini recap
 
 The bounded as-built contract is now an auditable repository surface. Future changes to workspace discovery, selection, named groups, or dispatch should update the applicable `MGIT-WS` requirement and its verification hook in the same change.
+
+## Done
+
+Accepted by the user on 2026-08-10 after review of the recorded boundary, verification, and outstanding-scope note.
 
 ## Discussion
 
