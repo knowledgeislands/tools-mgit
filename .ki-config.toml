@@ -35,8 +35,13 @@ CLI = "cli"
 [skills.ki-trades]
 
 [skills.ki-trades.routes."knowledgeislands/ki-agentic-harness"]
-export = ["work", "knowledge"]
 import = ["work", "knowledge"]
+
+[skills.ki-trades.routes."knowledgeislands/ki-techne-principal"]
+import = ["work", "knowledge"]
+
+[skills.ki-trades.routes."knowledgeislands/homebrew-tap"]
+export = ["work"]
 
 [skills.ki-trades.routes."knowledgeislands/tools-ki"]
 export = ["work", "knowledge"]
