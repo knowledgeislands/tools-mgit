@@ -38,9 +38,6 @@ CLI = "cli"
 export = ["work", "knowledge"]
 import = ["work", "knowledge"]
 
-[skills.ki-trades.routes."knowledgeislands/ki-website"]
-export = ["knowledge"]
-
 [skills.ki-trades.routes."knowledgeislands/tools-ki"]
 export = ["work", "knowledge"]
 import = ["work", "knowledge"]
