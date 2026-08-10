@@ -28,7 +28,7 @@
 
 MGIT_CONFIG=.mgit-config.toml
 MGIT_WORKSPACE=.mgit-workspace.toml
-MGIT_VERSION=0.9.0
+MGIT_VERSION=0.10.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'

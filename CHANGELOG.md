@@ -1,57 +1,34 @@
 # Changelog
 
-All notable changes to this project are documented here.
+All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-This changelog records the V1 release baseline. It does not retroactively track individual 0.x releases; their tags and commit history remain the record of that run-up.
+## [0.10.0] — 2026-08-10
 
-## [1.0.0] — in progress
+### Added
 
-Pre-V1 work is summarized as this baseline; separate 0.x release entries are not maintained.
+- Add `mgit group` commands for creating, deleting, and managing named alternative workspace groups.
+- Add `--agora <name>` to run Git or bare commands across the exact local roots resolved by `ki` for an Agora or `estate`.
+- Add contextual `mgit help` output and matching Bash and Zsh completion for the command hierarchy and workspace groups.
 
-### Shipped commands
+### Changed
 
-#### General
+- Apply `mgit structure standard|nested` changes by default; `--dry-run` now provides the explicit preview.
+- Remove the `--yes` confirmation requirement from `mgit worktree remove <path>`.
 
-- `mgit`
-- `mgit --help`
-- `mgit --version`
-- `mgit [options] <git-command> [argument...]`
-- `mgit --bare <command> [argument...]`
+## [0.9.0] — 2026-08-05
 
-#### Workspace management
+### Changed
 
-- `mgit register`
-- `mgit repair`
-- `mgit group create <name>`
-- `mgit group delete <name>`
-- `mgit group add <name> <member>`
-- `mgit group remove <name> <member>`
+- Place standard-repository worktrees created by `mgit worktree add` under `.git/mgit-worktrees/<branch>`.
+- Require an explicit `list`, `status`, `add`, or `remove` action after `mgit worktree`.
 
-#### Repository management
+### Fixed
 
-- `mgit structure nested [--dry-run]`
-- `mgit structure standard [--dry-run]`
-- `mgit worktree list`
-- `mgit worktree status`
-- `mgit worktree add <branch>`
-- `mgit worktree remove <path> [--force]`
+- Correct Zsh completion registration and command candidates.
 
-#### Shell integration
+## [0.8.1] — 2026-07-30
 
-- `mgit completion <shell>`
+### Changed
 
-### Behaviours
-
-- `mgit` discovers repository roots at runtime or reads a checked-in `.mgit-workspace.toml` manifest.
-- Workspace manifests define the structural `default` group, optional alternative groups, repositories, and child workspaces.
-- `mgit group` creates empty alternative groups and manages only direct `default`-group members.
-- `mgit register` generates structural workspace records, preserves alternative groups, and records cross-repository symlinks in leaf `.mgit-config.toml` files.
-- `mgit repair` recreates missing default-group repositories from recorded clone URLs without replacing existing paths.
-- `mgit structure` applies changes by default and supports `--dry-run` previews.
-- `mgit worktree` manages standard and nested worktrees while protecting primary and required `main/` checkouts.
-- `mgit completion <shell>` emits Bash and Zsh definitions for the command hierarchy, options, group names, and workspace members.
-
-### Distribution baseline
-
-- `install.sh`
-- `mgit(1)`
+- Represent workspace members as path-keyed TOML tables, including nested workspace members.
+- Document workspace and repository configuration canonically in `mgit(1)`'s `FILES` section.
