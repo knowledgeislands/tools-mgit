@@ -121,6 +121,17 @@ or container directories by default.
 The
 .B \-I
 option ignores workspace manifests and always uses discovery instead.
+.PP
+With
+.BR \-a / \-\-agora ,
+.B mgit
+invokes
+.B ki agora roots --null
+once and uses the returned local repository roots as its exact set.
+This optional mode does not read KI configuration itself and requires
+.B ki
+on
+.BR PATH .
 .SH INSTALLATION
 \&
 .PP
@@ -178,6 +189,21 @@ Select group
 from the workspace in the current directory instead of that workspace's
 configured default.
 Child workspaces use their own configured defaults.
+.sp
+.TP
+.BR \-a , " \-\-agora" " \fINAME\fR"
+Select the local roots resolved by
+.B ki
+for the named Agora or the reserved
+.BR estate .
+MGit uses the resolver's NUL-delimited output and runs no KI command unless
+this option is present. This selector cannot be combined with
+.BR \-P ,
+.BR \-L ,
+.BR \-I ,
+or
+.BR \-g ,
+and it is unavailable to MGit management commands.
 .sp
 .TP
 .BR \-f , " \-\-filter" " \fIGLOB\fR"

@@ -33,6 +33,17 @@ mgit --group ci status
 mgit -g ci -B bun run test
 ```
 
+## Select an Agora
+
+When `ki` is installed, use `--agora` to run an ordinary Git or bare command across the local roots resolved for a named Agora or `estate`:
+
+```sh
+mgit --agora ki-fnd status
+mgit --agora estate -B git fetch --all --prune
+```
+
+MGit invokes `ki agora roots --null <name>` once, and uses only the returned repository roots. It does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but `--agora` cannot be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, `--ignore`, or `--group`) or with MGit management commands.
+
 ## Discovery options
 
 - `-P` or `--physical` does not follow symlinked container directories. This is the default.

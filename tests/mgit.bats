@@ -105,11 +105,30 @@ make_fake_chezmoi() {
   PATH="$bin:$PATH"
 }
 
+make_fake_ki() {
+  local bin="$TREE/fake-ki-bin"
+  mkdir -p "$bin"
+  FAKE_KI_AGORA=focus
+  FAKE_KI_ROOTS=""
+  FAKE_KI_FAIL=false
+  export FAKE_KI_AGORA FAKE_KI_ROOTS FAKE_KI_FAIL
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '[ "$1" = agora ] && [ "$2" = roots ] && [ "$3" = --null ] || exit 64' \
+    '[ "$4" = "$FAKE_KI_AGORA" ] || { printf "unknown Agora: %s\\n" "$4" >&2; exit 65; }' \
+    '[ "$FAKE_KI_FAIL" = false ] || { printf "fake Agora resolution failed\\n" >&2; exit 73; }' \
+    'while IFS= read -r root || [ -n "$root" ]; do printf "%s\\0" "$root"; done <<< "$FAKE_KI_ROOTS"' \
+    > "$bin/ki"
+  chmod +x "$bin/ki"
+  PATH="$bin:$PATH"
+}
+
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage: mgit"* ]]
   [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
+  [[ "$output" == *"--agora <name>"* ]]
   [[ "$output" == *"passed through to Git"* ]]
 }
 
@@ -385,6 +404,70 @@ assert_usage_error() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"git status --short"* ]]
+}
+
+@test "--agora selects only NUL-delimited roots from ki" {
+  mkrepo "$TREE/first"
+  mkrepo "$TREE/with space"
+  make_fake_ki
+  FAKE_KI_ROOTS="$TREE/first"$'\n'"$TREE/with space"
+
+  cd "$TREE"
+  run "$MGIT" --agora focus
+
+  [ "$status" -eq 0 ]
+  [ "$output" = $'first\nwith space' ]
+
+  run "$MGIT" --agora focus -f first
+  [ "$status" -eq 0 ]
+  [ "$output" = "first" ]
+}
+
+@test "--agora preserves its exact roots instead of following symlink metadata" {
+  mkrepo "$TREE/selected"
+  mkrepo "$TREE/linked"
+  mkdir "$TREE/linked/shared"
+  ln -s ../linked/shared "$TREE/selected/link"
+  printf '%s\n' '[symlinks]' '"link" = "../linked/shared"' > "$TREE/selected/.mgit-config.toml"
+  make_fake_ki
+  FAKE_KI_ROOTS="$TREE/selected"
+
+  cd "$TREE"
+  run "$MGIT" --agora focus
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "selected" ]
+}
+
+@test "--agora stops before a command when ki cannot resolve roots" {
+  mkrepo "$TREE/selected"
+  make_fake_ki
+  FAKE_KI_ROOTS="$TREE/selected"
+  FAKE_KI_FAIL=true
+
+  cd "$TREE"
+  run "$MGIT" --agora focus status
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"fake Agora resolution failed"* ]]
+  [[ "$output" != *"git status"* ]]
+}
+
+@test "--agora reports a missing ki command" {
+  PATH=/usr/bin:/bin
+
+  run "$MGIT" --agora focus
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--agora requires ki on PATH"* ]]
+}
+
+@test "--agora rejects incompatible selectors and management commands" {
+  assert_usage_error --agora focus --group dev status
+  assert_usage_error --agora focus --ignore status
+  assert_usage_error --agora focus --follow-symlinks status
+  assert_usage_error --agora focus register
+  assert_usage_error --agora focus structure standard
 }
 
 @test "register rejects a stray argument" {
