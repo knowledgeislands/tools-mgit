@@ -4,10 +4,10 @@ title: Support Agora sets
 area: CLI
 theme: cli
 horizon: next
-status: ready
+status: in-progress
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 5fc140df96fcd2b62abc0e9bd14f06573faa320f
 ---
 
 ## Goal
