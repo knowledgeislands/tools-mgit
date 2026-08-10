@@ -4,7 +4,7 @@ title: Support Agora sets
 area: CLI
 theme: cli
 horizon: next
-status: in-progress
+status: awaiting-review
 blocks: []
 blocked_by: []
 baseline_ref: 5fc140df96fcd2b62abc0e9bd14f06573faa320f
@@ -32,11 +32,11 @@ MGit currently chooses its base set from a workspace manifest or filesystem disc
 
 ## Steps
 
-- [ ] Add a repeat-safe `-a` / `--agora <name>` global selector and reject its combination with workspace or discovery selectors and reserved management commands.
-- [ ] Invoke `ki agora roots --null <name>` exactly once, fail before selection on a missing or failing resolver, and validate the non-empty NUL-delimited physical repository roots it returns.
-- [ ] Use those exact roots as the base set, skipping discovery, workspace parsing, and symlink-metadata expansion; retain filtering and active-worktree expansion.
-- [ ] Document the selector in help, Bash and Zsh completion, the user guide, and `mgit(1)`.
-- [ ] Add hermetic Bats coverage for successful selection, NUL-safe paths, resolver failure, missing `ki`, selector conflicts, and no expansion beyond the returned set.
+- [x] Add a repeat-safe `-a` / `--agora <name>` global selector and reject its combination with workspace or discovery selectors and reserved management commands.
+- [x] Invoke `ki agora roots --null <name>` exactly once, fail before selection on a missing or failing resolver, and validate the non-empty NUL-delimited physical repository roots it returns.
+- [x] Use those exact roots as the base set, skipping discovery, workspace parsing, and symlink-metadata expansion; retain filtering and active-worktree expansion.
+- [x] Document the selector in help, Bash and Zsh completion, the user guide, and `mgit(1)`.
+- [x] Add hermetic Bats coverage for successful selection, NUL-safe paths, resolver failure, missing `ki`, selector conflicts, and no expansion beyond the returned set.
 
 ## Files touched
 
@@ -58,6 +58,38 @@ ki repo audit --skill ki-change-management-roadmap --repo .
 ## Dependencies / blocks
 
 The V1 resolver is available. There are no unresolved local work-item dependencies.
+
+## Review
+
+### Delivered
+
+`mgit --agora <name>` resolves one named Agora or `estate` through `ki agora roots --null <name>`, then runs ordinary Git or bare commands over that exact root set. It is unavailable to MGit management commands and never reads KI configuration.
+
+### Summary of changes
+
+The selector validates a non-empty stream of absolute physical Git repository roots before MGit selects any command target. It retains filters and active-worktree expansion, but skips workspace parsing, filesystem discovery, and repository-owned symlink metadata. Help, both completion systems, the README, user guide, and manual document the optional `ki` dependency and selector boundaries.
+
+### Verification
+
+- `bash -n bin/mgit` — pass.
+- `shellcheck bin/mgit install.sh` — pass.
+- `bats tests/` — pass (50 tests), including five hermetic Agora-selector cases.
+- `mandoc -Tlint man/mgit.1` — pass.
+- `./bin/mgit --agora ki-fnd` — listed the eight locally resolved `ki-fnd` roots.
+
+### Outstanding concerns
+
+The feature depends on the delivered V1 `ki agora roots --null` contract only when `--agora` is explicit. No current unresolved concern blocks review.
+
+### Post-change review
+
+The NUL stream is captured before parsing, so a failing resolver cannot leave partial roots for MGit to execute. The selector refuses discovery and workspace flags and skips symlink-metadata expansion, preventing a resolved Agora from silently growing beyond `ki`'s authoritative roots.
+
+### Mini recap
+
+Baseline: `5fc140df96fcd2b62abc0e9bd14f06573faa320f`.
+
+Implementation: `6948640487a12d4561ecb7d7577fdb254d0038bb`.
 
 ## Discussion
 
