@@ -4,7 +4,7 @@ area: CLI
 title: Specify workspace dispatch
 theme: cli
 horizon: next
-status: in-progress
+status: awaiting-review
 blocks: []
 blocked_by: []
 baseline_ref: 1e9f889ac9a228251be7dc46ab562792b616a312
@@ -33,7 +33,7 @@ The repository declares `ki-specs`, but has no `docs/specs/` registry or area do
 - [x] Declare and link the `ki-specs` capability for this repository.
 - [x] Create a flat Specifications registry and a bounded workspace-dispatch area.
 - [x] Record current discovery, selection, named-group, worktree-expansion, and dispatch behaviours with concrete Bats verification hooks.
-- [ ] Audit the roadmap, Specifications corpus, Markdown, shell source, and Bats suite.
+- [x] Audit the roadmap, Specifications corpus, Markdown, shell source, and Bats suite.
 
 ## Files touched
 
@@ -50,6 +50,44 @@ The repository declares `ki-specs`, but has no `docs/specs/` registry or area do
 ## Dependencies / blocks
 
 No implementation dependency is outstanding. The existing executable and Bats suite provide the as-built evidence; no user-facing behavior should change.
+
+## Review
+
+### Delivered
+
+Adopted `ki-specs` and added one as-built area covering runtime workspace discovery, selection, named groups, repository/worktree expansion, and ordinary command dispatch.
+
+### Summary of changes
+
+- Declared `ki-specs` in `.ki-config.toml`.
+- Added the `MGIT-WS` Specifications registry and fourteen requirements in `docs/specs/`.
+- Added the retained roadmap record and advanced the CLI issue ledger through `003`.
+
+### Verification
+
+- `ki repo conform --skill ki-authoring --repo .` — pass; no changes required.
+- `ki repo audit --skill ki-specs --repo .` — pass.
+- `ki repo audit --skill ki-change-management-roadmap --repo .` — pass.
+- `ki repo audit --skill ki-authoring --repo .` — pass.
+- `shellcheck bin/mgit install.sh` — pass.
+- `bats tests/` — pass (50 tests).
+- `git diff --check` — pass.
+
+### Outstanding concerns
+
+The scope intentionally leaves release and installation behavior, manifest generation and repair, repository-structure conversion, and worktree mutation outside this first Specifications area. The single discovery-traversal requirement names the executable behavior; a focused Bats test for physical versus symlink-following traversal remains a Gap.
+
+### Post-change review
+
+Baseline: `1e9f889ac9a228251be7dc46ab562792b616a312`.
+
+Delivery: `031a246002a5c0cdde3c9d1e8020c7471e818f63` (`docs(specs): specify workspace dispatch`).
+
+No runtime behavior changed; the specification makes existing Bats-proven behavior and source-level safety boundaries explicit.
+
+### Mini recap
+
+The bounded as-built contract is now an auditable repository surface. Future changes to workspace discovery, selection, named groups, or dispatch should update the applicable `MGIT-WS` requirement and its verification hook in the same change.
 
 ## Discussion
 
