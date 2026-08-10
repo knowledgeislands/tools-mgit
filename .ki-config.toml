@@ -65,3 +65,5 @@ role = "maintainer"
 [skills.ki-agora.memberships.ki-fnd]
 home = "https://github.com/knowledgeislands/ki-agentic-harness"
 role = "maintainer"
+
+[skills.ki-specs]
