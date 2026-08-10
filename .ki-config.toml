@@ -42,8 +42,12 @@ import = ["work", "knowledge"]
 export = ["work", "knowledge"]
 
 [skills.ki-trades.routes."knowledgeislands/tools-ki"]
-export = ["work"]
-import = ["work"]
+export = ["work", "knowledge"]
+import = ["work", "knowledge"]
+
+[skills.ki-trades.routes."knowledgeislands/ki-arcadia-principal"]
+export = ["work", "knowledge"]
+import = ["work", "knowledge"]
 
 [skills.ki-trades.routes."krisb/dotfiles"]
 export = ["work"]
