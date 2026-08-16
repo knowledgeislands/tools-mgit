@@ -23,13 +23,13 @@ topics = false
 
 [skills.ki-repo-tools]
 
-[skills.ki-change-management]
+[skills.ki-work]
 adapter = "roadmap"
 
-[skills.ki-change-management-roadmap]
+[skills.ki-work-roadmap]
 themes = ["cli"]
 
-[skills.ki-change-management-roadmap.areas]
+[skills.ki-work-roadmap.areas]
 CLI = "cli"
 
 [skills.ki-trades]
