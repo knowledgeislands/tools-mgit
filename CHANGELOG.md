@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `--estate` as the first-class spelling for selecting the registered KI estate, equivalent to `--agora estate`.
+
 ## [0.10.0] — 2026-08-10
 
 ### Added

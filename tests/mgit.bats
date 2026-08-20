@@ -129,6 +129,7 @@ make_fake_ki() {
   [[ "$output" == *"Usage: mgit"* ]]
   [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
   [[ "$output" == *"--agora <name>"* ]]
+  [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"passed through to Git"* ]]
 }
 
@@ -207,6 +208,7 @@ make_fake_ki() {
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
   [[ "$output" == *"repair"* ]]
+  [[ "$output" == *"--estate"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
 
@@ -214,6 +216,7 @@ make_fake_ki() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
+  [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
 
@@ -423,6 +426,26 @@ assert_usage_error() {
   [ "$output" = "first" ]
 }
 
+@test "--estate selects the same exact roots as --agora estate" {
+  mkrepo "$TREE/first"
+  mkrepo "$TREE/with space"
+  make_fake_ki
+  FAKE_KI_AGORA=estate
+  FAKE_KI_ROOTS="$TREE/first"$'\n'"$TREE/with space"
+
+  cd "$TREE"
+  run "$MGIT" --estate
+
+  [ "$status" -eq 0 ]
+  [ "$output" = $'first\nwith space' ]
+  local estate_output="$output"
+
+  run "$MGIT" --agora estate
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "$estate_output" ]
+}
+
 @test "--agora preserves its exact roots instead of following symlink metadata" {
   mkrepo "$TREE/selected"
   mkrepo "$TREE/linked"
@@ -460,6 +483,11 @@ assert_usage_error() {
 
   [ "$status" -eq 1 ]
   [[ "$output" == *"--agora requires ki on PATH"* ]]
+
+  run "$MGIT" --estate
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--estate requires ki on PATH"* ]]
 }
 
 @test "--agora rejects incompatible selectors and management commands" {
@@ -468,6 +496,14 @@ assert_usage_error() {
   assert_usage_error --agora focus --follow-symlinks status
   assert_usage_error --agora focus register
   assert_usage_error --agora focus structure standard
+  assert_usage_error --estate --agora focus status
+  assert_usage_error --agora focus --estate status
+  assert_usage_error --estate --estate status
+  assert_usage_error --estate --group dev status
+  assert_usage_error --estate --ignore status
+  assert_usage_error --estate --follow-symlinks status
+  assert_usage_error --estate register
+  assert_usage_error --estate structure standard
 }
 
 @test "register rejects a stray argument" {

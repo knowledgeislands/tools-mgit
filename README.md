@@ -6,7 +6,7 @@ The set of repositories is **determined at runtime** by walking the directory tr
 
 `mgit register` generates workspace manifests for non-Git containers. Repository leaf directories use `.mgit-config.toml` only for cross-repository symlink metadata. Use `mgit group create <group-name>` and `mgit group add <group-name> <member-name>` to make an alternative named repository set without editing the manifest directly.
 
-When `ki` is available, `mgit --agora <name> status` uses its resolved local Agora or `estate` roots as one exact repository set. This optional mode invokes `ki` only when requested; it never reads KI configuration itself.
+When `ki` is available, `mgit --agora <name> status` uses a resolved named Agora as one exact repository set, while `mgit --estate status` selects every repository in the registered KI estate. These optional selectors invoke `ki` only when requested; `mgit` never reads KI configuration itself. `--agora estate` remains an equivalent spelling of `--estate`.
 
 ## Get started
 

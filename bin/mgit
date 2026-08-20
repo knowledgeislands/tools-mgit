@@ -49,7 +49,8 @@ Options:
   -B, --bare              run COMMAND directly instead of as a Git subcommand
   -I, --ignore            ignore workspace manifests and discover repositories
   -g, --group <name>      select a named group from the current workspace
-  -a, --agora <name>      select roots resolved by ki for an Agora or estate
+  -a, --agora <name>      select roots resolved by ki for a named Agora
+      --estate            select every root in the registered KI estate
   -f, --filter <glob>     limit the repository set; repeatable
   -h, --help              display help for command
   -V, --version           print the CLI version
@@ -233,7 +234,7 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair group structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora -f --filter -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora --estate -f --filter -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     -g|--group)
       COMPREPLY=( $(compgen -W "$(_mgit_workspace_groups)" -- "$cur") )
@@ -244,7 +245,7 @@ _mgit() {
     word="${COMP_WORDS[i]}"
     case "$word" in
       -g|--group|-a|--agora|-f|--filter) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -350,8 +351,9 @@ _mgit() {
     '--ignore[ignore .mgit-config.toml files]'
     '-g[select a workspace group]:group name:_mgit_workspace_groups'
     '--group[select a workspace group]:group name:_mgit_workspace_groups'
-    '-a[select roots resolved by ki for an Agora or estate]:Agora name:'
-    '--agora[select roots resolved by ki for an Agora or estate]:Agora name:'
+    '-a[select roots resolved by ki for a named Agora]:Agora name:'
+    '--agora[select roots resolved by ki for a named Agora]:Agora name:'
+    '--estate[select every root in the registered KI estate]'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
     '-h[show help]'
@@ -2381,14 +2383,14 @@ select_workspace() {
   done
 }
 
-# Resolve one named KI Agora (or the reserved estate) through ki. The NUL
-# stream is captured before parsing so a resolver failure cannot leave a partial
+# Resolve one named KI Agora or the registered estate through ki. The NUL stream
+# is captured before parsing so a resolver failure cannot leave a partial
 # repository set for a command to run against.
-select_agora() {
-  local name="$1" temporary root canonical actual
+select_ki_roots() {
+  local name="$1" selector="$2" temporary root canonical actual
   local failed=false
   command -v ki >/dev/null 2>&1 || {
-    printf 'mgit: --agora requires ki on PATH\n' >&2
+    printf 'mgit: %s requires ki on PATH\n' "$selector" >&2
     return 1
   }
   temporary=$(mktemp) || {
@@ -2463,6 +2465,7 @@ read_config=true
 filters=()
 group_name=""
 agora_name=""
+ki_selector=""
 show_help=false
 show_version=false
 
@@ -2478,8 +2481,13 @@ while [ $# -gt 0 ]; do
       group_name="$2"; shift ;;
     -a|--agora)
       [ $# -ge 2 ] || { usage_error "$1 requires an Agora name"; exit $?; }
-      [ -z "$agora_name" ] || { usage_error 'Agora may only be selected once'; exit $?; }
+      [ -z "$ki_selector" ] || { usage_error '--agora and --estate cannot be combined or repeated'; exit $?; }
+      ki_selector=--agora
       agora_name="$2"; shift ;;
+    --estate)
+      [ -z "$ki_selector" ] || { usage_error '--agora and --estate cannot be combined or repeated'; exit $?; }
+      ki_selector=--estate
+      agora_name=estate ;;
     -f|--filter)
       [ $# -ge 2 ] || { usage_error "$1 requires a glob pattern"; exit $?; }
       filters+=("$2"); shift ;;
@@ -2512,14 +2520,14 @@ if [ "${1:-}" = "completion" ]; then
 fi
 
 if [ "${1:-}" = "repair" ]; then
-  [ -z "$agora_name" ] || { usage_error '--agora cannot be used with repair'; exit $?; }
+  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with repair"; exit $?; }
   shift
   if [ "$show_help" = true ]; then repair_command "$@" --help; else repair_command "$@"; fi
   exit $?
 fi
 
 if [ "${1:-}" = "group" ]; then
-  [ -z "$agora_name" ] || { usage_error '--agora cannot be used with group'; exit $?; }
+  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with group"; exit $?; }
   shift
   group_command "$@"
   exit $?
@@ -2528,7 +2536,7 @@ fi
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
-  [ -z "$agora_name" ] || { usage_error '--agora cannot be used with register'; exit $?; }
+  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with register"; exit $?; }
   register_help="$show_help"
   shift
   while [ $# -gt 0 ]; do
@@ -2556,15 +2564,15 @@ fi
 repos=()
 
 if [ -n "$agora_name" ]; then
-  [ -z "$group_name" ] || { usage_error '--agora cannot be combined with --group'; exit $?; }
-  [ "$read_config" = true ] || { usage_error '--agora cannot be combined with --ignore'; exit $?; }
+  [ -z "$group_name" ] || { usage_error "$ki_selector cannot be combined with --group"; exit $?; }
+  [ "$read_config" = true ] || { usage_error "$ki_selector cannot be combined with --ignore"; exit $?; }
   [ "$discovery_option" = false ] || {
-    usage_error '--agora cannot be combined with discovery traversal options'
+    usage_error "$ki_selector cannot be combined with discovery traversal options"
     exit $?
   }
   case "${1:-}" in
     structure|worktree)
-      usage_error "--agora cannot be used with ${1}"
+      usage_error "$ki_selector cannot be used with ${1}"
       exit $?
       ;;
   esac
@@ -2573,7 +2581,7 @@ fi
 # Base set: a direct cwd workspace selects an ordered group and recursively
 # expands child workspaces. There is deliberately no parent-config traversal.
 if [ -n "$agora_name" ]; then
-  select_agora "$agora_name" || exit 1
+  select_ki_roots "$agora_name" "$ki_selector" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 elif [ "$read_config" = true ] && [ -f "./$MGIT_WORKSPACE" ]; then
   select_workspace "." "$group_name" || exit 1

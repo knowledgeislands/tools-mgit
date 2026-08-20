@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-08-10" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-08-20" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -123,7 +123,9 @@ The
 option ignores workspace manifests and always uses discovery instead.
 .PP
 With
-.BR \-a / \-\-agora ,
+.BR \-a / \-\-agora
+or
+.BR \-\-estate ,
 .B mgit
 invokes
 .B ki agora roots --null
@@ -194,8 +196,7 @@ Child workspaces use their own configured defaults.
 .BR \-a , " \-\-agora" " \fINAME\fR"
 Select the local roots resolved by
 .B ki
-for the named Agora or the reserved
-.BR estate .
+for the named Agora.
 MGit uses the resolver's NUL-delimited output and runs no KI command unless
 this option is present. This selector cannot be combined with
 .BR \-P ,
@@ -204,6 +205,15 @@ this option is present. This selector cannot be combined with
 or
 .BR \-g ,
 and it is unavailable to MGit management commands.
+.sp
+.TP
+.B \-\-estate
+Select every local root in the registered KI estate. This is exactly equivalent
+to
+.BR "\-\-agora estate" .
+It has the same restrictions as
+.BR \-\-agora ,
+and the two selectors cannot be combined.
 .sp
 .TP
 .BR \-f , " \-\-filter" " \fIGLOB\fR"
