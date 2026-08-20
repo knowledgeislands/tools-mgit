@@ -1061,10 +1061,10 @@ parse_workspace() {
   done < "$file"
   workspace_finish_member "$file" || return 1
   workspace_sort_members
-  [ "$seen_schema" = true ] && [ "$schema" = 1 ] || {
+  if [ "$seen_schema" != true ] || [ "$schema" != 1 ]; then
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
     return 1
-  }
+  fi
   [ "$seen_default" = true ] || {
     printf 'mgit: %s: missing default group\n' "$file" >&2
     return 1
@@ -1293,7 +1293,10 @@ group_command() {
         [ -z "$name$member" ] || { usage_error_for "group_${action}_usage" "group $action: unexpected argument"; return; }
         "group_${action}_usage"; return 0
       }
-      [ -n "$name" ] && [ -n "$member" ] || { usage_error_for "group_${action}_usage" "group $action: NAME and MEMBER are required"; return; }
+      if [ -z "$name" ] || [ -z "$member" ]; then
+        usage_error_for "group_${action}_usage" "group $action: NAME and MEMBER are required"
+        return
+      fi
       ;;
     -h|--help|'')
       [ $# -eq 0 ] || { usage_error_for group_usage "group: unexpected argument: $1"; return; }
