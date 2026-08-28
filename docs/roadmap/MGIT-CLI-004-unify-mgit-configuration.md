@@ -4,10 +4,10 @@ title: Unify mGit configuration
 area: CLI
 theme: cli
 horizon: next
-status: ready
+status: in-progress
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: f13154fe09eb350e21aac69c24eb7c7a89c1763c
 ---
 
 ## Goal
