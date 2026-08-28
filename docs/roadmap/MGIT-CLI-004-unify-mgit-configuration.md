@@ -4,7 +4,7 @@ title: Unify mGit configuration
 area: CLI
 theme: cli
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: f13154fe09eb350e21aac69c24eb7c7a89c1763c
@@ -110,6 +110,10 @@ The delivered behavior matches the approved goal and scope: one mGit-owned filen
 ### Mini recap
 
 The repository now owns a versioned `.mgit.toml` contract, explicit legacy migration, synchronized user-facing documentation, and the pre-v1 changelog baseline requested during delivery. No additional durable learning route is needed: changelog policy is already captured in `AGENTS.md`, behavior is in Specifications, and migration procedure is in user guide. Downstream KI reader work remains linked to `KI-TOOL-CLI-055` without automatic cross-repository action.
+
+## Done
+
+Accepted by Kris Brown on 2026-08-28. Acceptance confirms the delivered mGit contract; migration of existing manifests remains untried and separately authorized work for the Chezmoi project.
 
 ## Discussion
 
