@@ -4,7 +4,7 @@ title: Unify mGit configuration
 area: CLI
 theme: cli
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
