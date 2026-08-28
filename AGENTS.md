@@ -25,9 +25,10 @@ ki repo audit --repo .
 
 ## Releasing
 
-1. Bump `MGIT_VERSION` in [bin/mgit](bin/mgit) and add a Keep a Changelog- and SemVer-compliant section to [CHANGELOG.md](CHANGELOG.md).
-2. Tag `vX.Y.Z`, push the tag, then run `gh release create vX.Y.Z`.
-3. Update the formula's `url` and `sha256` in the Homebrew tap; that repository is governed by `ki-repo-homebrew-tap`.
+1. Bump `MGIT_VERSION` in [bin/mgit](bin/mgit).
+2. Before v1.0.0, keep [CHANGELOG.md](CHANGELOG.md) as one curated list of features intended for v1; do not add per-change or per-0.x-release sections. From v1.0.0 onward, add Keep a Changelog- and SemVer-compliant release sections.
+3. Tag `vX.Y.Z`, push the tag, then run `gh release create vX.Y.Z`.
+4. Update the formula's `url` and `sha256` in the Homebrew tap; that repository is governed by `ki-repo-homebrew-tap`.
 
 ## Verification
 
