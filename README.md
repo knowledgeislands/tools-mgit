@@ -1,29 +1,89 @@
 # mgit
 
-Run commands across many Git repositories and worktrees at once. `mgit status`, `mgit pull`, or `mgit -B npm test` runs in every checkout in set, printing repository name before output.
+Run commands across many Git repositories at once.
 
-Repository set is **determined at runtime** by walking directory tree for `.git`, or **predetermined** by optional checked-in `.mgit.toml` workspace document. Workspace configuration is never required — reach for it when set should be explicit, reproducible, deterministic, or divided into groups.
+`mgit` applies a Git subcommand or another command to every repository in a selected set, printing each repository name before its output.
 
-`mgit register` writes one schema-1 filename with an explicit role: `kind = "workspace"` in non-Git containers and `kind = "repository"` in leaves that own cross-repository symlink metadata. It also migrates unambiguous `.mgit-workspace.toml` and `.mgit-config.toml` files; mixed or conflicting state is rejected. Use `mgit group create <group-name>` and `mgit group add <group-name> <member-name>` to make alternative named repository set without editing configuration directly.
+## Table of Contents
 
-When `ki` is available, `mgit --agora <name> status` uses resolved named Agora as one exact repository set, while `mgit --estate status` selects every repository in registered KI estate. These optional selectors invoke `ki` only when requested; `mgit` never reads KI configuration itself. `--agora estate` remains equivalent spelling for `--estate`.
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [Documentation](#documentation)
+- [Maintainer](#maintainer)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Get started
+## Background
 
-Install with Homebrew:
+Working with a directory full of related repositories often means repeating the same Git command or maintaining an ad hoc shell loop. `mgit` provides one predictable interface for that work while remaining a standalone Bash script with only Bash 3.2 or later and Git as runtime dependencies.
+
+Repository sets can be discovered at runtime by walking the current directory for Git repositories or predetermined by an optional checked-in `.mgit.toml` workspace document. Configuration is useful when the set should be explicit, reproducible, or divided into named groups; it is not required for ordinary discovery.
+
+## Install
+
+On macOS or Linux, install the published release with Homebrew:
 
 ```sh
 brew install knowledgeislands/tap/mgit
 ```
 
-Then run:
+On any system with Bash and Git, use the release installer:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+```
+
+The installer writes to `~/.local/bin` by default. See the [installation guide](docs/guides/user/installation.md) for alternate directories, shell completion, local development links, and installation checks.
+
+## Usage
+
+Run `mgit` without a command to list the selected repositories. Pass a Git subcommand to run it across the set, or use `-B` to run another command directly:
 
 ```sh
 mgit
 mgit status
+mgit pull --ff-only
+mgit -B npm test
 ```
 
-[Guides](docs/guides/README.md) cover installation, command execution, repository-set configuration, worktrees, and local development. For exact command syntax, run `mgit help`, `mgit help <command>`, or installed `mgit(1)` manual.
+Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata. The command also migrates an unambiguous legacy `.mgit-workspace.toml` or `.mgit-config.toml`; conflicting or mixed state is rejected.
+
+Create and select alternative named groups without editing the document directly:
+
+```sh
+mgit group create ci
+mgit group add ci tools-mgit
+mgit --group ci status
+```
+
+When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. `mgit` invokes `ki` only for these selectors and does not read KI configuration itself.
+
+```sh
+mgit --agora ki-fnd status
+mgit --estate status
+```
+
+Run `mgit help`, `mgit help <command>`, or `man mgit` for the complete command reference.
+
+## Documentation
+
+- [User guide](docs/guides/user/README.md) — installation, command execution, repository sets, and worktrees.
+- [Developer guide](docs/guides/developer/README.md) — local development and verification.
+- [Changelog](CHANGELOG.md) — the curated feature baseline planned for v1.
+
+## Maintainer
+
+Kris Brown maintains `mgit`. Use [GitHub issues](https://github.com/knowledgeislands/tools-mgit/issues) for questions and maintenance requests.
+
+## Contributing
+
+Issues and pull requests are welcome. Follow the [developer guide](docs/guides/developer/README.md), use Conventional Commit messages, and run the project checks before submitting a change:
+
+```sh
+shellcheck bin/mgit install.sh
+bats tests/
+```
 
 ## License
 

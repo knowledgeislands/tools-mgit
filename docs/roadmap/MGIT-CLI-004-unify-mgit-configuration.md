@@ -84,7 +84,7 @@ Implemented the approved canonical configuration contract across `bin/mgit`, tes
 - Replaced split runtime and writer paths with discriminated canonical manifest handling for workspace selection, named groups, repair, and repository symlink closure.
 - Added migration preflight for `.mgit-workspace.toml` and `.mgit-config.toml`, including canonical-plus-legacy, multiple-legacy, wrong-kind, mixed-document, and Chezmoi synchronization boundaries.
 - Added focused Bats coverage for both canonical kinds, both legacy migrations, conflict refusal, ordinary-command guidance, mixed documents, and Agora isolation.
-- Updated behavior specification, README, user guides, examples, manual, and standing repository guidance.
+- Updated behavior specification, user guides, examples, manual, standing repository guidance, and a navigable Standard Readme-inspired README.
 - Applied user-approved scope clarification to model `CHANGELOG.md` on `tools-ki`: one curated v1 baseline rather than per-0.x release history.
 
 ### Verification
