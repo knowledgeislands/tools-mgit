@@ -1,40 +1,70 @@
 # Changelog
 
-All notable changes to `mgit` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to `mgit` are documented here. This changelog records the v1 release baseline; it does not retroactively track individual 0.x releases. Tags and commit history remain the record of pre-v1 run-up.
 
-## [0.11.0] — 2026-08-20
+## [1.0.0] — in progress
 
-### Added
+Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not maintained.
 
-- Add `--estate` as the first-class spelling for selecting the registered KI estate, equivalent to `--agora estate`.
+### Shipped commands
 
-## [0.10.0] — 2026-08-10
+#### General
 
-### Added
+- `mgit`
+- `mgit --help`
+- `mgit --version`
+- `mgit help [command]`
 
-- Add `mgit group` commands for creating, deleting, and managing named alternative workspace groups.
-- Add `--agora <name>` to run Git or bare commands across the exact local roots resolved by `ki` for an Agora or `estate`.
-- Add contextual `mgit help` output and matching Bash and Zsh completion for the command hierarchy and workspace groups.
+#### Repository-set selection
 
-### Changed
+- `mgit --group <name>`
+- `mgit --filter <glob>`
+- `mgit --physical`
+- `mgit --follow-symlinks`
+- `mgit --ignore`
+- `mgit --agora <name>`
+- `mgit --estate`
+- `mgit --bare <command>`
 
-- Apply `mgit structure standard|nested` changes by default; `--dry-run` now provides the explicit preview.
-- Remove the `--yes` confirmation requirement from `mgit worktree remove <path>`.
+#### Workspace management
 
-## [0.9.0] — 2026-08-05
+- `mgit register`
+- `mgit repair`
+- `mgit group create <name>`
+- `mgit group delete <name>`
+- `mgit group add <name> <member>`
+- `mgit group remove <name> <member>`
 
-### Changed
+#### Repository management
 
-- Place standard-repository worktrees created by `mgit worktree add` under `.git/mgit-worktrees/<branch>`.
-- Require an explicit `list`, `status`, `add`, or `remove` action after `mgit worktree`.
+- `mgit structure standard [--dry-run]`
+- `mgit structure nested [--dry-run]`
+- `mgit worktree list`
+- `mgit worktree status`
+- `mgit worktree add <branch>`
+- `mgit worktree remove <path> [--force]`
 
-### Fixed
+#### Shell integration
 
-- Correct Zsh completion registration and command candidates.
+- `mgit completion bash`
+- `mgit completion zsh`
 
-## [0.8.1] — 2026-07-30
+### Behaviours
 
-### Changed
+- Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
+- Schema-1 `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
+- `mgit register` refreshes canonical configuration, preserves named groups, synchronizes Chezmoi-managed state, migrates unambiguous legacy filenames, and rejects conflicting or mixed configuration.
+- Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
+- Named groups provide alternative direct-member views without changing structural default group.
+- Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
+- Selected standard and nested repositories expand to active worktrees before commands run.
+- `mgit repair` recreates missing standard, nested, and bare repositories from structural workspace metadata without replacing existing paths.
+- Repository structure and worktree commands operate consistently across standard and nested layouts.
+- Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 
-- Represent workspace members as path-keyed TOML tables, including nested workspace members.
-- Document workspace and repository configuration canonically in `mgit(1)`'s `FILES` section.
+### Distribution baseline
+
+- `install.sh`
+- `mgit(1)`
+- `brew install knowledgeislands/tap/mgit`
+- Bash and Zsh completion definitions

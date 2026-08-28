@@ -7,15 +7,15 @@
 # .git directory) or a nested structure (a .bare store, a .git controller file,
 # and a main/ checkout). Container dirs are the directories between the
 # cwd and repository roots. The repo set comes from a
-# .mgit-workspace.toml in the current directory if one exists; otherwise the tree
+# .mgit.toml in the current directory if one exists; otherwise the tree
 # is walked for .git entries (dropping any nested under another repo).
 #
-# A .mgit-workspace.toml manifest defines path-keyed repository/workspace
-# members in named groups. A repository-owned .mgit-config.toml only maps a
+# A .mgit.toml manifest defines path-keyed repository/workspace
+# members in named groups. A repository-owned .mgit.toml only maps a
 # symlink to its target under `symlinks`.
 #
-# `mgit register` writes a .mgit-workspace.toml in every container dir (listing
-# its children) and .mgit-config.toml in each leaf that owns cross-repo symlinks.
+# `mgit register` writes a .mgit.toml in every container dir (listing
+# its children) and .mgit.toml in each leaf that owns cross-repo symlinks.
 # It stops at leaf dirs — it never descends into a repo — and always scans
 # fresh, ignoring existing config (so it implies -I).
 #
@@ -26,8 +26,9 @@
 #
 # '#' comments and blank lines are ignored.
 
-MGIT_CONFIG=.mgit-config.toml
-MGIT_WORKSPACE=.mgit-workspace.toml
+MGIT_MANIFEST=.mgit.toml
+MGIT_LEGACY_REPOSITORY=.mgit-config.toml
+MGIT_LEGACY_WORKSPACE=.mgit-workspace.toml
 MGIT_VERSION=0.11.0
 
 CLEAR=$'\033[0m'
@@ -72,8 +73,8 @@ register_usage() {
   cat <<'EOF'
 Usage: mgit register [options]
 
-Generate .mgit-workspace.toml manifests for the current tree and record
-cross-repository symlinks in repository-owned .mgit-config.toml files.
+Generate workspace- and repository-kind .mgit.toml documents for current tree.
+Migrate unambiguous legacy filenames; reject conflicting or mixed state.
 
 The command scans fresh, does not descend into repositories, and replaces the
 structural default group while preserving named alternative groups. When
@@ -88,8 +89,8 @@ repair_usage() {
   cat <<'EOF'
 Usage: mgit repair [options]
 
-Clone missing repositories declared by structural default groups in the current
-.mgit-workspace.toml. Existing paths are never replaced.
+Clone missing repositories declared by structural default groups in current
+workspace-kind .mgit.toml. Existing paths are never replaced.
 
 Options:
   -h, --help  display help for command
@@ -117,7 +118,7 @@ group_create_usage() {
   cat <<'EOF'
 Usage: mgit group create <name>
 
-Create an empty named alternative group in ./.mgit-workspace.toml. NAME must
+Create an empty named alternative group in ./.mgit.toml. NAME must
 contain only letters, digits, hyphens, or underscores. Existing groups are
 never replaced. Add members with 'mgit group add <name> <member>'.
 EOF
@@ -127,7 +128,7 @@ group_delete_usage() {
   cat <<'EOF'
 Usage: mgit group delete <name>
 
-Delete a named alternative group from ./.mgit-workspace.toml. The structural
+Delete a named alternative group from ./.mgit.toml. The structural
 'default' group cannot be deleted.
 EOF
 }
@@ -137,7 +138,7 @@ group_add_usage() {
 Usage: mgit group add <name> <member>
 
 Add a direct structural default-group member to an alternative group in
-./.mgit-workspace.toml. The structural 'default' group cannot be changed.
+./.mgit.toml. The structural 'default' group cannot be changed.
 EOF
 }
 
@@ -145,7 +146,7 @@ group_remove_usage() {
   cat <<'EOF'
 Usage: mgit group remove <name> <member>
 
-Remove MEMBER from an alternative group in ./.mgit-workspace.toml. An empty
+Remove MEMBER from an alternative group in ./.mgit.toml. An empty
 group remains available until deleted with 'mgit group delete <name>'.
 EOF
 }
@@ -301,23 +302,23 @@ _mgit() {
 }
 
 _mgit_default_members() {
-  awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null
+  awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit.toml 2>/dev/null
 }
 
 _mgit_alternative_groups() {
   awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' \
-    .mgit-workspace.toml 2>/dev/null | sort -u
+    .mgit.toml 2>/dev/null | sort -u
 }
 
 _mgit_workspace_groups() {
   awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' \
-    .mgit-workspace.toml 2>/dev/null | sort -u
+    .mgit.toml 2>/dev/null | sort -u
 }
 
 _mgit_group_members() {
   local group="$1"
   awk -F'[.\"]' -v group="$group" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' \
-    .mgit-workspace.toml 2>/dev/null
+    .mgit.toml 2>/dev/null
 }
 
 complete -F _mgit mgit
@@ -347,8 +348,8 @@ _mgit() {
     '--follow-symlinks[follow symlinked container directories]'
     '-B[run command without git prefix]'
     '--bare[run command without git prefix]'
-    '-I[ignore .mgit-config.toml files]'
-    '--ignore[ignore .mgit-config.toml files]'
+    '-I[ignore workspace selection from .mgit.toml]'
+    '--ignore[ignore workspace selection from .mgit.toml]'
     '-g[select a workspace group]:group name:_mgit_workspace_groups'
     '--group[select a workspace group]:group name:_mgit_workspace_groups'
     '-a[select roots resolved by ki for a named Agora]:Agora name:'
@@ -403,25 +404,25 @@ _mgit() {
 
 _mgit_default_members() {
   local -a members
-  members=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null)"} )
+  members=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit.toml 2>/dev/null)"} )
   _describe -t members 'workspace member' members
 }
 
 _mgit_alternative_groups() {
   local -a groups
-  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' .mgit-workspace.toml 2>/dev/null | sort -u)"} )
+  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' .mgit.toml 2>/dev/null | sort -u)"} )
   _describe -t groups 'workspace group' groups
 }
 
 _mgit_workspace_groups() {
   local -a groups
-  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' .mgit-workspace.toml 2>/dev/null | sort -u)"} )
+  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' .mgit.toml 2>/dev/null | sort -u)"} )
   _describe -t groups 'workspace group' groups
 }
 
 _mgit_group_members() {
   local -a members
-  members=( ${(f)"$(awk -F'[.\"]' -v group="$words[4]" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' .mgit-workspace.toml 2>/dev/null)"} )
+  members=( ${(f)"$(awk -F'[.\"]' -v group="$words[4]" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' .mgit.toml 2>/dev/null)"} )
   _describe -t members 'workspace member' members
 }
 
@@ -620,7 +621,7 @@ relpath() {
   printf '%s' "$rel"
 }
 
-# Pick how to express target $2 in repo $1's .mgit-config.toml: relative to the repo
+# Pick how to express target $2 in repo $1's .mgit.toml: relative to the repo
 # for nearby targets, ~-prefixed or absolute for ones living far out of tree.
 choose_target() {
   local repoabs="$1" tabs="$2" rel
@@ -711,101 +712,151 @@ toml_without_comment() {
   printf '%s' "$result"
 }
 
-# Emit a legacy keyed member record. Container membership is no longer consumed;
-# repository-owned symlink records remain the live leaf format.
-parse_mgit_keyed_member() {
-  local type="$1" path="$2" source="$3" file="$4"
-  [ -z "$type" ] && [ -z "$path" ] && return
-  if [ -z "$type" ] || [ -z "$path" ]; then
-    printf 'mgit: %s: member requires type and path\n' "$file" >&2
-    return
-  fi
-  case "$type" in
-    standard) printf 'S\t%s\t%s\n' "$path" "$source" ;;
-    nested)   printf 'N\t%s\t%s\n' "$path" "$source" ;;
-    bare)     printf 'B\t%s\t%s\n' "$path" "$source" ;;
-    dir)      printf 'D\t%s\n' "$path" ;;
-    *)        printf 'mgit: %s: unsupported member type: %s\n' "$file" "$type" >&2 ;;
-  esac
-}
+manifest_kind() {
+  local file="$1" line key value kind="" seen_kind=false
 
-# shellcheck disable=SC2094 # This parser only writes records to standard output.
-parse_mgit() {
-  local repo="$1" line key value section="" member_type="" member_path="" member_source=""
-  [ -f "$repo/$MGIT_CONFIG" ] || return 0
+  [ -f "$file" ] || {
+    printf 'mgit: manifest not found: %s\n' "$file" >&2
+    return 1
+  }
+
   while IFS= read -r line || [ -n "$line" ]; do
     line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
+
     case "$line" in
-      \#*) continue ;;
-      '[symlinks]')
-        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
-        section=symlinks
-        member_type=""; member_path=""; member_source=""
-        ;;
-      '[members."'*'"]')
-        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
-        value=$(printf '%s\n' "$line" | sed -n 's/^\[members\.\(\".*\"\)\]$/\1/p')
-        member_path=$(toml_string "$value") || {
-          printf 'mgit: %s: invalid member path: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
-          section=""
-          continue
-        }
-        section=member
-        member_type=""; member_source=""
-        ;;
-      \[*\])
-        [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
-        printf 'mgit: %s: unsupported TOML table: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
-        section=""
-        member_type=""; member_path=""; member_source=""
-        ;;
+      \[*\]) break ;;
       *=*)
-        key=$(printf '%s\n' "$line" | sed 's/=.*//')
-        key=$(trim "$key")
-        value=$(printf '%s\n' "$line" | sed 's/^[^=]*=//')
-        value=$(trim "$value")
-        case "$section" in
-          member)
-            case "$key" in
-              type|source)
-                value=$(toml_string "$value") || {
-                  printf 'mgit: %s: expected TOML basic string: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
-                  continue
-                }
-                case "$key" in
-                  type) member_type="$value" ;;
-                  source) member_source="$value" ;;
-                esac
-                ;;
-              *) printf 'mgit: %s: unsupported member field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2 ;;
-            esac
-            ;;
-          symlinks)
-            key=$(toml_string "$key") || {
-              printf 'mgit: %s: expected TOML basic-string symlink path: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
-              continue
-            }
-            value=$(toml_string "$value") || {
-              printf 'mgit: %s: expected TOML basic string: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
-              continue
-            }
-            [ -n "$key" ] && [ -n "$value" ] && printf 'L\t%s\t%s\n' "$key" "$value"
-            ;;
-          '')
-            [ "$key" = version ] && [ "$value" = 1 ] || \
-              printf 'mgit: %s: unsupported TOML field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2
-            ;;
-          *) printf 'mgit: %s: unsupported TOML field: %s\n' "$repo/$MGIT_CONFIG" "$key" >&2 ;;
-        esac
-        ;;
-      *)
-        printf 'mgit: %s: unsupported TOML statement: %s\n' "$repo/$MGIT_CONFIG" "$line" >&2
+        key=$(trim "${line%%=*}")
+        [ "$key" = kind ] || continue
+        [ "$seen_kind" = false ] || {
+          printf 'mgit: %s: duplicate kind field\n' "$file" >&2
+          return 1
+        }
+        value=$(trim "${line#*=}")
+        kind=$(toml_string "$value") || {
+          printf 'mgit: %s: kind must be a TOML basic string\n' "$file" >&2
+          return 1
+        }
+        seen_kind=true
         ;;
     esac
-  done < "$repo/$MGIT_CONFIG"
-  [ "$section" = member ] && parse_mgit_keyed_member "$member_type" "$member_path" "$member_source" "$repo/$MGIT_CONFIG"
+  done < "$file"
+
+  [ "$seen_kind" = true ] || {
+    printf 'mgit: %s: missing kind field\n' "$file" >&2
+    return 1
+  }
+  case "$kind" in
+    workspace|repository) printf '%s' "$kind" ;;
+    *)
+      printf 'mgit: %s: unsupported manifest kind: %s\n' "$file" "$kind" >&2
+      return 1
+      ;;
+  esac
+}
+
+# Parse repository-kind schema-1 metadata and emit symlink records.
+parse_mgit() {
+  local repo="$1" line key value section=""
+  local file="$repo/$MGIT_MANIFEST"
+  local schema="" kind="" seen_schema=false seen_kind=false
+  local seen_symlinks=() existing
+
+  if [ -f "$repo/$MGIT_LEGACY_REPOSITORY" ] || [ -f "$repo/$MGIT_LEGACY_WORKSPACE" ]; then
+    printf 'mgit: legacy manifest found in %s; run `mgit register` to migrate to %s\n' \
+      "$repo" "$MGIT_MANIFEST" >&2
+    return 1
+  fi
+  [ -f "$file" ] || return 0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=$(toml_without_comment "$line")
+    line=$(trim "$line")
+    [ -z "$line" ] && continue
+
+    case "$line" in
+      '[symlinks]') section=symlinks ;;
+      \[*\])
+        printf 'mgit: %s: repository manifest contains unsupported table: %s\n' "$file" "$line" >&2
+        return 1
+        ;;
+      *=*)
+        key=$(trim "${line%%=*}")
+        value=$(trim "${line#*=}")
+        if [ -z "$section" ]; then
+          case "$key" in
+            schema)
+              [ "$seen_schema" = false ] || {
+                printf 'mgit: %s: duplicate schema field\n' "$file" >&2
+                return 1
+              }
+              [ "$value" = 1 ] || {
+                printf 'mgit: %s: unsupported repository schema: %s\n' "$file" "$value" >&2
+                return 1
+              }
+              schema=1
+              seen_schema=true
+              ;;
+            kind)
+              [ "$seen_kind" = false ] || {
+                printf 'mgit: %s: duplicate kind field\n' "$file" >&2
+                return 1
+              }
+              kind=$(toml_string "$value") || {
+                printf 'mgit: %s: kind must be a TOML basic string\n' "$file" >&2
+                return 1
+              }
+              [ "$kind" = repository ] || {
+                printf 'mgit: %s: expected repository kind, found %s\n' "$file" "$kind" >&2
+                return 1
+              }
+              seen_kind=true
+              ;;
+            *)
+              printf 'mgit: %s: unsupported repository field: %s\n' "$file" "$key" >&2
+              return 1
+              ;;
+          esac
+        else
+          key=$(toml_string "$key") || {
+            printf 'mgit: %s: expected TOML basic-string symlink path: %s\n' "$file" "$line" >&2
+            return 1
+          }
+          value=$(toml_string "$value") || {
+            printf 'mgit: %s: expected TOML basic-string symlink target: %s\n' "$file" "$line" >&2
+            return 1
+          }
+          [ -n "$key" ] && [ -n "$value" ] || {
+            printf 'mgit: %s: symlink path and target must not be empty\n' "$file" >&2
+            return 1
+          }
+          for existing in "${seen_symlinks[@]+"${seen_symlinks[@]}"}"; do
+            [ "$existing" != "$key" ] || {
+              printf 'mgit: %s: duplicate symlink path: %s\n' "$file" "$key" >&2
+              return 1
+            }
+          done
+          seen_symlinks+=("$key")
+          printf 'L\t%s\t%s\n' "$key" "$value"
+        fi
+        ;;
+      *)
+        printf 'mgit: %s: unsupported TOML statement: %s\n' "$file" "$line" >&2
+        return 1
+        ;;
+    esac
+  done < "$file"
+
+  [ "$seen_schema" = true ] && [ "$schema" = 1 ] || {
+    printf 'mgit: %s: missing schema = 1\n' "$file" >&2
+    return 1
+  }
+  [ "$seen_kind" = true ] && [ "$kind" = repository ] || {
+    printf 'mgit: %s: missing kind = "repository"\n' "$file" >&2
+    return 1
+  }
 }
 
 workspace_default=""
@@ -929,7 +980,12 @@ workspace_sort_members() {
 # interpreted.
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
-  local file="$1" line key value group schema="" seen_schema=false seen_default=false
+  local file="$1" line key value group schema="" kind=""
+  local seen_schema=false seen_kind=false seen_default=false legacy=false
+
+  case "$file" in
+    */"$MGIT_LEGACY_WORKSPACE"|"$MGIT_LEGACY_WORKSPACE") legacy=true ;;
+  esac
   workspace_default=""
   workspace_groups=()
   workspace_record_groups=()
@@ -985,6 +1041,21 @@ parse_workspace() {
         value=$(trim "${line#*=}")
         if [ -z "$workspace_member_group" ]; then
           case "$key" in
+            kind)
+              [ "$seen_kind" = false ] || {
+                printf 'mgit: %s: duplicate kind field\n' "$file" >&2
+                return 1
+              }
+              kind=$(toml_string "$value") || {
+                printf 'mgit: %s: kind must be a TOML basic string\n' "$file" >&2
+                return 1
+              }
+              [ "$kind" = workspace ] || {
+                printf 'mgit: %s: expected workspace kind, found %s\n' "$file" "$kind" >&2
+                return 1
+              }
+              seen_kind=true
+              ;;
             schema)
               [ "$seen_schema" = false ] || {
                 printf 'mgit: %s: duplicate schema field\n' "$file" >&2
@@ -1065,6 +1136,10 @@ parse_workspace() {
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
     return 1
   fi
+  if [ "$legacy" = false ] && { [ "$seen_kind" != true ] || [ "$kind" != workspace ]; }; then
+    printf 'mgit: %s: missing kind = "workspace"\n' "$file" >&2
+    return 1
+  fi
   [ "$seen_default" = true ] || {
     printf 'mgit: %s: missing default group\n' "$file" >&2
     return 1
@@ -1107,6 +1182,7 @@ write_workspace_manifest() {
   if ! {
     printf '# Generated by `mgit register`; named groups may be managed with `mgit group`.\n'
     printf 'schema = 1\n'
+    printf 'kind = "workspace"\n'
     printf 'default = '
     toml_quote "$workspace_default" || return 1
     printf '\n'
@@ -1167,8 +1243,8 @@ group_create() {
     return 1
   }
   workspace_groups+=("$name")
-  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
-  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
+  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
   printf 'mgit group create: created %s\n' "$name"
 }
 
@@ -1193,8 +1269,8 @@ group_delete() {
   workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
   workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
   workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
-  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
-  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
+  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
   printf 'mgit group delete: deleted %s\n' "$name"
 }
 
@@ -1216,8 +1292,8 @@ group_add() {
   workspace_record_paths+=("$member")
   workspace_record_types+=("")
   workspace_record_sources+=("")
-  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
-  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
+  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
   printf 'mgit group add: added %s to %s\n' "$member" "$name"
 }
 
@@ -1245,8 +1321,8 @@ group_remove() {
   workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
   workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
   workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
-  write_workspace_manifest "./$MGIT_WORKSPACE" || return 1
-  chezmoi_add_manifest "./$MGIT_WORKSPACE" || return 1
+  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
+  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
   printf 'mgit group remove: removed %s from %s\n' "$member" "$name"
 }
 
@@ -1304,8 +1380,14 @@ group_command() {
       return 0 ;;
     *) usage_error_for group_usage "group: unknown command: $action"; return ;;
   esac
-  [ -f "./$MGIT_WORKSPACE" ] || { printf 'mgit group %s: no .mgit-workspace.toml in %s\n' "$action" "$(pwd)" >&2; return 1; }
-  parse_workspace "./$MGIT_WORKSPACE" || return 1
+  if [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
+    printf 'mgit group %s: legacy manifest found; run `mgit register` to migrate to %s\n' \
+      "$action" "$MGIT_MANIFEST" >&2
+    return 1
+  fi
+  [ -f "./$MGIT_MANIFEST" ] || { printf 'mgit group %s: no %s workspace manifest in %s\n' "$action" "$MGIT_MANIFEST" "$(pwd)" >&2; return 1; }
+  [ "$(manifest_kind "./$MGIT_MANIFEST")" = workspace ] || return 1
+  parse_workspace "./$MGIT_MANIFEST" || return 1
   chezmoi_init
   case "$action" in
     create|delete) "group_$action" "$name" ;;
@@ -1409,7 +1491,7 @@ chezmoi_forget_manifest() {
 }
 
 # register, repo case: scan dir $1 for symlinks into *other* git repos and write
-# its .mgit-config.toml (symlink entries only). Removes a stale config if none
+# its .mgit.toml (symlink entries only). Removes a stale config if none
 # are found.
 #
 # Heavy directories that never hold intentional cross-repo links (.git itself,
@@ -1438,15 +1520,20 @@ register_repo() {
              -o -type l -print 2>/dev/null | sort)
 
   if [ ${#found_links[@]} -eq 0 ]; then
-    if [ -f "$dir/$MGIT_CONFIG" ]; then
-      chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
-      rm -f "$dir/$MGIT_CONFIG" || return 2
+    if [ -f "$dir/$MGIT_MANIFEST" ]; then
+      chezmoi_forget_manifest "$dir/$MGIT_MANIFEST" || return 2
+      rm -f "$dir/$MGIT_MANIFEST" || return 2
+    fi
+    if [ -f "$dir/$MGIT_LEGACY_REPOSITORY" ]; then
+      chezmoi_forget_manifest "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
+      rm -f "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
     fi
     return 0
   fi
   {
     printf '# Generated by `mgit register`.\n'
-    printf 'version = 1\n'
+    printf 'schema = 1\n'
+    printf 'kind = "repository"\n'
     printf '\n[symlinks]\n'
     for i in "${!found_links[@]}"; do
       toml_quote "${found_links[$i]}" || return 2
@@ -1454,8 +1541,12 @@ register_repo() {
       toml_quote "${found_targets[$i]}" || return 2
       printf '\n'
     done
-  } > "$dir/$MGIT_CONFIG" || return 2
-  chezmoi_add_manifest "$dir/$MGIT_CONFIG" || return 2
+  } > "$dir/$MGIT_MANIFEST" || return 2
+  chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
+  if [ -f "$dir/$MGIT_LEGACY_REPOSITORY" ]; then
+    chezmoi_forget_manifest "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
+    rm -f "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
+  fi
   printf '%s%s%s%s: recorded %d symlink(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#found_links[@]}"
   return 0
 }
@@ -1498,14 +1589,55 @@ register_repo_preflight() {
              -o -type l -print 2>/dev/null | sort)
 }
 
+register_manifest_preflight() {
+  local dir="$1" expected="$2"
+  local canonical="$dir/$MGIT_MANIFEST"
+  local legacy_workspace="$dir/$MGIT_LEGACY_WORKSPACE"
+  local legacy_repository="$dir/$MGIT_LEGACY_REPOSITORY" kind
+
+  if [ -f "$canonical" ] && { [ -f "$legacy_workspace" ] || [ -f "$legacy_repository" ]; }; then
+    printf 'mgit register: conflicting canonical and legacy manifests in %s; resolve them before migration\n' "$dir" >&2
+    return 1
+  fi
+  if [ -f "$legacy_workspace" ] && [ -f "$legacy_repository" ]; then
+    printf 'mgit register: conflicting legacy workspace and repository manifests in %s; resolve them before migration\n' "$dir" >&2
+    return 1
+  fi
+  if [ -f "$legacy_workspace" ] && [ "$expected" != workspace ]; then
+    printf 'mgit register: legacy workspace manifest is invalid for repository directory: %s\n' "$legacy_workspace" >&2
+    return 1
+  fi
+  if [ -f "$legacy_repository" ] && [ "$expected" != repository ]; then
+    printf 'mgit register: legacy repository manifest is invalid for workspace directory: %s\n' "$legacy_repository" >&2
+    return 1
+  fi
+  if [ -f "$canonical" ]; then
+    kind=$(manifest_kind "$canonical") || return 1
+    [ "$kind" = "$expected" ] || {
+      printf 'mgit register: %s has kind %s but directory requires %s\n' \
+        "$canonical" "$kind" "$expected" >&2
+      return 1
+    }
+  fi
+}
+
 register_preflight_tree() {
   local dir="$1" child kind source
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
-    [ "$kind" != standard ] || register_repo_preflight "$dir"
+    if [ "$kind" = standard ]; then
+      register_manifest_preflight "$dir" repository || return 1
+      [ ! -f "$dir/$MGIT_MANIFEST" ] || parse_mgit "$dir" >/dev/null || return 1
+      register_repo_preflight "$dir"
+    fi
     return $?
   fi
-  [ ! -f "$dir/$MGIT_WORKSPACE" ] || parse_workspace "$dir/$MGIT_WORKSPACE" || return 1
+  register_manifest_preflight "$dir" workspace || return 1
+  if [ -f "$dir/$MGIT_MANIFEST" ]; then
+    parse_workspace "$dir/$MGIT_MANIFEST" || return 1
+  elif [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
+    parse_workspace "$dir/$MGIT_LEGACY_WORKSPACE" || return 1
+  fi
   for child in "$dir"/*/; do
     [ -d "$child" ] || continue
     child="${child%/}"
@@ -1563,8 +1695,12 @@ register_tree() {
       fi
     fi
   done
-  if [ -f "$dir/$MGIT_WORKSPACE" ]; then
-    parse_workspace "$dir/$MGIT_WORKSPACE" || return 2
+  if [ -f "$dir/$MGIT_MANIFEST" ]; then
+    parse_workspace "$dir/$MGIT_MANIFEST" || return 2
+  elif [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
+    parse_workspace "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
+  fi
+  if [ -f "$dir/$MGIT_MANIFEST" ] || [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
     old_default="$workspace_default"
     old_group_names=("${workspace_groups[@]+"${workspace_groups[@]}"}")
     old_groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
@@ -1575,6 +1711,7 @@ register_tree() {
     {
       printf '# Generated by `mgit register`.\n'
       printf 'schema = 1\n'
+      printf 'kind = "workspace"\n'
       printf 'default = '
       toml_quote "$old_default" || return 2
       printf '\n'
@@ -1608,22 +1745,22 @@ register_tree() {
         done
         [ "${old_groups[$i]:-}" = "$group" ] || printf '\n[groups.%s]\n' "$group"
       done
-    } > "$dir/$MGIT_WORKSPACE" || return 2
-    chezmoi_add_manifest "$dir/$MGIT_WORKSPACE" || return 2
-    if [ -f "$dir/$MGIT_CONFIG" ]; then
-      chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
-      rm -f "$dir/$MGIT_CONFIG" || return 2
+    } > "$dir/$MGIT_MANIFEST" || return 2
+    chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
+    if [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
+      chezmoi_forget_manifest "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
+      rm -f "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
     fi
     printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
     return 0
   fi
-  if [ -f "$dir/$MGIT_WORKSPACE" ]; then
-    chezmoi_forget_manifest "$dir/$MGIT_WORKSPACE" || return 2
-    rm -f "$dir/$MGIT_WORKSPACE" || return 2
+  if [ -f "$dir/$MGIT_MANIFEST" ]; then
+    chezmoi_forget_manifest "$dir/$MGIT_MANIFEST" || return 2
+    rm -f "$dir/$MGIT_MANIFEST" || return 2
   fi
-  if [ -f "$dir/$MGIT_CONFIG" ]; then
-    chezmoi_forget_manifest "$dir/$MGIT_CONFIG" || return 2
-    rm -f "$dir/$MGIT_CONFIG" || return 2
+  if [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
+    chezmoi_forget_manifest "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
+    rm -f "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
   fi
   return 1
 }
@@ -1664,7 +1801,7 @@ repair_preflight() {
     return 1
   }
   repair_preflight_workspaces+=("$canonical")
-  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  parse_workspace "$canonical/$MGIT_MANIFEST" || return 1
   groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
   kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
@@ -1679,8 +1816,8 @@ repair_preflight() {
           printf 'mgit repair: workspace member is missing or unsafe: %s\n' "$destination" >&2
           return 1
         fi
-        [ -f "$destination/$MGIT_WORKSPACE" ] || {
-          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_WORKSPACE" >&2
+        [ -f "$destination/$MGIT_MANIFEST" ] || {
+          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_MANIFEST" >&2
           return 1
         }
         repair_preflight "$destination" || return 1
@@ -1761,7 +1898,7 @@ repair_tree() {
     return 1
   }
   repair_seen+=("$canonical")
-  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  parse_workspace "$canonical/$MGIT_MANIFEST" || return 1
   groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
   kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
@@ -1779,8 +1916,8 @@ repair_tree() {
         if [ ! -d "$destination" ] || [ -L "$destination" ]; then
           printf 'mgit repair: workspace member is missing or unsafe: %s\n' "$destination" >&2
           failed=true
-        elif [ ! -f "$destination/$MGIT_WORKSPACE" ]; then
-          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_WORKSPACE" >&2
+        elif [ ! -f "$destination/$MGIT_MANIFEST" ]; then
+          printf 'mgit repair: workspace manifest is missing: %s\n' "$destination/$MGIT_MANIFEST" >&2
           failed=true
         else
           repair_tree "$destination" || failed=true
@@ -1839,10 +1976,15 @@ repair_command() {
     shift
   done
   [ "$help" = false ] || { repair_usage; return 0; }
-  [ -f "./$MGIT_WORKSPACE" ] || {
-    printf 'mgit repair: no .mgit-workspace.toml in %s\n' "$(pwd)" >&2
+  if [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
+    printf 'mgit repair: legacy manifest found; run `mgit register` to migrate to %s\n' "$MGIT_MANIFEST" >&2
+    return 1
+  fi
+  [ -f "./$MGIT_MANIFEST" ] || {
+    printf 'mgit repair: no %s workspace manifest in %s\n' "$MGIT_MANIFEST" "$(pwd)" >&2
     return 1
   }
+  [ "$(manifest_kind "./$MGIT_MANIFEST")" = workspace ] || return 1
   repair_preflight_workspaces=()
   repair_preflight_repositories=()
   repair_preflight "." || return 1
@@ -2340,11 +2482,11 @@ select_workspace() {
     return 1
   }
   selected_workspace_dirs+=("$canonical")
-  parse_workspace "$canonical/$MGIT_WORKSPACE" || return 1
+  parse_workspace "$canonical/$MGIT_MANIFEST" || return 1
   group="$requested_group"
   [ -n "$group" ] || group="$workspace_default"
   workspace_group_known "$group" || {
-    printf 'mgit: %s: unknown workspace group: %s\n' "$canonical/$MGIT_WORKSPACE" "$group" >&2
+    printf 'mgit: %s: unknown workspace group: %s\n' "$canonical/$MGIT_MANIFEST" "$group" >&2
     return 1
   }
   groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
@@ -2359,8 +2501,8 @@ select_workspace() {
           printf 'mgit: unsafe or missing workspace path: %s\n' "$destination" >&2
           return 1
         fi
-        [ -f "$destination/$MGIT_WORKSPACE" ] || {
-          printf 'mgit: workspace manifest not found: %s\n' "$destination/$MGIT_WORKSPACE" >&2
+        [ -f "$destination/$MGIT_MANIFEST" ] || {
+          printf 'mgit: workspace manifest not found: %s\n' "$destination/$MGIT_MANIFEST" >&2
           return 1
         }
         select_workspace "$destination" "" || return 1
@@ -2552,7 +2694,7 @@ if [ "${1:-}" = "register" ]; then
   done
   [ "$register_help" = false ] || { register_usage; exit 0; }
   chezmoi_init
-  register_preflight_tree "." || exit 2
+  register_preflight_tree "." || exit 1
   if register_tree "."; then
     exit 0
   else
@@ -2565,6 +2707,22 @@ if [ "${1:-}" = "register" ]; then
 fi
 
 repos=()
+cwd_manifest_kind=""
+
+if [ -z "$agora_name" ] && [ "$read_config" = true ] && { [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; }; then
+  if [ -f "./$MGIT_MANIFEST" ]; then
+    printf 'mgit: conflicting canonical and legacy manifests in %s; resolve them before continuing\n' "$(pwd)" >&2
+  elif [ -f "./$MGIT_LEGACY_WORKSPACE" ] && [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
+    printf 'mgit: conflicting legacy workspace and repository manifests in %s; resolve them before continuing\n' "$(pwd)" >&2
+  else
+    printf 'mgit: legacy manifest found in %s; run `mgit register` to migrate to %s\n' \
+      "$(pwd)" "$MGIT_MANIFEST" >&2
+  fi
+  exit 1
+fi
+if [ -z "$agora_name" ] && [ "$read_config" = true ] && [ -f "./$MGIT_MANIFEST" ]; then
+  cwd_manifest_kind=$(manifest_kind "./$MGIT_MANIFEST") || exit 1
+fi
 
 if [ -n "$agora_name" ]; then
   [ -z "$group_name" ] || { usage_error "$ki_selector cannot be combined with --group"; exit $?; }
@@ -2586,12 +2744,12 @@ fi
 if [ -n "$agora_name" ]; then
   select_ki_roots "$agora_name" "$ki_selector" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
-elif [ "$read_config" = true ] && [ -f "./$MGIT_WORKSPACE" ]; then
+elif [ "$read_config" = true ] && [ "$cwd_manifest_kind" = workspace ]; then
   select_workspace "." "$group_name" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 else
   [ -z "$group_name" ] || {
-    printf 'mgit: --group requires ./.mgit-workspace.toml\n' >&2
+    printf 'mgit: --group requires ./.mgit.toml\n' >&2
     exit 1
   }
   # Include the current directory itself when it is a repository.  In
@@ -2643,7 +2801,7 @@ cwd_canon=$(canon_dir ".")
 # Path of canonical dir $1 relative to the cwd (e.g. hnr/kit-hnr, ../other/repo).
 disp() { relpath "$cwd_canon" "$1"; }
 
-queue=()  # canonical dirs whose .mgit-config.toml still needs walking
+queue=()  # canonical dirs whose .mgit.toml still needs walking
 
 # Seed from the ordered base set.
 for r in "${repos[@]+"${repos[@]}"}"; do
@@ -2661,6 +2819,7 @@ if [ -z "$agora_name" ]; then
   qi=0
   while [ $qi -lt ${#queue[@]} ]; do
     repo="${queue[$qi]}"; qi=$((qi + 1))
+    records=$(parse_mgit "$repo") || exit 1
     while IFS=$'\t' read -r kind _ b; do
       case "$kind" in
         L)
@@ -2668,14 +2827,14 @@ if [ -z "$agora_name" ]; then
           add=$(repo_of "$(resolve_path "$b" "$repo")")
           if [ -z "$add" ]; then
             printf 'mgit: %s: symlink target not inside a git repo: %s\n' \
-              "$repo/$MGIT_CONFIG" "$b" >&2
+              "$repo/$MGIT_MANIFEST" "$b" >&2
             continue
           fi
           is_seen "$add" && continue
           seen+=("$add"); queue+=("$add"); final+=("$(disp "$add")")  # target is a repo
           ;;
       esac
-    done < <(parse_mgit "$repo")
+    done <<< "$records"
   done
 fi
 

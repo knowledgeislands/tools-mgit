@@ -1,25 +1,31 @@
 # Define a repository set
 
-Without configuration, `mgit` walks the current directory for `.git` entries and drops a repository nested inside another repository. A `.mgit-workspace.toml` manifest at a non-Git container makes the set explicit, deterministic, and reproducible, and can organise it into named groups.
+Without configuration, `mgit` walks current directory for `.git` entries and drops repositories nested inside another repository. A workspace-kind `.mgit.toml` at a non-Git container makes set explicit, deterministic, reproducible, and divisible into named groups.
 
-## Generate a manifest
+## Generate configuration
 
-Run `mgit register` from the directory that contains the repository set:
+Run `mgit register` from directory containing repository set:
 
 ```sh
 mgit register
 ```
 
-It writes `.mgit-workspace.toml` into every non-Git container directory and `.mgit-config.toml` only into repository leaves that own cross-repository symlinks. It stops at repository roots, never descends into a repository, and replaces each container's generated structural `default` group after scanning the current filesystem. Existing non-default groups are preserved.
+The command writes one filename, `.mgit.toml`, with a discriminator for each role:
 
-When Chezmoi is configured, `mgit register` adds generated manifests that are below Chezmoi's target directory to Chezmoi's source state. Manifests outside that target directory, and those generated in Chezmoi's source directory, remain local only.
+- `kind = "workspace"` in non-Git container directories records repository and child-workspace membership.
+- `kind = "repository"` in repository leaves records tracked symlinks whose targets live in other repositories.
 
-## Manifest shape
+Registration stops at repository roots, never descends into repository internals, and replaces each workspace's generated structural `default` group after scanning current filesystem. Existing non-default groups are preserved.
 
-A workspace manifest has schema 1, a configured default group, and path-keyed member maps. Members are either repositories or child workspaces.
+When Chezmoi is configured, `mgit register` synchronizes generated manifests below Chezmoi target directory into source state. Manifests outside target directory, and manifests generated inside Chezmoi source directory, remain local only.
+
+## Workspace configuration
+
+A workspace document uses schema 1, explicit workspace kind, configured default group, and path-keyed member maps:
 
 ```toml
 schema = 1
+kind = "workspace"
 default = "default"
 
 [groups.default.members."platform"]
@@ -34,13 +40,40 @@ kind = "workspace"
 kind = "repository"
 ```
 
-The structural `default` group is required. Its repository members require `type`, which is `standard`, `nested`, or `bare`, and can have a `source` clone URL. `mgit register` records that URL from `origin` when available. Workspace members have only `kind`; their paths are map keys. Non-default group repository members also have only `kind`; they select already-present repositories and do not declare structure or clone sources.
+Structural `default` group is required. Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Non-default group repository members also have only `kind` because they select already-present repositories rather than declaring structure or clone sources.
 
-Member paths are safe relative map keys below the manifest directory. Blank lines and comments are ignored.
+Member paths must be safe relative map keys below manifest directory. Blank lines and comments are ignored.
+
+## Repository configuration
+
+A repository document uses same filename and schema but a distinct top-level kind:
+
+```toml
+schema = 1
+kind = "repository"
+
+[symlinks]
+"shared-config" = "../platform/shared-config"
+```
+
+Each key is symlink path owned by repository; value resolves to target in another repository. `mgit` includes repository containing each declared target. Git restores tracked symlink after clone, while metadata lets `mgit` include linked repository.
+
+Workspace tables are invalid in repository document, and `symlinks` table is invalid in workspace document. mgit rejects mixed documents rather guessing intended role.
+
+## Migrate legacy files
+
+Run `mgit register` to migrate either old filename:
+
+- `.mgit-workspace.toml` becomes workspace-kind `.mgit.toml`, retaining configured default and named groups while refreshing structural membership.
+- `.mgit-config.toml` becomes repository-kind `.mgit.toml`, refreshing symlink metadata from tracked repository state.
+
+The canonical file is written and synchronized before legacy file is removed. Ordinary commands, `group`, and `repair` do not maintain a compatibility read path; they stop with migration guidance when legacy file remains.
+
+Registration also stops without modifying files when one directory contains canonical and legacy configuration together, both legacy filenames, or a manifest kind that does not match directory role. Resolve conflict explicitly, then rerun `mgit register`; mgit never applies silent precedence or dual writes.
 
 ## Create an alternative group
 
-Create an empty named group, then add direct members of the structural `default` group without editing TOML:
+Create empty named group, then add direct members of structural `default` group without editing TOML:
 
 ```bash
 mgit group create engineering
@@ -49,7 +82,7 @@ mgit group add engineering tools-mgit
 mgit group add engineering ki-specifications
 ```
 
-The group name may contain letters, digits, hyphens, and underscores. `create` refuses an existing name, and `add` rejects a member that is not a direct default-group member. `remove` leaves the group available even when it has no members. To replace a group, delete it first:
+Group name may contain letters, digits, hyphens, and underscores. `create` refuses existing name, and `add` rejects member not direct default-group member. `remove` leaves group available even when it has no members. To replace group, delete it first:
 
 ```bash
 mgit group delete engineering
@@ -59,18 +92,16 @@ mgit group add engineering tools-mgit
 mgit group add engineering ki-specifications
 ```
 
-At runtime, `mgit` uses the current workspace's configured default group, or the group selected with `-g` / `--group`. It recursively selects child workspaces using each child's configured default. Filters are applied after this workspace selection.
-
-Repository-owned `.mgit-config.toml` files have a separate, leaf-only purpose: their `symlinks` table maps a symlink owned by that repository to a target in another repository. `mgit` includes the repository containing each declared target. Git restores tracked symlinks after cloning; this metadata lets `mgit` include the linked repository.
+At runtime, `mgit` uses current workspace's configured default group or group selected with `-g` / `--group`. It recursively selects child workspaces using each child's configured default. Filters are applied after workspace selection.
 
 ## Recreate a workspace
 
-`mgit repair` materializes missing repositories declared by structural `default` groups in the workspace in the current directory:
+`mgit repair` materializes missing repositories declared by structural `default` groups in workspace in current directory:
 
 ```sh
 mgit repair
 ```
 
-It clones every missing repository with a `source` URL, following child workspace manifests through their structural `default` groups. Standard repositories use a normal clone, bare repositories use `--bare`, and nested repositories use the `.bare/` plus `main/` layout.
+It clones every missing repository from `source` URL and follows child workspace documents through structural `default` groups. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
 
-Repair never replaces an existing path. A present repository must match the declared type; a non-repository path or a type mismatch is an error. Child workspace directories and their `.mgit-workspace.toml` manifests must already exist.
+Repair never replaces existing path. Present repository must match declared type; non-repository path or type mismatch is error. Child workspace directories and workspace-kind `.mgit.toml` documents must already exist.

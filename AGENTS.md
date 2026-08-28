@@ -1,6 +1,6 @@
 # AGENTS.md — tools-mgit
 
-This is the runtime-neutral working convention for `mgit`. The [README](README.md) is the entry point for user-facing purpose, installation, usage, and the `.mgit-config.toml` model.
+This is runtime-neutral working convention for `mgit`. [README](README.md) is entry point for user-facing purpose, installation, usage, and discriminated `.mgit.toml` model.
 
 ## Repository model
 

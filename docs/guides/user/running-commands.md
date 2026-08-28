@@ -1,6 +1,6 @@
 # Run commands across repositories
 
-From a workspace directory, `mgit` runs the requested command in every active checkout. With no command, it lists the repositories that would be used. If the current directory contains `.mgit-workspace.toml`, it uses that workspace's selected group; otherwise it discovers Git repositories beneath the current directory.
+From a workspace directory, `mgit` runs requested command in every active checkout. With no command, it lists repositories that would be used. If current directory contains workspace-kind `.mgit.toml`, it uses selected group; otherwise it discovers Git repositories beneath current directory.
 
 ```sh
 mgit
@@ -48,6 +48,6 @@ MGit invokes `ki agora roots --null <name>` once, and uses only the returned rep
 
 - `-P` or `--physical` does not follow symlinked container directories. This is the default.
 - `-L` or `--follow-symlinks` follows symlinked container directories but never symlinked repositories.
-- `-I` or `--ignore` ignores `.mgit-workspace.toml` manifests and discovers repositories by walking the tree.
+- `-I` or `--ignore` ignores workspace selection from `.mgit.toml` and discovers repositories by walking tree; repository-kind symlink metadata still expands discovered set.
 
 See [define a repository set](repository-sets.md) when discovery is not sufficient, or [manage worktrees](worktrees.md) for the structure and worktree commands.

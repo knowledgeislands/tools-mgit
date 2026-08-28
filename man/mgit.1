@@ -26,13 +26,13 @@ in every repository in the current set.
 .TP
 .B mgit register
 Generate
-.I .mgit-workspace.toml
+.I .mgit.toml
 manifests for the current tree.
 .sp
 .TP
 .B mgit repair
 Clone missing repositories declared by structural default groups in the current
-.I .mgit-workspace.toml
+.I .mgit.toml
 manifest.
 .TP
 .B mgit group create <name>
@@ -100,7 +100,7 @@ and
 print help scoped to that command.
 .PP
 When the current directory contains a
-.I .mgit-workspace.toml
+.I .mgit.toml
 manifest,
 .B mgit
 uses its selected group, recursively expanding child workspace members through
@@ -108,7 +108,7 @@ each child's configured default group.
 The manifest is only valid in a non-Git container directory.
 .PP
 A repository leaf may contain
-.IR .mgit-config.toml .
+.IR .mgit.toml .
 That file declares only cross-repository symlink metadata; it does not select
 repositories or make a workspace.
 .PP
@@ -181,8 +181,9 @@ subcommand.
 .TP
 .BR \-I , " \-\-ignore"
 Ignore
-.I .mgit-workspace.toml
-files and discover repositories by walking the tree.
+.I .mgit.toml
+workspace selection and discover repositories by walking the tree.
+Repository-kind symlink metadata still expands the discovered set.
 .sp
 .TP
 .BR \-g , " \-\-group" " \fINAME\fR"
@@ -255,14 +256,22 @@ for exact command grammar.
 .TP
 .B mgit register
 scans the current tree and writes a
-.I .mgit-workspace.toml
+.I .mgit.toml
 in every non-Git container directory, listing child workspaces and repositories.
 It writes a
-.I .mgit-config.toml
+.I .mgit.toml
 only in a repository that owns cross-repository symlinks.
 The command does not descend into repositories, always performs a fresh scan,
 and replaces generated structural default-group records.
 Existing non-default groups are preserved.
+.PP
+Registration migrates an unambiguous legacy
+.I .mgit-workspace.toml
+or
+.I .mgit-config.toml
+after writing its canonical replacement. It rejects canonical-plus-legacy,
+multiple-legacy, wrong-kind, and mixed-document states without applying silent
+precedence or dual writes.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
@@ -370,16 +379,17 @@ autoload -Uz compinit && compinit
 .fi
 .SH FILES
 \&
-.SS .mgit-workspace.toml
+.SS Workspace kind
 \&
 .PP
 A
-.I .mgit-workspace.toml
+.I .mgit.toml
 manifest uses schema 1 and path-keyed member maps in named groups.
 The complete generated shape is:
 .PP
 .nf
 schema = 1
+kind = "workspace"
 default = "default"
 
 [groups.default.members."platform"]
@@ -435,17 +445,20 @@ Member paths are safe relative map keys below the manifest directory.
 The current workspace uses its configured default group, or a group named with
 .BR \-g / \-\-group .
 Child workspaces use their own configured defaults.
-.SS .mgit-config.toml
+.SS Repository kind
 \&
 .PP
 Repository-owned
-.I .mgit-config.toml
+.I .mgit.toml
 files have a separate leaf-only purpose: their
 .B symlinks
 table maps a symlink the current repository owns to its target in another
 repository:
 .PP
 .nf
+schema = 1
+kind = "repository"
+
 [symlinks]
 "link" = "target"
 .fi

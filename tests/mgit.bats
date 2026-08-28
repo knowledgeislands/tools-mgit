@@ -451,7 +451,8 @@ assert_usage_error() {
   mkrepo "$TREE/linked"
   mkdir "$TREE/linked/shared"
   ln -s ../linked/shared "$TREE/selected/link"
-  printf '%s\n' '[symlinks]' '"link" = "../linked/shared"' > "$TREE/selected/.mgit-config.toml"
+  printf '%s\n' '[symlinks]' '"link" = "../linked/shared"' > "$TREE/selected/.mgit.toml"
+  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
   make_fake_ki
   FAKE_KI_ROOTS="$TREE/selected"
 
@@ -517,14 +518,14 @@ assert_usage_error() {
   mkrepo "$TREE/sub/c"
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  [ -f "$TREE/.mgit-workspace.toml" ]
-  [ -f "$TREE/sub/.mgit-workspace.toml" ]
-  grep -Fx 'schema = 1' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'default = "default"' "$TREE/.mgit-workspace.toml"
-  [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit-workspace.toml")" -eq 2 ]
-  grep -Fx 'kind = "workspace"' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.default.members."sub"]' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.default.members."c"]' "$TREE/sub/.mgit-workspace.toml"
+  [ -f "$TREE/.mgit.toml" ]
+  [ -f "$TREE/sub/.mgit.toml" ]
+  grep -Fx 'schema = 1' "$TREE/.mgit.toml"
+  grep -Fx 'default = "default"' "$TREE/.mgit.toml"
+  [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit.toml")" -eq 2 ]
+  grep -Fx 'kind = "workspace"' "$TREE/.mgit.toml"
+  grep -Fx '[groups.default.members."sub"]' "$TREE/.mgit.toml"
+  grep -Fx '[groups.default.members."c"]' "$TREE/sub/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT"
@@ -537,7 +538,7 @@ assert_usage_error() {
 
   ( cd "$TREE" && run_ok "$MGIT" register )
 
-  grep -Fx "source = \"$TREE/repoA.origin.git\"" "$TREE/.mgit-workspace.toml"
+  grep -Fx "source = \"$TREE/repoA.origin.git\"" "$TREE/.mgit.toml"
 }
 
 @test "register replaces parent configs and synchronizes workspaces with chezmoi" {
@@ -548,17 +549,17 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  cmp "$TREE/.mgit-workspace.toml" "$CHEZMOI_SOURCE/dot_mgit-workspace.toml"
-  grep -Fx "source = \"$BATS_TEST_TMPDIR/repoA.origin.git\"" "$CHEZMOI_SOURCE/dot_mgit-workspace.toml"
-  grep -Fx "add $CHEZMOI_TARGET/.mgit-workspace.toml" "$CHEZMOI_LOG"
+  cmp "$TREE/.mgit.toml" "$CHEZMOI_SOURCE/dot_mgit.toml"
+  grep -Fx "source = \"$BATS_TEST_TMPDIR/repoA.origin.git\"" "$CHEZMOI_SOURCE/dot_mgit.toml"
+  grep -Fx "add $CHEZMOI_TARGET/.mgit.toml" "$CHEZMOI_LOG"
 
   mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
   run "$MGIT" register
 
   [ "$status" -eq 1 ]
-  [ ! -e "$TREE/.mgit-workspace.toml" ]
-  [ ! -e "$CHEZMOI_SOURCE/dot_mgit-workspace.toml" ]
-  grep -Fx "forget $CHEZMOI_TARGET/.mgit-workspace.toml" "$CHEZMOI_LOG"
+  [ ! -e "$TREE/.mgit.toml" ]
+  [ ! -e "$CHEZMOI_SOURCE/dot_mgit.toml" ]
+  grep -Fx "forget $CHEZMOI_TARGET/.mgit.toml" "$CHEZMOI_LOG"
 }
 
 @test "register warns but succeeds when chezmoi cannot add a manifest" {
@@ -570,7 +571,7 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  [ -f "$TREE/.mgit-workspace.toml" ]
+  [ -f "$TREE/.mgit.toml" ]
   [[ "$output" == *"warning: manifest remains local; chezmoi could not add it"* ]]
   [[ "$output" != *"no git repos found"* ]]
 }
@@ -582,15 +583,15 @@ assert_usage_error() {
   cd "$TREE"
   run "$MGIT" register
   [ "$status" -eq 0 ]
-  [ -f "$TREE/.mgit-workspace.toml" ]
+  [ -f "$TREE/.mgit.toml" ]
 
   export CHEZMOI_FAIL_FORGET=true
   mv "$TREE/repoA" "$BATS_TEST_TMPDIR/removed-repoA"
   run "$MGIT" register
 
   [ "$status" -eq 1 ]
-  [ ! -e "$TREE/.mgit-workspace.toml" ]
-  [ -e "$CHEZMOI_SOURCE/dot_mgit-workspace.toml" ]
+  [ ! -e "$TREE/.mgit.toml" ]
+  [ -e "$CHEZMOI_SOURCE/dot_mgit.toml" ]
   [[ "$output" == *"warning: manifest removal remains local; chezmoi could not forget it"* ]]
 }
 
@@ -602,7 +603,7 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  [ -f "$CHEZMOI_SOURCE/.mgit-workspace.toml" ]
+  [ -f "$CHEZMOI_SOURCE/.mgit.toml" ]
   [ ! -e "$CHEZMOI_LOG" ]
 }
 
@@ -612,6 +613,7 @@ assert_usage_error() {
   mkdir -p "$TREE/workspace/group"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '' \
     '[groups.default.members."standard-repo"]' \
@@ -631,15 +633,16 @@ assert_usage_error() {
     '' \
     '[groups.default.members."group"]' \
     'kind = "workspace"' \
-    > "$TREE/workspace/.mgit-workspace.toml"
+    > "$TREE/workspace/.mgit.toml"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '' \
     '[groups.default.members."grouped-repo"]' \
     'kind = "repository"' \
     'type = "standard"' \
-    "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit-workspace.toml"
+    "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit.toml"
 
   cd "$TREE/workspace"
   run "$MGIT" repair
@@ -660,12 +663,13 @@ assert_usage_error() {
 @test "repair refuses a missing member without a clone URL" {
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '' \
     '[groups.default.members."missing-repo"]' \
     'kind = "repository"' \
     'type = "standard"' \
-    > "$TREE/.mgit-workspace.toml"
+    > "$TREE/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT" repair
@@ -686,7 +690,7 @@ assert_usage_error() {
   mkrepo "$TREE/b"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  ! grep -q "repoB-branch-c" "$TREE/.mgit-workspace.toml"
+  ! grep -q "repoB-branch-c" "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"a"* ]]
@@ -697,26 +701,122 @@ assert_usage_error() {
   mkrepo "$TREE/a"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  first=$(cat "$TREE/.mgit-workspace.toml")
+  first=$(cat "$TREE/.mgit.toml")
   "$MGIT" register >/dev/null
-  second=$(cat "$TREE/.mgit-workspace.toml")
+  second=$(cat "$TREE/.mgit.toml")
   [ "$first" = "$second" ]
 }
 
-@test "register removes obsolete parent config and preserves leaf config behavior" {
+@test "register migrates legacy workspace and repository manifests" {
   mkrepo "$TREE/a"
-  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
   mkdir -p "$TREE/b/shared"
   mkrepo "$TREE/b"
   ( cd "$TREE/a" && ln -s ../b/shared link-to-b )
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "focus"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' \
+    '' \
+    '[groups.focus.members."a"]' \
+    'kind = "repository"' > "$TREE/.mgit-workspace.toml"
+  printf '%s\n' \
+    'version = 1' \
+    '' \
+    '[symlinks]' \
+    '"link-to-b" = "../b/shared"' > "$TREE/a/.mgit-config.toml"
 
   cd "$TREE"
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  [ ! -e "$TREE/.mgit-config.toml" ]
+  [ ! -e "$TREE/.mgit-workspace.toml" ]
+  [ ! -e "$TREE/a/.mgit-config.toml" ]
+  [ -f "$TREE/.mgit.toml" ]
+  [ -f "$TREE/a/.mgit.toml" ]
+  grep -Fx 'kind = "workspace"' "$TREE/.mgit.toml"
+  grep -Fx 'default = "focus"' "$TREE/.mgit.toml"
+  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit.toml"
+  grep -Fx 'kind = "repository"' "$TREE/a/.mgit.toml"
+  grep -Fx '"link-to-b" = "../b/shared"' "$TREE/a/.mgit.toml"
+}
+
+@test "register rejects conflicting canonical and legacy manifests" {
+  mkrepo "$TREE/a"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit.toml"
+  cp "$TREE/.mgit.toml" "$TREE/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT" register
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"conflicting canonical and legacy manifests"* ]]
+  [ -f "$TREE/.mgit.toml" ]
   [ -f "$TREE/.mgit-workspace.toml" ]
-  [ -f "$TREE/a/.mgit-config.toml" ]
+
+  mv "$TREE/.mgit.toml" "$TREE/canonical-workspace.toml"
+  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
+  run "$MGIT" register
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"conflicting legacy workspace and repository manifests"* ]]
+  [ -f "$TREE/.mgit-workspace.toml" ]
+  [ -f "$TREE/.mgit-config.toml" ]
+}
+
+@test "ordinary commands reject legacy manifests with migration guidance" {
+  mkrepo "$TREE/a"
+  printf '%s\n' \
+    'schema = 1' \
+    'default = "default"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit-workspace.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"legacy manifest found"* ]]
+  [[ "$output" == *'run `mgit register` to migrate to .mgit.toml'* ]]
+}
+
+@test "discriminated manifests reject mixed document kinds" {
+  mkrepo "$TREE/a"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    '' \
+    '[symlinks]' \
+    '"link" = "a"' > "$TREE/.mgit.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unsupported TOML table: [symlinks]"* ]]
+
+  mv "$TREE/.mgit.toml" "$TREE/mixed-workspace.toml"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "repository"' \
+    '' \
+    '[groups.default]' > "$TREE/a/.mgit.toml"
+
+  cd "$TREE/a"
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"repository manifest contains unsupported table: [groups.default]"* ]]
 }
 
 @test "register preserves named groups and their selected order" {
@@ -724,6 +824,7 @@ assert_usage_error() {
   mkrepo "$TREE/b"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "focus"' \
     '' \
     '[groups.default.members."a"]' \
@@ -734,14 +835,14 @@ assert_usage_error() {
     'kind = "repository"' \
     '' \
     '[groups.focus.members."a"]' \
-    'kind = "repository"' > "$TREE/.mgit-workspace.toml"
+    'kind = "repository"' > "$TREE/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT" register
   [ "$status" -eq 0 ]
-  grep -Fx 'default = "focus"' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.focus.members."b"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx 'default = "focus"' "$TREE/.mgit.toml"
+  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit.toml"
+  grep -Fx '[groups.focus.members."b"]' "$TREE/.mgit.toml"
 
   run "$MGIT"
   [ "$status" -eq 0 ]
@@ -760,11 +861,11 @@ assert_usage_error() {
 
   run "$MGIT" group create engineering
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.engineering]' "$TREE/.mgit.toml"
 
   run "$MGIT" register
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.engineering]' "$TREE/.mgit.toml"
 
   run "$MGIT" group create engineering
   [ "$status" -eq 1 ]
@@ -774,45 +875,46 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   run "$MGIT" group add engineering a
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering.members."a"]' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.engineering.members."a"]' "$TREE/.mgit.toml"
+  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit.toml"
 
   run "$MGIT" --group engineering
   [ "$status" -eq 0 ]
   [ "$output" = $'a\nb' ]
 
-  before=$(cat "$TREE/.mgit-workspace.toml")
+  before=$(cat "$TREE/.mgit.toml")
   run "$MGIT" group add engineering a
   [ "$status" -eq 1 ]
   [[ "$output" == *"member already belongs"* ]]
-  [ "$(cat "$TREE/.mgit-workspace.toml")" = "$before" ]
+  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
 
   run "$MGIT" group add engineering absent
   [ "$status" -eq 1 ]
   [[ "$output" == *"not a direct default-group member"* ]]
-  [ "$(cat "$TREE/.mgit-workspace.toml")" = "$before" ]
+  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
 
   run "$MGIT" group add default a
   [ "$status" -eq 2 ]
 
   run "$MGIT" group remove engineering a
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit-workspace.toml"
-  ! grep -Fq '[groups.engineering.members."a"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit.toml"
+  ! grep -Fq '[groups.engineering.members."a"]' "$TREE/.mgit.toml"
 
   run "$MGIT" group delete engineering
   [ "$status" -eq 0 ]
-  ! grep -Fq '[groups.engineering.members.' "$TREE/.mgit-workspace.toml"
+  ! grep -Fq '[groups.engineering.members.' "$TREE/.mgit.toml"
 }
 
 @test "workspace selection rejects malformed, duplicate, and unsafe paths" {
   mkrepo "$TREE/a"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '[groups.default.members."../a"]' \
     'kind = "repository"' \
-    'type = "standard"' > "$TREE/.mgit-workspace.toml"
+    'type = "standard"' > "$TREE/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT"
@@ -821,13 +923,14 @@ assert_usage_error() {
 
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '[groups.default.members."a"]' \
     'kind = "repository"' \
     'type = "standard"' \
     '[groups.default.members."a"]' \
     'kind = "repository"' \
-    'type = "standard"' > "$TREE/.mgit-workspace.toml"
+    'type = "standard"' > "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 1 ]
   [[ "$output" == *"duplicate member path"* ]]
@@ -839,14 +942,16 @@ assert_usage_error() {
   ln -s .. "$TREE/child/loop"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '[groups.default.members."child"]' \
-    'kind = "workspace"' > "$TREE/.mgit-workspace.toml"
+    'kind = "workspace"' > "$TREE/.mgit.toml"
   printf '%s\n' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '[groups.default.members."loop"]' \
-    'kind = "workspace"' > "$TREE/child/.mgit-workspace.toml"
+    'kind = "workspace"' > "$TREE/child/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT" --group absent
@@ -865,9 +970,9 @@ assert_usage_error() {
   ( cd "$TREE/a" && ln -s ../b/shared link-to-b )
   cd "$TREE"
   "$MGIT" register >/dev/null
-  [ -f "$TREE/a/.mgit-config.toml" ]
-  grep -Fx '[symlinks]' "$TREE/a/.mgit-config.toml"
-  grep -Fx '"link-to-b" = "../b/shared"' "$TREE/a/.mgit-config.toml"
+  [ -f "$TREE/a/.mgit.toml" ]
+  grep -Fx '[symlinks]' "$TREE/a/.mgit.toml"
+  grep -Fx '"link-to-b" = "../b/shared"' "$TREE/a/.mgit.toml"
 
   cd "$TREE/a"
   run "$MGIT"
@@ -884,11 +989,11 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.default.members."repoA"]' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'type = "nested"' "$TREE/.mgit-workspace.toml"
-  grep -Fx '[groups.default.members."repoB"]' "$TREE/.mgit-workspace.toml"
-  grep -Fx 'type = "standard"' "$TREE/.mgit-workspace.toml"
-  ! grep -Fx '[groups.default.members."main"]' "$TREE/.mgit-workspace.toml"
+  grep -Fx '[groups.default.members."repoA"]' "$TREE/.mgit.toml"
+  grep -Fx 'type = "nested"' "$TREE/.mgit.toml"
+  grep -Fx '[groups.default.members."repoB"]' "$TREE/.mgit.toml"
+  grep -Fx 'type = "standard"' "$TREE/.mgit.toml"
+  ! grep -Fx '[groups.default.members."main"]' "$TREE/.mgit.toml"
 }
 
 @test "workspace members are read" {
@@ -896,12 +1001,13 @@ assert_usage_error() {
   printf '%s\n' \
     '# A comment with a # inside a string stays valid: "repo#A".' \
     'schema = 1' \
+    'kind = "workspace"' \
     'default = "default"' \
     '' \
     '[groups.default.members."repoA"]' \
     'kind = "repository"' \
     'type = "standard"' \
-    '# inline comments are allowed' > "$TREE/.mgit-workspace.toml"
+    '# inline comments are allowed' > "$TREE/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT"

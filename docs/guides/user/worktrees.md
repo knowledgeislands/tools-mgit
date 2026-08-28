@@ -42,10 +42,11 @@ cd parent
 mgit register
 ```
 
-The generated `.mgit-workspace.toml` labels the two logical repositories without listing `.bare`, `main`, or branch worktrees:
+The generated `.mgit.toml` labels the two logical repositories without listing `.bare`, `main`, or branch worktrees:
 
 ```toml
 schema = 1
+kind = "workspace"
 default = "default"
 
 [groups.default.members."repoA"]

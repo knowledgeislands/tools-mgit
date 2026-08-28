@@ -4,7 +4,7 @@ title: Unify mGit configuration
 area: CLI
 theme: cli
 horizon: next
-status: in-progress
+status: awaiting-review
 blocks: []
 blocked_by: []
 baseline_ref: f13154fe09eb350e21aac69c24eb7c7a89c1763c
@@ -30,17 +30,18 @@ This item owns the mGit schema, parser and writer behaviour, workspace discovery
 
 ## Steps
 
-- [ ] Define the versioned, discriminated `.mgit.toml` schema and its invalid mixed states in the workspace specification.
-- [ ] Update discovery, parsing, writing, registration, repair, and group selection to use the canonical schema.
-- [ ] Add explicit migrations from both legacy filenames, including conflict and Chezmoi-managed-state diagnostics.
-- [ ] Update the README, user guides, manual page, and examples to distinguish workspace and repository kinds within the one format.
-- [ ] Add focused and end-to-end coverage for both kinds, migration paths, and ambiguous-input failure.
+- [x] Define the versioned, discriminated `.mgit.toml` schema and its invalid mixed states in the workspace specification.
+- [x] Update discovery, parsing, writing, registration, repair, and group selection to use the canonical schema.
+- [x] Add explicit migrations from both legacy filenames, including conflict and Chezmoi-managed-state diagnostics.
+- [x] Update the README, user guides, manual page, and examples to distinguish workspace and repository kinds within the one format.
+- [x] Add focused and end-to-end coverage for both kinds, migration paths, and ambiguous-input failure.
 
 ## Files touched
 
 - `bin/mgit`
 - `docs/specs/workspace-dispatch.md`
 - `README.md`, `docs/guides/user/`, and `man/mgit.1`
+- `CHANGELOG.md` and `AGENTS.md`
 - `tests/mgit.bats`
 - `docs/roadmap/MGIT-CLI-004-unify-mgit-configuration.md`
 
@@ -71,6 +72,44 @@ Update the README, user guides, examples, and manual page for the canonical file
 ### Roadmap
 
 Retain this record through review and report the accepted contract to the waiting `tools-ki` item; no additional local roadmap record is currently required.
+
+## Review
+
+### Delivered
+
+Implemented the approved canonical configuration contract across `bin/mgit`, tests, specifications, user guidance, command help, completion, and manual. `.mgit.toml` now declares `schema = 1` and top-level `kind = "workspace"` or `kind = "repository"`; `mgit register` owns explicit legacy migration and conflict refusal.
+
+### Summary of changes
+
+- Replaced split runtime and writer paths with discriminated canonical manifest handling for workspace selection, named groups, repair, and repository symlink closure.
+- Added migration preflight for `.mgit-workspace.toml` and `.mgit-config.toml`, including canonical-plus-legacy, multiple-legacy, wrong-kind, mixed-document, and Chezmoi synchronization boundaries.
+- Added focused Bats coverage for both canonical kinds, both legacy migrations, conflict refusal, ordinary-command guidance, mixed documents, and Agora isolation.
+- Updated behavior specification, README, user guides, examples, manual, and standing repository guidance.
+- Applied user-approved scope clarification to model `CHANGELOG.md` on `tools-ki`: one curated v1 baseline rather than per-0.x release history.
+
+### Verification
+
+- `shellcheck bin/mgit install.sh` — passed.
+- `bats tests/` — 54 tests passed.
+- `mandoc -T lint man/mgit.1` — passed; plain UTF-8 rendering inspected.
+- `bin/mgit --help`, `--version`, and Bash/Zsh completion smoke checks — passed.
+- KI adapter, specification, guide, authoring, tool-repository, and Git audits — passed.
+- Whole-repository audit — implementation-scoped skills passed; pre-existing `ki-repo` `FILES-6` failure remains on unchanged `.gitignore` unmanaged section.
+
+### Outstanding concerns
+
+- `KI-TOOL-CLI-055` in `tools-ki` remains downstream work; this delivery does not change another repository or its legacy reader.
+- Existing estate manifests are intentionally not rewritten. Each configuration owner must run or authorize migration independently.
+- Whole-repository audit remains non-clean because unchanged `.gitignore` has a pre-existing `ki-repo` `FILES-6` finding outside this item.
+- Acceptance, push, release, and Homebrew formula updates remain outside this implementation boundary.
+
+### Post-change review
+
+The delivered behavior matches the approved goal and scope: one mGit-owned filename has explicit kind separation, legacy state has a bounded migration path, and ambiguity fails closed with actionable diagnostics. Regression risk is concentrated in shell parsing and registration traversal; schema, migration, group, repair, symlink-closure, Agora, completion, and command-dispatch coverage all pass. The item is ready for human acceptance review; the unrelated `.gitignore` audit finding is disclosed rather absorbed into this delivery.
+
+### Mini recap
+
+The repository now owns a versioned `.mgit.toml` contract, explicit legacy migration, synchronized user-facing documentation, and the pre-v1 changelog baseline requested during delivery. No additional durable learning route is needed: changelog policy is already captured in `AGENTS.md`, behavior is in Specifications, and migration procedure is in user guide. Downstream KI reader work remains linked to `KI-TOOL-CLI-055` without automatic cross-repository action.
 
 ## Discussion
 
