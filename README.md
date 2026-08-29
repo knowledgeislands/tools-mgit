@@ -78,12 +78,7 @@ Kris Brown maintains `mgit`. Use [GitHub issues](https://github.com/knowledgeisl
 
 ## Contributing
 
-Issues and pull requests are welcome. Follow the [developer guide](docs/guides/developer/README.md), use Conventional Commit messages, and run the project checks before submitting a change:
-
-```sh
-shellcheck bin/mgit install.sh
-bats tests/
-```
+Issues and pull requests are welcome. Follow the [developer guide](docs/guides/developer/README.md), use Conventional Commit messages, and run its complete verification gate before submitting a change.
 
 ## License
 

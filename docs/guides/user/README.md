@@ -7,7 +7,7 @@
 - [Install and configure your shell](installation.md) covers Homebrew, the installer, requirements, and completion.
 - [Run commands across repositories](running-commands.md) covers discovery, commands, filters, and options.
 - [Define a repository set](repository-sets.md) covers `.mgit.toml`, groups, `register`, and `repair`.
-- [Manage worktrees](worktrees.md) covers standard and nested repository structures, migration, and linked worktrees.
+- [Manage worktrees](worktrees.md) covers standard and nested repository structures, structure conversion, and linked worktrees.
 
 ## Quick start
 

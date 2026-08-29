@@ -26,13 +26,13 @@ _Verify:_ `bats tests/mgit.bats` — `workspace selection rejects malformed, dup
 
 When no current-directory workspace-kind manifest is present, or with `--ignore`, mgit MUST discover repositories below current directory, keep current repository when applicable, and omit repositories nested inside another discovered repository.
 
-_Verify:_ `bin/mgit` — repository-set construction; `bats tests/mgit.bats` — `bare mgit lists discovered repos`.
+_Verify:_ `bats tests/mgit.bats` — `bare mgit lists discovered repos`; `--ignore bypasses workspace selection for discovery`.
 
 ### MGIT-WS-005 — Discovery traversal mode
 
 mgit MUST use physical directory traversal by default and MAY follow symlinked container directories only when `--follow-symlinks` is selected.
 
-_Verify:_ `bin/mgit` — discovery traversal controlled by `follow_symlinks`; `bats tests/mgit.bats` — `--help prints usage and exits 0`.
+_Verify:_ `bats tests/mgit.bats` — `--physical and --follow-symlinks control container traversal`.
 
 ### MGIT-WS-006 — Agora repository set
 
@@ -103,7 +103,3 @@ _Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed docum
 ### MGIT-WS-016 — ~~Explicit configuration migration~~ (deprecated)
 
 ### MGIT-WS-017 — ~~Configuration conflict refusal~~ (deprecated)
-
-## Gaps
-
-- Add focused Bats coverage for physical versus symlink-following discovery traversal.

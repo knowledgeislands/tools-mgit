@@ -696,6 +696,47 @@ assert_usage_error() {
   [[ "$output" == *"b"* ]]
 }
 
+@test "--ignore bypasses workspace selection for discovery" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "a" ]
+
+  run "$MGIT" --ignore
+
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a\nb' ]
+}
+
+@test "--physical and --follow-symlinks control container traversal" {
+  mkdir -p "$TREE/root" "$TREE/target"
+  mkrepo "$TREE/target/repo"
+  ln -s ../target "$TREE/root/linked"
+
+  cd "$TREE/root"
+  run "$MGIT" --physical
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+
+  run "$MGIT" --follow-symlinks
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "../target/repo" ]
+}
+
 @test "register is idempotent" {
   mkrepo "$TREE/a"
   cd "$TREE"

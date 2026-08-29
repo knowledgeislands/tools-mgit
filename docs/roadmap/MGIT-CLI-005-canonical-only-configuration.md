@@ -36,11 +36,14 @@ This item does not modify Chezmoi state, downstream `tools-ki` readers, the rele
 
 ## Files touched
 
+- `.ki.toml`
+- `AGENTS.md`
 - `bin/mgit`
 - `tests/mgit.bats`
 - `README.md`
 - `CHANGELOG.md`
 - `docs/guides/user/README.md`
+- `docs/guides/developer/local-development.md`
 - `docs/guides/user/repository-sets.md`
 - `docs/specs/workspace-dispatch.md`
 - `man/mgit.1`
@@ -87,13 +90,15 @@ Retain this record through implementation review. No additional local roadmap it
 
 - Removed previous-format branches from ordinary dispatch, parsing, registration, groups, and repair.
 - Removed three obsolete compatibility tests while retaining canonical registration and discriminated-kind coverage.
+- Added direct discovery coverage for `--ignore`, `--physical`, and `--follow-symlinks`.
 - Removed migration guidance from the README, changelog baseline, repository-set guide, command help, and manual.
+- Aligned repository metadata and contributor verification guidance with the canonical-only public surface.
 - Retired MGIT-WS-016 and MGIT-WS-017 as append-only deprecated tombstones.
 
 ### Verification
 
 - `shellcheck bin/mgit install.sh`
-- `bats tests/` — 51 tests passed.
+- `bats tests/` — 53 tests passed.
 - `mandoc -T lint man/mgit.1` and rendered manual inspection.
 - CLI help, register help, version, and Bash and Zsh completion smoke checks.
 - Zero-reference scan across executable, tests, README, changelog, guides, and manual.
