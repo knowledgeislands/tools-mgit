@@ -4,10 +4,10 @@ title: Canonical-only configuration
 area: CLI
 theme: cli
 horizon: next
-status: ready
+status: in-progress
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 5a8ddb6ea1ada5b5180a7e8522d6d6b4a6aee5bd
 ---
 
 ## Goal
