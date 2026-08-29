@@ -27,8 +27,6 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_MANIFEST=.mgit.toml
-MGIT_LEGACY_REPOSITORY=.mgit-config.toml
-MGIT_LEGACY_WORKSPACE=.mgit-workspace.toml
 MGIT_VERSION=0.11.0
 
 CLEAR=$'\033[0m'
@@ -74,7 +72,6 @@ register_usage() {
 Usage: mgit register [options]
 
 Generate workspace- and repository-kind .mgit.toml documents for current tree.
-Migrate unambiguous legacy filenames; reject conflicting or mixed state.
 
 The command scans fresh, does not descend into repositories, and replaces the
 structural default group while preserving named alternative groups. When
@@ -764,11 +761,6 @@ parse_mgit() {
   local schema="" kind="" seen_schema=false seen_kind=false
   local seen_symlinks=() existing
 
-  if [ -f "$repo/$MGIT_LEGACY_REPOSITORY" ] || [ -f "$repo/$MGIT_LEGACY_WORKSPACE" ]; then
-    printf 'mgit: legacy manifest found in %s; run `mgit register` to migrate to %s\n' \
-      "$repo" "$MGIT_MANIFEST" >&2
-    return 1
-  fi
   [ -f "$file" ] || return 0
 
   while IFS= read -r line || [ -n "$line" ]; do
@@ -981,11 +973,7 @@ workspace_sort_members() {
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
   local file="$1" line key value group schema="" kind=""
-  local seen_schema=false seen_kind=false seen_default=false legacy=false
-
-  case "$file" in
-    */"$MGIT_LEGACY_WORKSPACE"|"$MGIT_LEGACY_WORKSPACE") legacy=true ;;
-  esac
+  local seen_schema=false seen_kind=false seen_default=false
   workspace_default=""
   workspace_groups=()
   workspace_record_groups=()
@@ -1136,7 +1124,7 @@ parse_workspace() {
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
     return 1
   fi
-  if [ "$legacy" = false ] && { [ "$seen_kind" != true ] || [ "$kind" != workspace ]; }; then
+  if [ "$seen_kind" != true ] || [ "$kind" != workspace ]; then
     printf 'mgit: %s: missing kind = "workspace"\n' "$file" >&2
     return 1
   fi
@@ -1380,11 +1368,6 @@ group_command() {
       return 0 ;;
     *) usage_error_for group_usage "group: unknown command: $action"; return ;;
   esac
-  if [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
-    printf 'mgit group %s: legacy manifest found; run `mgit register` to migrate to %s\n' \
-      "$action" "$MGIT_MANIFEST" >&2
-    return 1
-  fi
   [ -f "./$MGIT_MANIFEST" ] || { printf 'mgit group %s: no %s workspace manifest in %s\n' "$action" "$MGIT_MANIFEST" "$(pwd)" >&2; return 1; }
   [ "$(manifest_kind "./$MGIT_MANIFEST")" = workspace ] || return 1
   parse_workspace "./$MGIT_MANIFEST" || return 1
@@ -1524,10 +1507,6 @@ register_repo() {
       chezmoi_forget_manifest "$dir/$MGIT_MANIFEST" || return 2
       rm -f "$dir/$MGIT_MANIFEST" || return 2
     fi
-    if [ -f "$dir/$MGIT_LEGACY_REPOSITORY" ]; then
-      chezmoi_forget_manifest "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
-      rm -f "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
-    fi
     return 0
   fi
   {
@@ -1543,10 +1522,6 @@ register_repo() {
     done
   } > "$dir/$MGIT_MANIFEST" || return 2
   chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
-  if [ -f "$dir/$MGIT_LEGACY_REPOSITORY" ]; then
-    chezmoi_forget_manifest "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
-    rm -f "$dir/$MGIT_LEGACY_REPOSITORY" || return 2
-  fi
   printf '%s%s%s%s: recorded %d symlink(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#found_links[@]}"
   return 0
 }
@@ -1592,25 +1567,8 @@ register_repo_preflight() {
 register_manifest_preflight() {
   local dir="$1" expected="$2"
   local canonical="$dir/$MGIT_MANIFEST"
-  local legacy_workspace="$dir/$MGIT_LEGACY_WORKSPACE"
-  local legacy_repository="$dir/$MGIT_LEGACY_REPOSITORY" kind
+  local kind
 
-  if [ -f "$canonical" ] && { [ -f "$legacy_workspace" ] || [ -f "$legacy_repository" ]; }; then
-    printf 'mgit register: conflicting canonical and legacy manifests in %s; resolve them before migration\n' "$dir" >&2
-    return 1
-  fi
-  if [ -f "$legacy_workspace" ] && [ -f "$legacy_repository" ]; then
-    printf 'mgit register: conflicting legacy workspace and repository manifests in %s; resolve them before migration\n' "$dir" >&2
-    return 1
-  fi
-  if [ -f "$legacy_workspace" ] && [ "$expected" != workspace ]; then
-    printf 'mgit register: legacy workspace manifest is invalid for repository directory: %s\n' "$legacy_workspace" >&2
-    return 1
-  fi
-  if [ -f "$legacy_repository" ] && [ "$expected" != repository ]; then
-    printf 'mgit register: legacy repository manifest is invalid for workspace directory: %s\n' "$legacy_repository" >&2
-    return 1
-  fi
   if [ -f "$canonical" ]; then
     kind=$(manifest_kind "$canonical") || return 1
     [ "$kind" = "$expected" ] || {
@@ -1635,8 +1593,6 @@ register_preflight_tree() {
   register_manifest_preflight "$dir" workspace || return 1
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 1
-  elif [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
-    parse_workspace "$dir/$MGIT_LEGACY_WORKSPACE" || return 1
   fi
   for child in "$dir"/*/; do
     [ -d "$child" ] || continue
@@ -1697,10 +1653,8 @@ register_tree() {
   done
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 2
-  elif [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
-    parse_workspace "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
   fi
-  if [ -f "$dir/$MGIT_MANIFEST" ] || [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
+  if [ -f "$dir/$MGIT_MANIFEST" ]; then
     old_default="$workspace_default"
     old_group_names=("${workspace_groups[@]+"${workspace_groups[@]}"}")
     old_groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
@@ -1747,20 +1701,12 @@ register_tree() {
       done
     } > "$dir/$MGIT_MANIFEST" || return 2
     chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
-    if [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
-      chezmoi_forget_manifest "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
-      rm -f "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
-    fi
     printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
     return 0
   fi
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     chezmoi_forget_manifest "$dir/$MGIT_MANIFEST" || return 2
     rm -f "$dir/$MGIT_MANIFEST" || return 2
-  fi
-  if [ -f "$dir/$MGIT_LEGACY_WORKSPACE" ]; then
-    chezmoi_forget_manifest "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
-    rm -f "$dir/$MGIT_LEGACY_WORKSPACE" || return 2
   fi
   return 1
 }
@@ -1976,10 +1922,6 @@ repair_command() {
     shift
   done
   [ "$help" = false ] || { repair_usage; return 0; }
-  if [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
-    printf 'mgit repair: legacy manifest found; run `mgit register` to migrate to %s\n' "$MGIT_MANIFEST" >&2
-    return 1
-  fi
   [ -f "./$MGIT_MANIFEST" ] || {
     printf 'mgit repair: no %s workspace manifest in %s\n' "$MGIT_MANIFEST" "$(pwd)" >&2
     return 1
@@ -2709,17 +2651,6 @@ fi
 repos=()
 cwd_manifest_kind=""
 
-if [ -z "$agora_name" ] && [ "$read_config" = true ] && { [ -f "./$MGIT_LEGACY_WORKSPACE" ] || [ -f "./$MGIT_LEGACY_REPOSITORY" ]; }; then
-  if [ -f "./$MGIT_MANIFEST" ]; then
-    printf 'mgit: conflicting canonical and legacy manifests in %s; resolve them before continuing\n' "$(pwd)" >&2
-  elif [ -f "./$MGIT_LEGACY_WORKSPACE" ] && [ -f "./$MGIT_LEGACY_REPOSITORY" ]; then
-    printf 'mgit: conflicting legacy workspace and repository manifests in %s; resolve them before continuing\n' "$(pwd)" >&2
-  else
-    printf 'mgit: legacy manifest found in %s; run `mgit register` to migrate to %s\n' \
-      "$(pwd)" "$MGIT_MANIFEST" >&2
-  fi
-  exit 1
-fi
 if [ -z "$agora_name" ] && [ "$read_config" = true ] && [ -f "./$MGIT_MANIFEST" ]; then
   cwd_manifest_kind=$(manifest_kind "./$MGIT_MANIFEST") || exit 1
 fi

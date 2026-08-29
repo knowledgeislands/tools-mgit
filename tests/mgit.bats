@@ -452,7 +452,6 @@ assert_usage_error() {
   mkdir "$TREE/linked/shared"
   ln -s ../linked/shared "$TREE/selected/link"
   printf '%s\n' '[symlinks]' '"link" = "../linked/shared"' > "$TREE/selected/.mgit.toml"
-  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
   make_fake_ki
   FAKE_KI_ROOTS="$TREE/selected"
 
@@ -705,90 +704,6 @@ assert_usage_error() {
   "$MGIT" register >/dev/null
   second=$(cat "$TREE/.mgit.toml")
   [ "$first" = "$second" ]
-}
-
-@test "register migrates legacy workspace and repository manifests" {
-  mkrepo "$TREE/a"
-  mkdir -p "$TREE/b/shared"
-  mkrepo "$TREE/b"
-  ( cd "$TREE/a" && ln -s ../b/shared link-to-b )
-  printf '%s\n' \
-    'schema = 1' \
-    'default = "focus"' \
-    '' \
-    '[groups.default.members."a"]' \
-    'kind = "repository"' \
-    'type = "standard"' \
-    '' \
-    '[groups.focus.members."a"]' \
-    'kind = "repository"' > "$TREE/.mgit-workspace.toml"
-  printf '%s\n' \
-    'version = 1' \
-    '' \
-    '[symlinks]' \
-    '"link-to-b" = "../b/shared"' > "$TREE/a/.mgit-config.toml"
-
-  cd "$TREE"
-  run "$MGIT" register
-
-  [ "$status" -eq 0 ]
-  [ ! -e "$TREE/.mgit-workspace.toml" ]
-  [ ! -e "$TREE/a/.mgit-config.toml" ]
-  [ -f "$TREE/.mgit.toml" ]
-  [ -f "$TREE/a/.mgit.toml" ]
-  grep -Fx 'kind = "workspace"' "$TREE/.mgit.toml"
-  grep -Fx 'default = "focus"' "$TREE/.mgit.toml"
-  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit.toml"
-  grep -Fx 'kind = "repository"' "$TREE/a/.mgit.toml"
-  grep -Fx '"link-to-b" = "../b/shared"' "$TREE/a/.mgit.toml"
-}
-
-@test "register rejects conflicting canonical and legacy manifests" {
-  mkrepo "$TREE/a"
-  printf '%s\n' \
-    'schema = 1' \
-    'kind = "workspace"' \
-    'default = "default"' \
-    '' \
-    '[groups.default.members."a"]' \
-    'kind = "repository"' \
-    'type = "standard"' > "$TREE/.mgit.toml"
-  cp "$TREE/.mgit.toml" "$TREE/.mgit-workspace.toml"
-
-  cd "$TREE"
-  run "$MGIT" register
-
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"conflicting canonical and legacy manifests"* ]]
-  [ -f "$TREE/.mgit.toml" ]
-  [ -f "$TREE/.mgit-workspace.toml" ]
-
-  mv "$TREE/.mgit.toml" "$TREE/canonical-workspace.toml"
-  printf '%s\n' 'version = 1' > "$TREE/.mgit-config.toml"
-  run "$MGIT" register
-
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"conflicting legacy workspace and repository manifests"* ]]
-  [ -f "$TREE/.mgit-workspace.toml" ]
-  [ -f "$TREE/.mgit-config.toml" ]
-}
-
-@test "ordinary commands reject legacy manifests with migration guidance" {
-  mkrepo "$TREE/a"
-  printf '%s\n' \
-    'schema = 1' \
-    'default = "default"' \
-    '' \
-    '[groups.default.members."a"]' \
-    'kind = "repository"' \
-    'type = "standard"' > "$TREE/.mgit-workspace.toml"
-
-  cd "$TREE"
-  run "$MGIT"
-
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"legacy manifest found"* ]]
-  [[ "$output" == *'run `mgit register` to migrate to .mgit.toml'* ]]
 }
 
 @test "discriminated manifests reject mixed document kinds" {

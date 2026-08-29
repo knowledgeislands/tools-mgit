@@ -53,7 +53,7 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 
 - Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
 - Schema-1 `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
-- `mgit register` refreshes canonical configuration, preserves named groups, synchronizes Chezmoi-managed state, migrates unambiguous legacy filenames, and rejects conflicting or mixed configuration.
+- `mgit register` refreshes canonical configuration, preserves named groups, and synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Named groups provide alternative direct-member views without changing structural default group.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.

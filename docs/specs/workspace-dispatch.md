@@ -1,6 +1,6 @@
 # Workspace discovery and dispatch — MGIT-WS
 
-This as-built area specifies how [mgit specifications](index.md) represent repository sets, migrate legacy configuration, select repositories, and run ordinary commands across resulting checkouts. It excludes repository-structure conversion and worktree mutation.
+This as-built area specifies how [mgit specifications](index.md) represent repository sets, select repositories, and run ordinary commands across resulting checkouts. It excludes repository-structure conversion and worktree mutation.
 
 ## Repository-set sources
 
@@ -92,7 +92,7 @@ With `--bare`, mgit MUST run supplied command directly in each selected checkout
 
 _Verify:_ `bats tests/mgit.bats` — `--filter applies to bare commands and requires a pattern`.
 
-## Configuration contract and migration
+## Configuration contract
 
 ### MGIT-WS-015 — Discriminated configuration
 
@@ -100,17 +100,9 @@ Every canonical `.mgit.toml` document MUST declare `schema = 1` and exactly one 
 
 _Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed document kinds`.
 
-### MGIT-WS-016 — Explicit legacy migration
+### MGIT-WS-016 — ~~Explicit configuration migration~~ (deprecated)
 
-`mgit register` MUST migrate an unambiguous `.mgit-workspace.toml` or `.mgit-config.toml` document to matching canonical `.mgit.toml` kind, preserve named workspace groups and derived symlink metadata, and remove legacy document only after writing canonical replacement.
-
-_Verify:_ `bats tests/mgit.bats` — `register migrates legacy workspace and repository manifests`.
-
-### MGIT-WS-017 — Conflict refusal
-
-mgit MUST reject canonical-plus-legacy, multiple-legacy, wrong-kind, and ordinary-command legacy configuration states with actionable migration or conflict guidance rather than silently selecting precedence or maintaining dual writes.
-
-_Verify:_ `bats tests/mgit.bats` — `register rejects conflicting canonical and legacy manifests`; `ordinary commands reject legacy manifests with migration guidance`.
+### MGIT-WS-017 — ~~Configuration conflict refusal~~ (deprecated)
 
 ## Gaps
 

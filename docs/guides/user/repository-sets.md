@@ -60,17 +60,6 @@ Each key is symlink path owned by repository; value resolves to target in anothe
 
 Workspace tables are invalid in repository document, and `symlinks` table is invalid in workspace document. mgit rejects mixed documents rather guessing intended role.
 
-## Migrate legacy files
-
-Run `mgit register` to migrate either old filename:
-
-- `.mgit-workspace.toml` becomes workspace-kind `.mgit.toml`, retaining configured default and named groups while refreshing structural membership.
-- `.mgit-config.toml` becomes repository-kind `.mgit.toml`, refreshing symlink metadata from tracked repository state.
-
-The canonical file is written and synchronized before legacy file is removed. Ordinary commands, `group`, and `repair` do not maintain a compatibility read path; they stop with migration guidance when legacy file remains.
-
-Registration also stops without modifying files when one directory contains canonical and legacy configuration together, both legacy filenames, or a manifest kind that does not match directory role. Resolve conflict explicitly, then rerun `mgit register`; mgit never applies silent precedence or dual writes.
-
 ## Create an alternative group
 
 Create empty named group, then add direct members of structural `default` group without editing TOML:

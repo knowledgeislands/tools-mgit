@@ -264,14 +264,6 @@ The command does not descend into repositories, always performs a fresh scan,
 and replaces generated structural default-group records.
 Existing non-default groups are preserved.
 .PP
-Registration migrates an unambiguous legacy
-.I .mgit-workspace.toml
-or
-.I .mgit-config.toml
-after writing its canonical replacement. It rejects canonical-plus-legacy,
-multiple-legacy, wrong-kind, and mixed-document states without applying silent
-precedence or dual writes.
-.PP
 When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
 emits a warning but does not prevent a local manifest from being generated or

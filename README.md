@@ -47,7 +47,7 @@ mgit pull --ff-only
 mgit -B npm test
 ```
 
-Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata. The command also migrates an unambiguous legacy `.mgit-workspace.toml` or `.mgit-config.toml`; conflicting or mixed state is rejected.
+Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 
 Create and select alternative named groups without editing the document directly:
 
