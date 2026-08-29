@@ -4,7 +4,7 @@ title: Canonical-only configuration
 area: CLI
 theme: cli
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 5a8ddb6ea1ada5b5180a7e8522d6d6b4a6aee5bd
@@ -115,6 +115,10 @@ The diff is limited to the canonical-only product boundary and its evidence. Can
 ### Mini recap
 
 MGIT-CLI-005 is ready for human review as a net removal of pre-v1 compatibility behavior.
+
+## Done
+
+Accepted by Kris Brown on 2026-08-29. Acceptance confirms the canonical-only `.mgit.toml` contract shipped in v0.12.0; cross-regime rollout remains separately owned.
 
 ## Discussion
 
