@@ -27,7 +27,7 @@
 # '#' comments and blank lines are ignored.
 
 MGIT_MANIFEST=.mgit.toml
-MGIT_VERSION=0.11.0
+MGIT_VERSION=0.12.0
 
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
