@@ -820,10 +820,10 @@ parse_mgit() {
             printf 'mgit: %s: expected TOML basic-string symlink target: %s\n' "$file" "$line" >&2
             return 1
           }
-          [ -n "$key" ] && [ -n "$value" ] || {
-            printf 'mgit: %s: symlink path and target must not be empty\n' "$file" >&2
-            return 1
-          }
+      if [ -z "$key" ] || [ -z "$value" ]; then
+        printf 'mgit: %s: symlink path and target must not be empty\n' "$file" >&2
+        return 1
+      fi
           for existing in "${seen_symlinks[@]+"${seen_symlinks[@]}"}"; do
             [ "$existing" != "$key" ] || {
               printf 'mgit: %s: duplicate symlink path: %s\n' "$file" "$key" >&2
@@ -841,14 +841,14 @@ parse_mgit() {
     esac
   done < "$file"
 
-  [ "$seen_schema" = true ] && [ "$schema" = 1 ] || {
+  if [ "$seen_schema" != true ] || [ "$schema" != 1 ]; then
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
     return 1
-  }
-  [ "$seen_kind" = true ] && [ "$kind" = repository ] || {
+  fi
+  if [ "$seen_kind" != true ] || [ "$kind" != repository ]; then
     printf 'mgit: %s: missing kind = "repository"\n' "$file" >&2
     return 1
-  }
+  fi
 }
 
 workspace_default=""
