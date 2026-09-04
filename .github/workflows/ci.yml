@@ -26,6 +26,8 @@ jobs:
           KI_STATE_HOME: ${{ runner.temp }}/ki/state
         run: |
           set -euo pipefail
+          mkdir -p "$HOME/.agents" "$HOME/.claude"
+          printf '{}\n' > "$HOME/.claude/settings.json"
           curl --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' \
             --output "$RUNNER_TEMP/ki-install.sh" "https://raw.githubusercontent.com/knowledgeislands/tools-ki/$KI_VERSION/install.sh"
           bash "$RUNNER_TEMP/ki-install.sh" "$KI_VERSION"
@@ -35,6 +37,10 @@ jobs:
           ki manage diag | grep -F 'Installation: regular'
           ki manage diag | grep -F "Executable: $KI_CLI_INSTALL_DIR/ki"
           ki bootstrap
+          ki registry add --repo .
+          ki repo repair --repo .
+          project_key=${GITHUB_WORKSPACE//\//-}
+          mkdir -p "$HOME/.claude/projects/$project_key/memory"
           ki manage diag | grep -F 'Status: valid'
           ki harness list | grep -F 'knowledgeislands/ki-agentic-harness'
           {
