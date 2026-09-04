@@ -23,7 +23,8 @@ jobs:
           KI_DATA_HOME: ${{ runner.temp }}/ki/data
           KI_CONFIG_HOME: ${{ runner.temp }}/ki/config
           KI_CACHE_HOME: ${{ runner.temp }}/ki/cache
-          KI_STATE_HOME: ${{ runner.temp }}/ki/state
+          XDG_STATE_HOME: ${{ runner.temp }}/ki/state
+          KI_STATE_HOME: ${{ runner.temp }}/ki/state/ki
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.agents" "$HOME/.claude"
@@ -41,6 +42,7 @@ jobs:
           ki repo repair --repo .
           project_key=${GITHUB_WORKSPACE//\//-}
           mkdir -p "$HOME/.claude/projects/$project_key/memory"
+          touch "$HOME/.claude/projects/$project_key/memory/MEMORY.md"
           ki manage diag | grep -F 'Status: valid'
           ki harness list | grep -F 'knowledgeislands/ki-agentic-harness'
           {
