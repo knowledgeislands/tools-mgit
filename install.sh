@@ -7,7 +7,7 @@
 # Environment overrides:
 #   MGIT_INSTALL_DIR       target directory for the mgit binary (default: $HOME/.local/bin)
 #   MGIT_MAN_INSTALL_DIR   target directory for mgit(1) (default: matching share/man/man1 directory)
-#   MGIT_VERSION           exact version alias, such as v0.12.0 (default: latest release)
+#   MGIT_VERSION           exact version alias, such as v0.13.0 (default: latest release)
 #
 # Requires: bash, curl, and git (git is mgit's own runtime dependency).
 set -euo pipefail
