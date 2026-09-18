@@ -37,6 +37,7 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 
 #### Repository management
 
+- `mgit sync`
 - `mgit structure standard [--dry-run]`
 - `mgit structure nested [--dry-run]`
 - `mgit worktree list`
@@ -60,6 +61,7 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 - Selected standard and nested repositories expand to active worktrees before commands run.
 - `mgit repair` recreates missing standard, nested, and bare repositories from structural workspace metadata without replacing existing paths.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
+- `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 
 ### Distribution baseline
@@ -67,4 +69,5 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 - `install.sh`
 - `mgit(1)`
 - `brew install knowledgeislands/tap/mgit`
+- Stable website routes at `/tooling/mgit/` and `/install/mgit`, with exact positional `vX.Y.Z` installer pinning and `MGIT_VERSION` retained as an alias.
 - Bash and Zsh completion definitions

@@ -8,7 +8,7 @@ Each numbered requirement states one current behavior using normative language a
 
 ## Identifier scheme
 
-`MGIT-WS-NNN` identifies a workspace-dispatch requirement. Serials are zero-padded, sequential within their prefix, and never reused.
+`MGIT-WS-NNN` identifies a workspace-dispatch requirement. `MGIT-DIST-NNN` identifies a distribution requirement. Serials are zero-padded, sequential within each prefix, and never reused.
 
 ## Gaps
 
@@ -16,6 +16,7 @@ Each area may end with an unnumbered `## Gaps` section. A gap is a potential or 
 
 ## Areas
 
-| File                  | Prefix    | Covers                                                      |
-| --------------------- | --------- | ----------------------------------------------------------- |
-| workspace-dispatch.md | `MGIT-WS` | Repository discovery, selection, groups, and command fan-out |
+| File                  | Prefix      | Covers                                                       |
+| --------------------- | ----------- | ------------------------------------------------------------ |
+| distribution.md       | `MGIT-DIST` | Public routes and installer version selection                 |
+| workspace-dispatch.md | `MGIT-WS`   | Repository discovery, selection, groups, and command fan-out |

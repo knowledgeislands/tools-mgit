@@ -159,11 +159,12 @@ make_fake_ki() {
     FAKE_MAN="$BATS_TEST_DIRNAME/../man/mgit.1" \
     MGIT_INSTALL_DIR="$install_bin" \
     MGIT_MAN_INSTALL_DIR="$install_man" \
-    MGIT_VERSION=test \
+    MGIT_VERSION=v9.9.9 \
     PATH="$fake_bin:$PATH" \
-    "$BATS_TEST_DIRNAME/../install.sh"
+    "$BATS_TEST_DIRNAME/../install.sh" v1.2.3
 
   [ "$status" -eq 0 ]
+  [[ "$output" == *"installing mgit (v1.2.3)"* ]]
   [ -x "$install_bin/mgit" ]
   cmp "$MGIT" "$install_bin/mgit"
   cmp "$BATS_TEST_DIRNAME/../man/mgit.1" "$install_man/mgit.1"
@@ -173,14 +174,27 @@ make_fake_ki() {
     FAKE_MAN="" \
     MGIT_INSTALL_DIR="$install_bin" \
     MGIT_MAN_INSTALL_DIR="$missing_man" \
-    MGIT_VERSION=older-release \
+    MGIT_VERSION=v0.1.0 \
     PATH="$fake_bin:$PATH" \
     "$BATS_TEST_DIRNAME/../install.sh"
 
   [ "$status" -eq 0 ]
   [ -x "$install_bin/mgit" ]
   [ ! -e "$missing_man/mgit.1" ]
-  [[ "$output" == *"manual unavailable for older-release"* ]]
+  [[ "$output" == *"manual unavailable for v0.1.0"* ]]
+}
+
+@test "installer rejects malformed versions and extra arguments" {
+  run "$BATS_TEST_DIRNAME/../install.sh" 1.2.3
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"expected an exact version like vX.Y.Z"* ]]
+
+  run env MGIT_VERSION=main "$BATS_TEST_DIRNAME/../install.sh"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"MGIT_VERSION must be an exact version like vX.Y.Z"* ]]
+
+  run "$BATS_TEST_DIRNAME/../install.sh" v1.2.3 extra
+  [ "$status" -eq 2 ]
 }
 
 @test "installer --link links the local executable and manual" {
@@ -208,6 +222,7 @@ make_fake_ki() {
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
   [[ "$output" == *"repair"* ]]
+  [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
@@ -217,6 +232,7 @@ make_fake_ki() {
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"sync:update clean tracking branches"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
 
@@ -294,10 +310,11 @@ assert_usage_error() {
   assert_usage_error worktree nope --help
   assert_usage_error worktree remove --wat --help
   assert_usage_error worktree remove --yes
+  assert_usage_error sync extra --help
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair group structure worktree completion; do
+  for command in register repair group sync structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
@@ -317,6 +334,10 @@ assert_usage_error() {
   run "$MGIT" help group add
   [ "$status" -eq 0 ]
   [[ "$output" == "Usage: mgit group add <name> <member>"* ]]
+
+  run "$MGIT" help sync
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Usage: mgit sync"* ]]
 
   run "$MGIT" help worktree remove
   [ "$status" -eq 0 ]
@@ -407,6 +428,90 @@ assert_usage_error() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"git status --short"* ]]
+}
+
+@test "sync rolls up current repositories and shows dirty worktrees" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/current"
+  git clone -q "$origin" "$TREE/dirty"
+  printf 'local\n' >> "$TREE/dirty/payload"
+
+  cd "$TREE"
+  run "$MGIT" sync
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]]
+  [[ "$output" == *" M payload"* ]]
+  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]]
+  [[ "$output" != *"mgit sync: current:"* ]]
+}
+
+@test "sync pulls incoming commits and pushes outgoing commits" {
+  local incoming_seed="$BATS_TEST_TMPDIR/incoming-seed"
+  local incoming_origin="$BATS_TEST_TMPDIR/incoming.git"
+  local outgoing_seed="$BATS_TEST_TMPDIR/outgoing-seed"
+  local outgoing_origin="$BATS_TEST_TMPDIR/outgoing.git"
+  make_origin "$incoming_seed" "$incoming_origin" incoming
+  make_origin "$outgoing_seed" "$outgoing_origin" outgoing
+  git clone -q "$incoming_origin" "$TREE/incoming"
+  git clone -q "$outgoing_origin" "$TREE/outgoing"
+
+  git -C "$incoming_seed" commit -q --allow-empty -m incoming-update
+  git -C "$incoming_seed" push -q
+  git -C "$TREE/outgoing" commit -q --allow-empty -m outgoing-update
+
+  cd "$TREE"
+  run "$MGIT" sync
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]]
+  [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]]
+  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]]
+  [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
+  [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
+}
+
+@test "sync reports no-upstream bare and divergent repositories" {
+  local seed="$BATS_TEST_TMPDIR/diverged-seed"
+  local origin="$BATS_TEST_TMPDIR/diverged.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/diverged"
+  mkrepo "$TREE/no-upstream"
+  mkbare "$TREE/archive.git"
+
+  git -C "$seed" commit -q --allow-empty -m remote-update
+  git -C "$seed" push -q
+  git -C "$TREE/diverged" commit -q --allow-empty -m local-update
+  local before
+  before=$(git -C "$TREE/diverged" rev-parse HEAD)
+
+  cd "$TREE"
+  run "$MGIT" sync
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]]
+  [[ "$output" == *"mgit sync: diverged: pull failed"* ]]
+  [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]]
+  [ "$(git -C "$TREE/diverged" rev-parse HEAD)" = "$before" ]
+}
+
+@test "sync honors repository filters" {
+  local seed="$BATS_TEST_TMPDIR/filter-seed"
+  local origin="$BATS_TEST_TMPDIR/filter.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/selected"
+  git clone -q "$origin" "$TREE/omitted"
+  printf 'selected\n' >> "$TREE/selected/payload"
+  printf 'omitted\n' >> "$TREE/omitted/payload"
+
+  cd "$TREE"
+  run "$MGIT" --filter selected sync
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: selected: local changes (skipped)"* ]]
+  [[ "$output" != *"omitted"* ]]
 }
 
 @test "--agora selects only NUL-delimited roots from ki" {

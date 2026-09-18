@@ -58,6 +58,7 @@ Commands:
   register                generate workspace manifests and symlink metadata
   repair                  clone missing default-group repositories
   group                   create or delete named workspace groups
+  sync                    update clean tracking branches across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
   completion              print shell completion setup
@@ -199,6 +200,18 @@ Options:
 EOF
 }
 
+sync_usage() {
+  cat <<'EOF'
+Usage: mgit sync
+
+Update clean tracking branches across the current repository set.
+
+Dirty worktrees print their short status and are skipped. Clean worktrees use
+git pull --ff-only, then git push when local commits remain ahead of upstream.
+Repositories already current are collapsed into one final count.
+EOF
+}
+
 completion_usage() {
   cat <<'EOF'
 Usage: mgit completion <shell>
@@ -231,7 +244,7 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register repair group structure worktree completion help'
+  commands='register repair group sync structure worktree completion help'
   global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora --estate -f --filter -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     -g|--group)
@@ -252,7 +265,7 @@ _mgit() {
     subcommand="${COMP_WORDS[command_index + 1]:-}"
   fi
   case "$command" in
-    register|repair)
+    register|repair|sync)
       COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
       ;;
     group)
@@ -333,6 +346,7 @@ _mgit() {
     'register:generate workspace manifests and repository symlink metadata'
     'repair:clone missing repositories declared by workspace defaults'
     'group:create or delete named workspace groups'
+    'sync:update clean tracking branches across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
@@ -372,7 +386,7 @@ _mgit() {
     'remove:remove a member from a group'
   )
   case $words[2] in
-    register|repair) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    register|repair|sync) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     group)
       case $words[3] in
         '') _describe -t commands 'group command' group_commands ;;
@@ -1384,6 +1398,7 @@ help_command() {
     '') usage ;;
     register) [ $# -eq 1 ] || { usage_error_for register_usage "help register: unexpected argument: $subcommand"; return; }; register_usage ;;
     repair) [ $# -eq 1 ] || { usage_error_for repair_usage "help repair: unexpected argument: $subcommand"; return; }; repair_usage ;;
+    sync) [ $# -eq 1 ] || { usage_error_for sync_usage "help sync: unexpected argument: $subcommand"; return; }; sync_usage ;;
     completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
     structure)
       case $# in
@@ -2400,6 +2415,145 @@ worktree_command() {
   esac
 }
 
+sync_print_detail() {
+  local detail="$1" line
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '  %s\n' "$line"
+  done <<< "$detail"
+}
+
+sync_commit_noun() {
+  if [ "$1" -eq 1 ]; then
+    printf 'commit'
+  else
+    printf 'commits'
+  fi
+}
+
+sync_command() {
+  local help=false d kind status_output branch upstream before after ahead
+  local pull_output push_output pulled_count synced=0 failed=false
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help=true ;;
+      *) usage_error_for sync_usage "sync: unexpected argument: $1"; return ;;
+    esac
+    shift
+  done
+  [ "$help" = false ] || { sync_usage; return 0; }
+
+  for d in "${repos[@]+"${repos[@]}"}"; do
+    kind=$(repo_type "$d")
+    if [ "$kind" = bare ]; then
+      printf 'mgit sync: %s: bare repository (skipped)\n' "$d"
+      failed=true
+      continue
+    fi
+
+    if ! status_output=$(git -C "$d" status --short 2>&1); then
+      printf 'mgit sync: %s: status failed\n' "$d"
+      sync_print_detail "$status_output"
+      failed=true
+      continue
+    fi
+    if [ -n "$status_output" ]; then
+      printf 'mgit sync: %s: local changes (skipped)\n' "$d"
+      sync_print_detail "$status_output"
+      failed=true
+      continue
+    fi
+
+    if ! branch=$(git -C "$d" symbolic-ref --quiet --short HEAD 2>/dev/null); then
+      printf 'mgit sync: %s: detached HEAD (skipped)\n' "$d"
+      failed=true
+      continue
+    fi
+    if ! upstream=$(git -C "$d" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
+      printf 'mgit sync: %s: branch %s has no upstream (skipped)\n' "$d" "$branch"
+      failed=true
+      continue
+    fi
+    if ! before=$(git -C "$d" rev-parse HEAD 2>/dev/null); then
+      printf 'mgit sync: %s: cannot resolve HEAD\n' "$d"
+      failed=true
+      continue
+    fi
+
+    if ! pull_output=$(git -C "$d" pull --ff-only --quiet 2>&1); then
+      printf 'mgit sync: %s: pull failed\n' "$d"
+      sync_print_detail "$pull_output"
+      failed=true
+      continue
+    fi
+    after=$(git -C "$d" rev-parse HEAD 2>/dev/null) || {
+      printf 'mgit sync: %s: cannot resolve HEAD after pull\n' "$d"
+      failed=true
+      continue
+    }
+    pulled_count=0
+    if [ "$before" != "$after" ]; then
+      pulled_count=$(git -C "$d" rev-list --count "$before..$after" 2>/dev/null) || pulled_count=0
+    fi
+
+    if ! status_output=$(git -C "$d" status --short 2>&1); then
+      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: status failed after pull\n' "$d"
+      sync_print_detail "$status_output"
+      failed=true
+      continue
+    fi
+    if [ -n "$status_output" ]; then
+      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: local changes after pull (push skipped)\n' "$d"
+      sync_print_detail "$status_output"
+      failed=true
+      continue
+    fi
+
+    if ! ahead=$(git -C "$d" rev-list --count "$upstream..HEAD" 2>/dev/null); then
+      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: cannot compare with upstream %s\n' "$d" "$upstream"
+      failed=true
+      continue
+    fi
+
+    if [ "$ahead" -gt 0 ]; then
+      if ! push_output=$(git -C "$d" push --quiet 2>&1); then
+        [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+          "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+        printf 'mgit sync: %s: push failed\n' "$d"
+        sync_print_detail "$push_output"
+        failed=true
+        continue
+      fi
+      if [ "$pulled_count" -gt 0 ]; then
+        printf 'mgit sync: %s: pulled %d %s and pushed %d %s\n' \
+          "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")" \
+          "$ahead" "$(sync_commit_noun "$ahead")"
+      else
+        printf 'mgit sync: %s: pushed %d %s\n' \
+          "$d" "$ahead" "$(sync_commit_noun "$ahead")"
+      fi
+    elif [ "$pulled_count" -gt 0 ]; then
+      printf 'mgit sync: %s: pulled %d %s\n' \
+        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+    else
+      synced=$((synced + 1))
+    fi
+  done
+
+  if [ "$synced" -eq 1 ]; then
+    printf 'mgit sync: 1 repository already in sync\n'
+  else
+    printf 'mgit sync: %d repositories already in sync\n' "$synced"
+  fi
+  [ "$failed" = false ]
+}
+
 selected_workspace_dirs=()
 selected_repo_dirs=()
 
@@ -2805,6 +2959,11 @@ fi
 # or nested structure of every repository in the current multi-repository set.
 if [ "${1:-}" = "worktree" ]; then
   if [ "$show_help" = true ]; then worktree_command "${@:2}" --help; else worktree_command "${@:2}"; fi
+  exit $?
+fi
+
+if [ "${1:-}" = "sync" ]; then
+  if [ "$show_help" = true ]; then sync_command "${@:2}" --help; else sync_command "${@:2}"; fi
   exit $?
 fi
 

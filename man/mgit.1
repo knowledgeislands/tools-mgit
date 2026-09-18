@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-08-29" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-09-18" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -49,6 +49,10 @@ Remove a member from an alternative group.
 .SS Repository management
 \&
 .TP
+.B mgit sync
+Update clean tracking branches in the current set and summarize repositories
+that changed or need attention.
+.TP
 .B mgit structure <standard|nested> [--dry-run]
 Convert every eligible repository in the current set between standard and
 nested structures.
@@ -83,6 +87,7 @@ The reserved command tree consists of
 .BR register ,
 .BR repair ,
 .BR group ,
+.BR sync ,
 .BR structure ,
 .BR worktree ,
 .BR completion ,
@@ -145,7 +150,13 @@ brew install knowledgeislands/tap/mgit
 On any system with Bash and Git, install the current release with:
 .PP
 .nf
-curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+curl -fsSL https://knowledgeislands.info/install/mgit | bash
+.fi
+.PP
+Pass an exact release with:
+.PP
+.nf
+curl -fsSL https://knowledgeislands.info/install/mgit | bash -s -- vX.Y.Z
 .fi
 .PP
 The installer writes the executable to
@@ -158,7 +169,8 @@ or
 .B MGIT_MAN_INSTALL_DIR
 to choose different locations. Set
 .B MGIT_VERSION
-to install a specific release tag or branch.
+as an exact-version environment alias. A positional version takes precedence;
+with neither input, the installer discovers the latest release.
 .SH OPTIONS
 \&
 .TP
@@ -303,6 +315,21 @@ The group remains available when it has no members; use
 to remove it completely.
 .SS Repository management
 \&
+.TP
+.B mgit sync
+checks each worktree in the selected set with
+.BR "git status --short" .
+Worktrees with local changes print their status and are skipped. Clean tracking
+branches run
+.BR "git pull --ff-only" ,
+then
+.B git push
+when local commits remain ahead of upstream.
+.PP
+Repositories that pulled or pushed commits are named. Already-current
+repositories are collapsed into one final count. Bare repositories, detached
+heads, branches without upstreams, divergence, and Git failures are reported
+and make the command exit unsuccessfully without forcing a change.
 .TP
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.

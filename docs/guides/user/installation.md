@@ -15,10 +15,18 @@ brew install knowledgeislands/tap/mgit
 On any system with Bash and Git, install the current release with:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+curl -fsSL https://knowledgeislands.info/install/mgit | bash
 ```
 
-The installer writes `mgit` to `~/.local/bin` by default. Set `MGIT_INSTALL_DIR` to choose another binary directory, or `MGIT_VERSION` to install a specific tag. It installs the `mgit(1)` manual alongside the binary when that version provides one; set `MGIT_MAN_INSTALL_DIR` to choose another manual directory.
+The website route redirects to the installer from the release currently recommended on the [mgit tool page](https://knowledgeislands.info/tooling/mgit/). Pin an exact release with:
+
+```sh
+curl -fsSL https://knowledgeislands.info/install/mgit | bash -s -- vX.Y.Z
+```
+
+The positional version takes precedence over `MGIT_VERSION`, which remains available as an environment-variable alias. With neither, the installer discovers the latest release. Both version inputs require an exact `vX.Y.Z` value.
+
+The installer writes `mgit` to `~/.local/bin` by default. Set `MGIT_INSTALL_DIR` to choose another binary directory. It installs the `mgit(1)` manual alongside the binary when that version provides one; set `MGIT_MAN_INSTALL_DIR` to choose another manual directory.
 
 Ensure the binary directory is on your `PATH`. For the default location, add this to your shell configuration if necessary:
 

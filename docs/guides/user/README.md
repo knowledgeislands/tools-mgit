@@ -16,6 +16,7 @@ Install `mgit`, change to a directory containing Git repositories, then inspect 
 ```sh
 mgit
 mgit status
+mgit sync
 ```
 
 By default, `mgit` discovers repository roots beneath the current directory. Use `mgit register` when the set should be explicit, reproducible, deterministic, or divided into groups.

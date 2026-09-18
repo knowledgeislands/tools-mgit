@@ -3,13 +3,13 @@ id: MGIT-CLI-006
 area: CLI
 title: Adopt website tool routes
 theme: cli
-horizon: triage
-status: draft
+horizon: now
+status: done
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 78094b180cb0dab9a32cd47271fbf880f6767ad4
 created_at: 2026-09-17T21:05:58Z
-updated_at: 2026-09-17T21:05:58Z
+updated_at: 2026-09-18T04:11:50Z
 ---
 
 # MGIT-CLI-006: Adopt website tool routes
@@ -33,6 +33,76 @@ This installer also accepts an explicit version only through `MGIT_VERSION`, whi
 This does not move release authority, installer behaviour, artifact hosting, or checksum verification to the website. The website is an indirection layer over what this repository publishes.
 
 Do not remove the latest-release default from the installer. Pinning is an explicit opt-in; an unpinned `curl | sh` must keep working.
+
+## Current state
+
+The website already advertises released `mgit` version `v0.12.0`, but this repository still documents the branch-hosted installer and accepts an exact version only through `MGIT_VERSION`.
+
+## Steps
+
+- [x] Accept and validate one positional `vX.Y.Z`, giving it precedence over `MGIT_VERSION` while preserving latest-release discovery and `--link`.
+- [x] Route public installation examples through the website endpoint and document the human-facing tool page and exact-version form.
+- [x] Specify and test the installer contract, then update the manual and v1 baseline.
+
+## Files touched
+
+`install.sh`, `tests/mgit.bats`, `README.md`, `docs/guides/user/installation.md`, `docs/specs/index.md`, `docs/specs/distribution.md`, `man/mgit.1`, and `CHANGELOG.md`.
+
+## Verify
+
+Run `shellcheck bin/mgit install.sh`, `bats tests/`, `mandoc -T lint man/mgit.1`, and `ki repo audit --repo .`.
+
+## Dependencies / blocks
+
+The website route and cross-tool positional-version decision already exist. No unresolved build-order dependency remains.
+
+## Documentation impact
+
+### Decision Records
+
+No local decision record is needed; the accepted cross-tool decision is `tools-ki` `PDR-KI-TOOLS-001`.
+
+### Specifications
+
+Add a distribution specification for website routes and version selection.
+
+### Guides
+
+Update installation examples and explain latest versus exact-version installation.
+
+### Roadmap
+
+Close this item after the installer, tests, specifications, guide, manual, and changelog agree.
+
+## Review
+
+### Delivered
+
+From immutable baseline `78094b180cb0dab9a32cd47271fbf880f6767ad4`, the installer gained exact positional version pinning and the public documentation adopted the website tool and installer routes. Release authority, artifact hosting, latest-release discovery, and local `--link` behavior remain within the approved boundary.
+
+### Summary of changes
+
+`install.sh` now validates positional and environment version inputs with positional precedence. `README.md`, the installation guide, `mgit(1)`, the v1 changelog baseline, Bats coverage, and a new distribution specification describe the same interface.
+
+### Verification
+
+`shellcheck bin/mgit install.sh`, `bats tests/`, `mandoc -T lint man/mgit.1`, and `ki repo audit --repo .` pass.
+
+### Outstanding concerns
+
+None.
+
+### Post-change review
+
+The delivered behavior satisfies the goal and preserves the stated compatibility paths. The installer rejects ambiguous version inputs before any download and the published examples now use the stable website routes.
+
+### Mini recap
+
+MGit now follows the shared Knowledge Islands installer pinning and route contract. No additional durable learning route is needed beyond the specification and user installation guide.
+
+## Done
+
+Accepted 2026-09-18 by Kris Brown on review packet above.
 
 ## Discussion
 

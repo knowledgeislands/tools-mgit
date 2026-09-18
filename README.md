@@ -31,10 +31,10 @@ brew install knowledgeislands/tap/mgit
 On any system with Bash and Git, use the release installer:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/main/install.sh | bash
+curl -fsSL https://knowledgeislands.info/install/mgit | bash
 ```
 
-The installer writes to `~/.local/bin` by default. See the [installation guide](docs/guides/user/installation.md) for alternate directories, shell completion, local development links, and installation checks.
+Pass an exact release with `bash -s -- vX.Y.Z`; omitting it installs the latest release. The installer writes to `~/.local/bin` by default. See the [mgit tool page](https://knowledgeislands.info/tooling/mgit/) and [installation guide](docs/guides/user/installation.md) for alternate directories, shell completion, local development links, and installation checks.
 
 ## Usage
 
@@ -43,9 +43,11 @@ Run `mgit` without a command to list the selected repositories. Pass a Git subco
 ```sh
 mgit
 mgit status
-mgit pull --ff-only
+mgit sync
 mgit -B npm test
 ```
+
+`mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows repositories that changed or need attention and rolls repositories already current into one count.
 
 Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 

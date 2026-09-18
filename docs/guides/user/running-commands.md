@@ -5,7 +5,7 @@ From a workspace directory, `mgit` runs requested command in every active checko
 ```sh
 mgit
 mgit status
-mgit pull --ff-only
+mgit sync
 ```
 
 Prefix a command with `-B` to run it directly rather than as a Git subcommand:
@@ -13,6 +13,20 @@ Prefix a command with `-B` to run it directly rather than as a Git subcommand:
 ```sh
 mgit -B bun install
 mgit -B bun run build
+```
+
+## Synchronise clean repositories
+
+Run `mgit sync` to inspect and update every worktree in the selected set. A worktree with local changes prints `git status --short` output and is skipped. A clean tracking branch runs `git pull --ff-only`, then `git push` when local commits remain ahead of its upstream.
+
+Repositories that pulled or pushed commits are named. Repositories that were already current are reported as one final count. Bare repositories, detached heads, branches without upstreams, divergence, and Git command failures are named and make the command exit with status `1` without forcing a change.
+
+The existing selectors and filters narrow the same way as ordinary commands:
+
+```sh
+mgit --group engineering sync
+mgit --filter 'tools-*' sync
+mgit --agora ki-fnd sync
 ```
 
 ## Limit the set
@@ -24,7 +38,7 @@ mgit -f 'mcp-*' status
 mgit -f 'mcp-*' -B bun run build
 ```
 
-Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `structure`, and `worktree` commands. It does not change what `register` or `repair` reads.
+Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. It does not change what `register` or `repair` reads.
 
 Use `-g` or `--group` to choose a named group from the workspace in the current directory instead of its configured default. Child workspaces always use their own configured defaults.
 

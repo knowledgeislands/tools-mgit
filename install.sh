@@ -7,7 +7,7 @@
 # Environment overrides:
 #   MGIT_INSTALL_DIR       target directory for the mgit binary (default: $HOME/.local/bin)
 #   MGIT_MAN_INSTALL_DIR   target directory for mgit(1) (default: matching share/man/man1 directory)
-#   MGIT_VERSION           git ref to install: a tag like v0.1.0, or a branch (default: latest release)
+#   MGIT_VERSION           exact version alias, such as v0.12.0 (default: latest release)
 #
 # Requires: bash, curl, and git (git is mgit's own runtime dependency).
 set -euo pipefail
@@ -22,10 +22,10 @@ die()  { printf 'mgit-install: error: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--link]
+Usage: ./install.sh [vX.Y.Z|--link]
 
-Install the latest released mgit, or use --link from a local checkout to link
-the executable and manual to that checkout without downloading a release.
+Install latest released mgit, pin an exact release, or use --link from a local
+checkout to link executable and manual without downloading a release.
 EOF
 }
 
@@ -34,12 +34,19 @@ if [ "$#" -gt 1 ]; then
   exit 2
 fi
 
+version_argument=""
 case "${1:-}" in
   '') mode="release" ;;
   --link) mode="link" ;;
   -h|--help) usage; exit 0 ;;
-  *) usage >&2; exit 2 ;;
+  *) mode="release"; version_argument="$1" ;;
 esac
+
+if [ -n "$version_argument" ] && ! printf '%s\n' "$version_argument" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+  printf 'mgit-install: error: expected an exact version like vX.Y.Z: %s\n' "$version_argument" >&2
+  usage >&2
+  exit 2
+fi
 
 command -v git  >/dev/null 2>&1 || say "warning: git not found on PATH — mgit needs git at runtime"
 
@@ -69,8 +76,12 @@ fi
 
 command -v curl >/dev/null 2>&1 || die "curl is required"
 
-# Resolve the ref to install: an explicit MGIT_VERSION, else the latest release tag.
-ref="${MGIT_VERSION:-}"
+# Resolve the ref to install: positional version, MGIT_VERSION alias, then latest release tag.
+ref="${version_argument:-${MGIT_VERSION:-}}"
+if [ -n "$ref" ] && ! printf '%s\n' "$ref" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+  printf 'mgit-install: error: MGIT_VERSION must be an exact version like vX.Y.Z: %s\n' "$ref" >&2
+  exit 2
+fi
 if [ -z "$ref" ]; then
   ref=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
         | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1) || true
