@@ -1,6 +1,8 @@
 # Knowledge Islands repository configuration.
 # Its presence declares conformance with the Knowledge Islands repository standard.
 
+# =============================================================================
+
 # -----------------------------------------------------------------------------
 # Foundation
 # -----------------------------------------------------------------------------
@@ -17,9 +19,7 @@ supported_runtimes = ["claude-code", "claude-desktop", "chatgpt-codex"]
 visibility = "public"
 
 # Custom topics describe this standalone Bash CLI more accurately than the default set.
-
-[skills.ki-repo.checks]
-topics = false
+checks.topics = false
 
 [skills.ki-authoring]
 
@@ -32,7 +32,7 @@ topics = false
 [skills.ki-repo-tools]
 
 # -----------------------------------------------------------------------------
-# Governance runtime
+# Governance and runtime
 # -----------------------------------------------------------------------------
 
 [skills.ki-guides]
@@ -50,9 +50,7 @@ adapter = "roadmap"
 
 [skills.ki-work-roadmap]
 themes = ["cli"]
-
-[skills.ki-work-roadmap.areas]
-CLI = "cli"
+areas.CLI = "cli"
 
 [skills.ki-tokenomics]
 
@@ -67,30 +65,12 @@ CLI = "cli"
 # -----------------------------------------------------------------------------
 
 [skills.ki-trades]
-
-[skills.ki-trades.routes."knowledgeislands/ki-agentic-harness"]
-import = ["work", "knowledge"]
-
-[skills.ki-trades.routes."knowledgeislands/ki-techne-principal"]
-import = ["work", "knowledge"]
-
-[skills.ki-trades.routes."knowledgeislands/homebrew-tap"]
-export = ["work"]
-
-[skills.ki-trades.routes."knowledgeislands/tools-ki"]
-export = ["work", "knowledge"]
-import = ["work", "knowledge"]
-
-[skills.ki-trades.routes."krisb/dotfiles"]
-export = ["work", "knowledge"]
-import = ["work", "knowledge"]
+routes."knowledgeislands/ki-agentic-harness" = { import = ["work", "knowledge"] }
+routes."knowledgeislands/ki-techne-principal" = { import = ["work", "knowledge"] }
+routes."knowledgeislands/homebrew-tap" = { export = ["work"] }
+routes."knowledgeislands/tools-ki" = { export = ["work", "knowledge"], import = ["work", "knowledge"] }
+routes."krisb/dotfiles" = { export = ["work", "knowledge"], import = ["work", "knowledge"] }
 
 [skills.ki-agora]
-
-[skills.ki-agora.memberships.ki-all]
-home = "https://github.com/knowledgeislands/ki-agentic-harness"
-role = "maintainer"
-
-[skills.ki-agora.memberships.ki-fnd]
-home = "https://github.com/knowledgeislands/ki-agentic-harness"
-role = "maintainer"
+memberships.ki-all = { home = "https://github.com/knowledgeislands/ki-agentic-harness", role = "maintainer" }
+memberships.ki-fnd = { home = "https://github.com/knowledgeislands/ki-agentic-harness", role = "maintainer" }
