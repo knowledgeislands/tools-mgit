@@ -18,9 +18,6 @@ repo_code = "MGIT"
 supported_runtimes = ["claude-code", "claude-desktop", "chatgpt-codex"]
 visibility = "public"
 
-# Custom topics describe this standalone Bash CLI more accurately than the default set.
-checks.topics = false
-
 [skills.ki-authoring]
 
 # -----------------------------------------------------------------------------
