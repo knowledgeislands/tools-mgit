@@ -1,15 +1,16 @@
 ---
 id: MGIT-CLI-008
-area: CLI
 title: Consolidate audience-centric guides
-theme: documentation-structure
+area: CLI
+theme: cli
+horizon: now
+status: draft
 blocks: []
 blocked_by: []
 transferred_from: ki-website
+baseline_ref: null
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-21T16:12:00Z
-horizon: now
-status: draft
+updated_at: 2026-09-21T16:40:00Z
 ---
 
 ## Goal
@@ -40,6 +41,48 @@ KI Website derives and cites; it does not own this collection. A guide that woul
 - Confirm the `docs/specs/` documents are behaviour specifications rather than displaced guides.
 - Check the user collection covers installation, repository sets, running commands, and worktrees to the depth a first-time reader needs.
 - Run `ki repo audit --skill ki-guides --repo .` once the collection settles.
+
+## Current state
+
+`docs/guides/` splits `user/` and `developer/`, each with its own index, and `.ki.toml` declares `[skills.ki-guides]`. The user collection covers installation, repository sets, running commands, and worktrees; the developer collection covers local development, releasing, and the definition of done. The structure is right, so this is a completeness sweep rather than a restructure.
+
+## Steps
+
+- [ ] Sweep `README.md`, `docs/specs/`, and any `man/` page for practical instruction that belongs in the collection.
+- [ ] Confirm every audience directory has an index that routes its own readers.
+- [ ] Place anything found under the audience that needs it, rather than under the audience that wrote it.
+- [ ] Confirm the collection index routes by audience before anything else.
+- [ ] Run the guides audit and repair what it reports.
+
+## Files touched
+
+`docs/guides/` and its audience directories; `README.md` and other documents where instruction moves out of them.
+
+## Verify
+
+`ki repo audit --skill ki-guides --repo .` passes, and `ki repo audit --skill ki-authoring --repo .` passes over the collection.
+
+## Dependencies / blocks
+
+Nothing blocks this. `KI-HARNESS-GOV-083` in `ki-agentic-harness` proposes making audience directories a `ki-guides` requirement; this collection already groups by audience, so that change should confirm the arrangement rather than force one.
+
+## Documentation impact
+
+### Decision Records
+
+No decision record is needed. This is consolidation within an arrangement the repository has already adopted.
+
+### Specifications
+
+No behaviour-level contract changes. Where a guide and a specification disagree, the specification is authoritative and the guide is corrected.
+
+### Guides
+
+This item is entirely guide impact: gaps are filled, stray practical material is brought in, and the indexes are made to route.
+
+### Roadmap
+
+No further roadmap change is expected unless the sweep finds behaviour documented nowhere, which would be raised as its own item.
 
 ## Discussion
 
