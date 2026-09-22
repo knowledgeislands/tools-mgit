@@ -34,6 +34,22 @@ Ensure the binary directory is on your `PATH`. For the default location, add thi
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+## Upgrade
+
+Upgrade a Homebrew installation with:
+
+```sh
+brew update && brew upgrade mgit
+```
+
+Upgrade an installer installation by running the installer again. It overwrites the binary, and the manual page where that release provides one, in the directories it targets. Set `MGIT_INSTALL_DIR` and `MGIT_MAN_INSTALL_DIR` again if the original install used directories other than the defaults:
+
+```sh
+curl -fsSL https://knowledgeislands.info/install/mgit | bash
+```
+
+Refresh the generated shell completion after either route, as described below.
+
 ## Shell completion
 
 For Bash, add this to your shell configuration:

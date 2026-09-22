@@ -4,13 +4,13 @@ title: Consolidate audience-centric guides
 area: CLI
 theme: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
 transferred_from: ki-website
-baseline_ref: null
+baseline_ref: f40156f4a974968ee573264b17758c1813e16734
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-22T06:52:37Z
+updated_at: 2026-09-22T06:58:54Z
 ---
 
 ## Goal
@@ -58,13 +58,13 @@ Nothing in `README.md` or `man/mgit.1` is practical instruction displaced from t
 
 ## Steps
 
-- [ ] Delete `docs/worktrees.md`, whose content already lives at `docs/guides/user/worktrees.md` and which no document links.
-- [ ] Name the worktree guide's path in the `SEE ALSO` section of `man/mgit.1`, so the route the stub served survives in a document readers actually open.
-- [ ] State the documentation boundary in `docs/guides/README.md`: the collection answers how, `docs/specs/` answers what, and `docs/roadmap/` answers when.
-- [ ] Document the `--estate` selector in `docs/guides/user/running-commands.md` alongside `--agora`, matching `bin/mgit` and `man/mgit.1`.
-- [ ] Tell a reader how to upgrade in `docs/guides/user/installation.md`, for both Homebrew and the installer, before the completion section that already assumes it.
-- [ ] Confirm the collection index routes by audience first, and that each audience index routes its own readers.
-- [ ] Run the guides and authoring audits and repair what they report.
+- [x] Delete `docs/worktrees.md`, whose content already lives at `docs/guides/user/worktrees.md` and which no document links.
+- [x] Name the worktree guide's path in the `SEE ALSO` section of `man/mgit.1`, so the route the stub served survives in a document readers actually open.
+- [x] State the documentation boundary in `docs/guides/README.md`: the collection answers how, `docs/specs/` answers what, and `docs/roadmap/` answers when.
+- [x] Document the `--estate` selector in `docs/guides/user/running-commands.md` alongside `--agora`, matching `bin/mgit` and `man/mgit.1`.
+- [x] Tell a reader how to upgrade in `docs/guides/user/installation.md`, for both Homebrew and the installer, before the completion section that already assumes it.
+- [x] Confirm the collection index routes by audience first, and that each audience index routes its own readers.
+- [x] Run the guides and authoring audits and repair what they report.
 
 ## Files touched
 
@@ -95,6 +95,59 @@ This item is entirely guide impact: gaps are filled, stray practical material is
 ### Roadmap
 
 No further roadmap change is expected unless the sweep finds behaviour documented nowhere, which would be raised as its own item.
+
+## Review
+
+### Delivered
+
+The approved boundary was the guide collection and the documents that route into it. Baseline `f40156f4a974968ee573264b17758c1813e16734`, the commit that shaped this record to `ready`.
+
+Delivered: `docs/worktrees.md` removed; the worktree and wider user-guide routes named explicitly in `man/mgit.1`; the documentation boundary stated in `docs/guides/README.md`; the `--estate` selector documented in `docs/guides/user/running-commands.md`; an upgrade route added to `docs/guides/user/installation.md`.
+
+Excluded, as planned: no change to `bin/mgit`, to command behaviour, to `docs/specs/`, or to the `README.md` install and usage sections, which remain the proportional entry point their own standard asks for.
+
+### Summary of changes
+
+- `docs/worktrees.md` deleted. The whole guide had already moved to `docs/guides/user/worktrees.md` in `e9f16a4`, leaving a one-line redirect that no document linked. Deleting it was chosen over keeping a pointer because the stub carried no knowledge, served no reader, and was itself the second document outside the collection this item exists to remove.
+- `man/mgit.1` `SEE ALSO` now names `docs/guides/user/` and what each of its four guides covers, rather than gesturing at "the worktree structures guide" with no path. The `.TH` date advanced to the change date, following the page's existing practice.
+- `docs/guides/README.md` gained a `What lives elsewhere` section stating the boundary: guides answer how, specifications answer what and are authoritative where the two disagree, roadmap items answer when, and the manual with `mgit help` is the complete command reference. The boundary is now stated rather than assumed, which was the open question about `docs/specs/`.
+- `docs/guides/user/running-commands.md` documents `--estate` as shorthand for `--agora estate`, and its restriction paragraph now covers both selectors rather than only `--agora`. This closes the gap where `README.md` and `man/mgit.1` showed a selector the user guide never mentioned.
+- `docs/guides/user/installation.md` gained an `Upgrade` section covering `brew update && brew upgrade mgit` and re-running the installer, including the environment variables a non-default install must repeat. The completion section already told a reader to refresh completion after upgrading without saying how to upgrade.
+
+One judgment call is recorded rather than deferred: `docs/specs/distribution.md` and `docs/specs/workspace-dispatch.md` are behaviour specifications and stay where they are. Every section is a numbered requirement with normative language, a conformance state, a named verification hook, and its evidence; none of it is procedure for a reader to follow.
+
+### Verification
+
+| Gate                                                     | Outcome                                            |
+| -------------------------------------------------------- | -------------------------------------------------- |
+| `ki repo audit --skill ki-guides --concise`                | PASS · 1 skill, exit 0                              |
+| `ki repo audit --skill ki-authoring --concise`             | PASS · 1 skill, exit 0                              |
+| `ki repo audit --concise`                                  | PASS · 15 skills, exit 0                            |
+| `bats tests/`                                              | 58 of 58 pass, no failures                          |
+| `shellcheck bin/mgit install.sh`; `bash -n` on both        | Clean, exit 0                                       |
+| `mandoc -T lint man/mgit.1`                                | Clean, exit 0                                       |
+| `git diff --check`                                         | Clean, exit 0                                       |
+| `grep -rn 'worktrees.md'`                                  | No reference to the deleted path remains            |
+
+The rendered manual was inspected with `mandoc -T utf8 man/mgit.1 | col -b` after the layout change, as the definition of done requires.
+
+### Outstanding concerns
+
+None blocking. One thing a reviewer may wish to weigh: deleting `docs/worktrees.md` means a link to that path on `main` now returns a 404 rather than a redirect. The path was a guide for one commit's worth of history and nothing in the repository, the manual, or the README cited it, so the exposure is limited to an external link made in that window. Restoring a stub is a one-line change if a reviewer disagrees.
+
+### Post-change review
+
+The goal - every practical document in the collection, under the audience that needs it, with no second copy outside it - now holds. `docs/` contains only `guides/`, `specs/`, and `roadmap/`; no loose practical document sits beside them.
+
+Scope held to the planned files. Regression risk is confined to the manual, whose only functional surface is the rendered page, and that was linted and inspected. No executable, test, or configuration path was touched, and the full suite passes unchanged.
+
+Acceptance readiness: ready for human review. Nothing here needs a Decision Record; the arrangement it consolidates was already adopted.
+
+### Mini recap
+
+Delivered a completeness sweep of the guide collection rather than a restructure: one stray document removed, one boundary stated, two user-guide gaps closed, and the manual pointed at the collection. Verified through the guides, authoring, and full repository audits plus the repository's own gate, all clean.
+
+Learning worth routing, without promoting it here: the `--estate` gap arose because a selector was added to `bin/mgit`, the README, and the manual but not to the guide written for the reader who would meet it. The developer definition of done already lists the user guides among the surfaces that must stay aligned, so the check exists and was missed rather than absent. A reviewer may judge whether that is worth reinforcing anywhere.
 
 ## Discussion
 
