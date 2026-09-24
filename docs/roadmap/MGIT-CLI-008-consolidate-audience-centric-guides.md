@@ -10,7 +10,7 @@ blocked_by: []
 transferred_from: ki-website
 baseline_ref: f40156f4a974968ee573264b17758c1813e16734
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-22T06:58:54Z
+updated_at: 2026-09-24T09:14:00Z
 ---
 
 ## Goal
@@ -27,7 +27,7 @@ KI Website now declares, for every page it publishes under `apps/site/src/guidan
 
 That is a pull, not an obligation: KI Website derives, it does not own. This repository decides what its guides say and when they change.
 
-Separately, `ki-guides` is being asked to require audience directories under `docs/guides/` rather than permitting a flat collection (`ki-agentic-harness` `KI-HARNESS-GOV-083`). If that lands, this repository's collection has to satisfy it.
+Separately, `KI-HARNESS-GOV-083` has clarified `ki-guides`: audience directories are recommended when stable reader groups make a collection easier to navigate, while flat and mixed collections remain valid. This item therefore stands on this repository's own readers and routing needs, not a universal Harness requirement.
 
 ## Boundary
 
@@ -76,7 +76,7 @@ Nothing in `README.md` or `man/mgit.1` is practical instruction displaced from t
 
 ## Dependencies / blocks
 
-Nothing blocks this. `KI-HARNESS-GOV-083` in `ki-agentic-harness` proposes making audience directories a `ki-guides` requirement; this collection already groups by audience, so that change should confirm the arrangement rather than force one.
+Nothing blocks this. `KI-HARNESS-GOV-083` is advisory rather than a universal migration requirement; this collection's existing audience grouping remains a repository-local choice supported by its readers.
 
 ## Documentation impact
 
@@ -106,7 +106,7 @@ Delivered: `docs/worktrees.md` removed; the worktree and wider user-guide routes
 
 Excluded, as planned: no change to `bin/mgit`, to command behaviour, to `docs/specs/`, or to the `README.md` install and usage sections, which remain the proportional entry point their own standard asks for.
 
-### Summary of changes
+### Change Summary
 
 - `docs/worktrees.md` deleted. The whole guide had already moved to `docs/guides/user/worktrees.md` in `e9f16a4`, leaving a one-line redirect that no document linked. Deleting it was chosen over keeping a pointer because the stub carried no knowledge, served no reader, and was itself the second document outside the collection this item exists to remove.
 - `man/mgit.1` `SEE ALSO` now names `docs/guides/user/` and what each of its four guides covers, rather than gesturing at "the worktree structures guide" with no path. The `.TH` date advanced to the change date, following the page's existing practice.
