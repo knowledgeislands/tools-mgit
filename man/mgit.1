@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-09-22" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-09-26" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -9,13 +9,13 @@ mgit \- run commands across multiple Git repositories
 \&
 .TP
 .B mgit
-List the repositories in the current set.
+List the primary checkouts in the current set.
 .sp
 .TP
 .B mgit [\fIoptions\fR] [\fIcommand\fR ...]
 Run
 .B git
-with the supplied command and arguments in every repository in the current set.
+with the supplied command and arguments in every selected checkout.
 .TP
 .B mgit [\fIoptions\fR] \-B \fIcommand\fR [\fIargument\fR ...]
 Run a command directly, without prefixing it with
@@ -247,6 +247,20 @@ or
 .BR repair .
 .sp
 .TP
+.BR \-W , " \-\-all-worktrees"
+Include every active linked worktree as well as the primary checkout when
+listing repositories or running ordinary commands and
+.BR sync .
+Without this option, a standard repository uses its root checkout and a nested
+repository uses its required
+.I main/
+checkout. This option does not change
+.B structure
+or
+.B worktree
+management commands.
+.sp
+.TP
 .BR \-h , " \-\-help"
 Print contextual help for the requested command and exit.
 .sp
@@ -317,7 +331,7 @@ to remove it completely.
 \&
 .TP
 .B mgit sync
-checks each worktree in the selected set with
+checks each selected checkout with
 .BR "git status --short" .
 Worktrees with local changes print their status and are skipped. Clean tracking
 branches run

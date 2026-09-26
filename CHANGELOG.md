@@ -19,6 +19,7 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 
 - `mgit --group <name>`
 - `mgit --filter <glob>`
+- `mgit --all-worktrees`
 - `mgit --physical`
 - `mgit --follow-symlinks`
 - `mgit --ignore`
@@ -58,7 +59,7 @@ Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not 
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Named groups provide alternative direct-member views without changing structural default group.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
-- Selected standard and nested repositories expand to active worktrees before commands run.
+- Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
 - `mgit repair` recreates missing standard, nested, and bare repositories from structural workspace metadata without replacing existing paths.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.

@@ -1,6 +1,6 @@
 # Run commands across repositories
 
-From a workspace directory, `mgit` runs requested command in every active checkout. With no command, it lists repositories that would be used. If current directory contains workspace-kind `.mgit.toml`, it uses selected group; otherwise it discovers Git repositories beneath current directory.
+From a workspace directory, `mgit` runs the requested command in the primary checkout of every selected repository. With no command, it lists the checkouts that would be used. If the current directory contains a workspace-kind `.mgit.toml`, it uses the selected group; otherwise it discovers Git repositories beneath the current directory.
 
 ```sh
 mgit
@@ -15,9 +15,21 @@ mgit -B bun install
 mgit -B bun run build
 ```
 
+## Include linked worktrees
+
+Standard repositories use their root checkout by default; nested repositories use their required `main/` checkout. Pass `-W` or `--all-worktrees` to include every active linked worktree as well:
+
+```sh
+mgit --all-worktrees
+mgit --all-worktrees status
+mgit --all-worktrees sync
+```
+
+The option changes repository listing, ordinary Git or bare-command dispatch, and `sync`. It does not change `structure` or `worktree` management commands, which already operate on logical repositories or inspect worktrees explicitly.
+
 ## Synchronise clean repositories
 
-Run `mgit sync` to inspect and update every worktree in the selected set. A worktree with local changes prints `git status --short` output and is skipped. A clean tracking branch runs `git pull --ff-only`, then `git push` when local commits remain ahead of its upstream.
+Run `mgit sync` to inspect and update the primary checkout of every repository in the selected set. A checkout with local changes prints `git status --short` output and is skipped. A clean tracking branch runs `git pull --ff-only`, then `git push` when local commits remain ahead of its upstream. Pass `--all-worktrees` to include linked worktrees.
 
 Repositories that pulled or pushed commits are named. Repositories that were already current are reported as one final count. Bare repositories, detached heads, branches without upstreams, divergence, and Git command failures are named and make the command exit with status `1` without forcing a change.
 

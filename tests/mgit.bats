@@ -129,6 +129,7 @@ make_fake_ki() {
   [[ "$output" == *"Usage: mgit"* ]]
   [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
   [[ "$output" == *"--agora <name>"* ]]
+  [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"passed through to Git"* ]]
 }
@@ -224,6 +225,7 @@ make_fake_ki() {
   [[ "$output" == *"repair"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
 
@@ -1077,7 +1079,7 @@ assert_usage_error() {
   [[ "$output" == *"repoA"* ]]
 }
 
-@test "normal commands expand a managed workspace to all child worktrees" {
+@test "normal commands use primary checkouts unless all worktrees are requested" {
   mkrepo "$TREE/repoA"
   make_managed_worktree_repo "$TREE/repoA"
   git -C "$TREE/repoA" worktree add -q -b branch-b "$TREE/repoA/branch-b"
@@ -1090,10 +1092,23 @@ assert_usage_error() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"repoA/main"* ]]
+  [[ "$output" != *"repoA/branch-b"* ]]
+  [[ "$output" == *"repoB"* ]]
+  [[ "$output" != *"repoB-branch-c"* ]]
+  [[ "$output" != *"repoA/.bare"* ]]
+
+  run "$MGIT" --all-worktrees
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repoA/main"* ]]
   [[ "$output" == *"repoA/branch-b"* ]]
   [[ "$output" == *"repoB"* ]]
   [[ "$output" == *"repoB-branch-c"* ]]
   [[ "$output" != *"repoA/.bare"* ]]
+
+  run "$MGIT" -W
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repoA/branch-b"* ]]
+  [[ "$output" == *"repoB-branch-c"* ]]
 
   run "$MGIT" worktree list
   [ "$status" -eq 0 ]
@@ -1213,7 +1228,7 @@ assert_usage_error() {
   [ "$status" -eq 2 ]
 }
 
-@test "--filter selects whole repos, keeping their linked worktrees" {
+@test "--filter selects whole repos before optional worktree expansion" {
   mkrepo "$TREE/mcp-a"
   make_managed_worktree_repo "$TREE/mcp-a"
   git -C "$TREE/mcp-a" worktree add -q "$TREE/mcp-a/featureA" -b featureA
@@ -1221,6 +1236,12 @@ assert_usage_error() {
 
   cd "$TREE"
   run "$MGIT" -f 'mcp-*'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mcp-a/main"* ]]
+  [[ "$output" != *"mcp-a/featureA"* ]]
+  [[ "$output" != *"tools-b"* ]]
+
+  run "$MGIT" -f 'mcp-*' --all-worktrees
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a/main"* ]]
   [[ "$output" == *"mcp-a/featureA"* ]]

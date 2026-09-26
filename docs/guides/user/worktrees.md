@@ -58,7 +58,11 @@ kind = "repository"
 type = "standard"
 ```
 
-At runtime, `mgit status` expands that manifest to every active checkout:
+At runtime, `mgit status` targets each repository's primary checkout. Add `--all-worktrees` to expand the manifest to every active checkout:
+
+```sh
+mgit --all-worktrees status
+```
 
 ```text
 repoA/main

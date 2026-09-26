@@ -39,7 +39,7 @@ Usage: mgit [options] [command]
 
 Run Git commands across multiple repositories and worktrees.
 
-With no command, list the repositories in the current set. Any command that is
+With no command, list the selected checkouts in the current set. Any command that is
 not one of the commands below is passed through to Git in every repository.
 
 Options:
@@ -51,6 +51,7 @@ Options:
   -a, --agora <name>      select roots resolved by ki for a named Agora
       --estate            select every root in the registered KI estate
   -f, --filter <glob>     limit the repository set; repeatable
+  -W, --all-worktrees     include every active linked worktree
   -h, --help              display help for command
   -V, --version           print the CLI version
 
@@ -206,6 +207,8 @@ Usage: mgit sync
 
 Update clean tracking branches across the current repository set.
 
+Primary checkouts are selected by default; pass -W or --all-worktrees to
+include linked worktrees.
 Dirty worktrees print their short status and are skipped. Clean worktrees use
 git pull --ff-only, then git push when local commits remain ahead of upstream.
 Repositories already current are collapsed into one final count.
@@ -245,7 +248,7 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair group sync structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora --estate -f --filter -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora --estate -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     -g|--group)
       COMPREPLY=( $(compgen -W "$(_mgit_workspace_groups)" -- "$cur") )
@@ -256,7 +259,7 @@ _mgit() {
     word="${COMP_WORDS[i]}"
     case "$word" in
       -g|--group|-a|--agora|-f|--filter) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -368,6 +371,8 @@ _mgit() {
     '--estate[select every root in the registered KI estate]'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
+    '-W[include every active linked worktree]'
+    '--all-worktrees[include every active linked worktree]'
     '-h[show help]'
     '--help[show help]'
     '-V[show version]'
@@ -2702,6 +2707,7 @@ filter_match() {
 follow_symlinks=false
 discovery_option=false
 bare=false
+all_worktrees=false
 read_config=true
 filters=()
 group_name=""
@@ -2715,6 +2721,7 @@ while [ $# -gt 0 ]; do
     -P|--physical)        follow_symlinks=false; discovery_option=true ;;
     -L|--follow-symlinks) follow_symlinks=true; discovery_option=true ;;
     -B|--bare)            bare=true ;;
+    -W|--all-worktrees)   all_worktrees=true ;;
     -I|--ignore)          read_config=false ;;
     -g|--group)
       [ $# -ge 2 ] || { usage_error "$1 requires a group name"; exit $?; }
@@ -2939,11 +2946,25 @@ repos=()
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
   c=$(canon_dir "$r") || continue
   case "$(repo_type "$c")" in
-    standard|nested)
-      while IFS= read -r wt; do
-        [ -z "$wt" ] && continue
-        repos+=("$(disp "$(canon_dir "$wt")")")
-      done < <(active_worktree_paths "$c")
+    standard)
+      if [ "$all_worktrees" = true ]; then
+        while IFS= read -r wt; do
+          [ -z "$wt" ] && continue
+          repos+=("$(disp "$(canon_dir "$wt")")")
+        done < <(active_worktree_paths "$c")
+      else
+        repos+=("$(disp "$c")")
+      fi
+      ;;
+    nested)
+      if [ "$all_worktrees" = true ]; then
+        while IFS= read -r wt; do
+          [ -z "$wt" ] && continue
+          repos+=("$(disp "$(canon_dir "$wt")")")
+        done < <(active_worktree_paths "$c")
+      else
+        repos+=("$(disp "$(canon_dir "$c/main")")")
+      fi
       ;;
     bare) repos+=("$(disp "$c")") ;;
   esac

@@ -98,13 +98,13 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-010 — Whole-repository filters
 
-When a filter selects a repository with linked worktrees, mgit MUST retain that repository's active worktrees in dispatch set.
+`--filter` MUST select logical repositories before checkout expansion. A matching repository MUST retain its primary checkout and, when `--all-worktrees` is present, all active linked worktrees.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter selects whole repos, keeping linked worktrees`.
+_Verify:_ `bats tests/mgit.bats` — `--filter selects whole repos before optional worktree expansion`.
 
-_Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
+_Evidence:_ The named Bats check implements this requirement and passes in the repository CI gate.
 
 ## Dispatch-set command execution
 
@@ -118,15 +118,15 @@ _Verify:_ `bin/mgit` — metadata queue and `parse_mgit`; `bats tests/mgit.bats`
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
-### MGIT-WS-012 — Active-worktree dispatch
+### MGIT-WS-012 — Checkout dispatch
 
-mgit MUST expand each selected standard or nested repository into its active worktrees, excluding nested repository's bare store, before listing or dispatching ordinary commands.
+For repository listing, ordinary commands, and `sync`, mgit MUST dispatch only to each selected repository's primary checkout by default: the repository root for a standard repository and the required `main/` checkout for a nested repository. With `-W` or `--all-worktrees`, mgit MUST instead include every active worktree while excluding a nested repository's bare store. Bare repositories MUST remain unchanged. The option MUST NOT alter `structure` or `worktree` management behavior.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `normal commands expand a managed workspace to all child worktrees`.
+_Verify:_ `bats tests/mgit.bats` — `normal commands use primary checkouts unless all worktrees are requested`.
 
-_Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
+_Evidence:_ The named Bats check implements this requirement and passes in the repository CI gate.
 
 ### MGIT-WS-013 — Default Git dispatch
 
