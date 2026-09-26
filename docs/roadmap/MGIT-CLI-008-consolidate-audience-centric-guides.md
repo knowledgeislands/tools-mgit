@@ -4,13 +4,13 @@ title: Consolidate audience-centric guides
 area: CLI
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 transferred_from: ki-website
 baseline_ref: f40156f4a974968ee573264b17758c1813e16734
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-24T09:14:00Z
+updated_at: 2026-09-26T18:12:48Z
 ---
 
 ## Goal
@@ -148,6 +148,10 @@ Acceptance readiness: ready for human review. Nothing here needs a Decision Reco
 Delivered a completeness sweep of the guide collection rather than a restructure: one stray document removed, one boundary stated, two user-guide gaps closed, and the manual pointed at the collection. Verified through the guides, authoring, and full repository audits plus the repository's own gate, all clean.
 
 Learning worth routing, without promoting it here: the `--estate` gap arose because a selector was added to `bin/mgit`, the README, and the manual but not to the guide written for the reader who would meet it. The developer definition of done already lists the user guides among the surfaces that must stay aligned, so the check exists and was missed rather than absent. A reviewer may judge whether that is worth reinforcing anywhere.
+
+## Done
+
+Accepted 2026-09-26 by repository owner on review packet above.
 
 ## Discussion
 
