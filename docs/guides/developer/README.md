@@ -4,4 +4,4 @@
 - [Local development](local-development.md) explains the supported local-link workflow.
 - [Release mgit](releasing.md) covers version preparation, publication, Homebrew delivery, and automated consumer notification.
 
-For short standing repository conventions, read [AGENTS.md](../../../AGENTS.md).
+For short standing repository conventions, read root `AGENTS.md`.

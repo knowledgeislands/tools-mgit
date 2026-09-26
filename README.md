@@ -76,11 +76,11 @@ Run `mgit help`, `mgit help <command>`, or `man mgit` for the complete command r
 
 ## Maintainer
 
-Kris Brown maintains `mgit`. Use [GitHub issues](https://github.com/knowledgeislands/tools-mgit/issues) for questions and maintenance requests.
+Kris Brown maintains `mgit`. The repository roadmap is the canonical maintenance queue.
 
 ## Contributing
 
-Issues and pull requests are welcome. Follow the [developer guide](docs/guides/developer/README.md), use Conventional Commit messages, and run its complete verification gate before submitting a change.
+Pull requests are welcome. Follow the [developer guide](docs/guides/developer/README.md), use Conventional Commit messages, and run its complete verification gate before submitting a change.
 
 ## License
 
