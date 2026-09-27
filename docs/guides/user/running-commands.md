@@ -38,7 +38,7 @@ The existing selectors and filters narrow the same way as ordinary commands:
 ```sh
 mgit --group engineering sync
 mgit --filter 'tools-*' sync
-mgit --agora ki-fnd sync
+mgit --agora kis sync
 ```
 
 ## Limit the set
@@ -64,7 +64,7 @@ mgit -g ci -B bun run test
 When `ki` is installed, use `--agora` to run an ordinary Git or bare command across the local roots resolved for a named Agora or `estate`:
 
 ```sh
-mgit --agora ki-fnd status
+mgit --agora kis status
 mgit --agora estate -B git fetch --all --prune
 ```
 

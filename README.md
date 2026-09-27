@@ -62,7 +62,7 @@ mgit --group ci status
 When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. `mgit` invokes `ki` only for these selectors and does not read KI configuration itself.
 
 ```sh
-mgit --agora ki-fnd status
+mgit --agora kis status
 mgit --estate status
 ```
 
