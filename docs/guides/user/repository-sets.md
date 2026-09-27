@@ -17,6 +17,8 @@ The command writes one filename, `.mgit.toml`, with a discriminator for each rol
 
 Registration stops at repository roots, never descends into repository internals, and replaces each workspace's generated structural `default` group after scanning current filesystem. Existing non-default groups are preserved.
 
+Run `mgit register --agora personal` to include a resolved Agora in the generated workspace document. The document saves the Agora name and a snapshot of its repository paths, including paths outside the workspace. A later `mgit register` refreshes that snapshot through `ki`; if resolution fails, registration stops before writing. Ordinary commands use the saved paths without invoking `ki`. The selected structural `default` group includes both discovered and Agora repositories, counting a repository present in both only once. Alternative groups and `mgit repair` do not include Agora members automatically.
+
 When Chezmoi is configured, `mgit register` synchronizes generated manifests below Chezmoi target directory into source state. Manifests outside target directory, and manifests generated inside Chezmoi source directory, remain local only.
 
 ## Workspace configuration
@@ -42,7 +44,7 @@ kind = "repository"
 
 Structural `default` group is required. Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Non-default group repository members also have only `kind` because they select already-present repositories rather than declaring structure or clone sources.
 
-Member paths must be safe relative map keys below manifest directory. Blank lines and comments are ignored.
+Structural and alternative group member paths must be safe relative map keys below manifest directory. Agora snapshot paths are relative to the manifest directory and may reach outside it. The optional `agora = "personal"` field names the source, and empty `[agora.members."../chezmoi"]` tables record resolved roots. Blank lines and comments are ignored.
 
 ## Repository configuration
 

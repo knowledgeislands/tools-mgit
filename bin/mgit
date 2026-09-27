@@ -80,6 +80,7 @@ structural default group while preserving named alternative groups. When
 Chezmoi manages a generated manifest, its source state is updated too.
 
 Options:
+  -a, --agora <name>  include and remember a resolved Agora snapshot
   -h, --help  display help for command
 EOF
 }
@@ -268,7 +269,10 @@ _mgit() {
     subcommand="${COMP_WORDS[command_index + 1]:-}"
   fi
   case "$command" in
-    register|repair|sync)
+    register)
+      COMPREPLY=( $(compgen -W '--agora -a --help -h' -- "$cur") )
+      ;;
+    repair|sync)
       COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
       ;;
     group)
@@ -391,7 +395,8 @@ _mgit() {
     'remove:remove a member from a group'
   )
   case $words[2] in
-    register|repair|sync) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    register) _arguments '--agora[save a named Agora snapshot]:Agora name:' '-a[save a named Agora snapshot]:Agora name:' '-h[display help for command]' '--help[display help for command]' ;;
+    repair|sync) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     group)
       case $words[3] in
         '') _describe -t commands 'group command' group_commands ;;
@@ -896,6 +901,15 @@ workspace_path_safe() {
   esac
 }
 
+agora_path_safe() {
+  case "$1" in
+    ""|/*|~*|.|./*|*/./*|*/.|*//*|*/)
+      return 1 ;;
+    *$'\n'*|*$'\r'*|*$'\t'*)
+      return 1 ;;
+  esac
+}
+
 workspace_group_known() {
   local needle="$1" item
   for item in "${workspace_groups[@]+"${workspace_groups[@]}"}"; do
@@ -992,8 +1006,11 @@ workspace_sort_members() {
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
   local file="$1" line key value group schema="" kind=""
-  local seen_schema=false seen_kind=false seen_default=false
+  local seen_schema=false seen_kind=false seen_default=false seen_agora=false
+  local in_agora_member=false i
   workspace_default=""
+  workspace_agora=""
+  workspace_agora_paths=()
   workspace_groups=()
   workspace_record_groups=()
   workspace_record_kinds=()
@@ -1007,20 +1024,40 @@ parse_workspace() {
     line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
+    if [[ "$line" =~ ^\[agora\.members\.(\".*\")\]$ ]]; then
+      workspace_finish_member "$file" || return 1
+      value=$(toml_string "${BASH_REMATCH[1]}") || return 1
+      agora_path_safe "$value" || {
+        printf 'mgit: %s: unsafe Agora member path: %s\n' "$file" "$value" >&2
+        return 1
+      }
+      for i in "${workspace_agora_paths[@]+"${workspace_agora_paths[@]}"}"; do
+        [ "$i" != "$value" ] || {
+          printf 'mgit: %s: duplicate Agora member path: %s\n' "$file" "$value" >&2
+          return 1
+        }
+      done
+      workspace_agora_paths+=("$value")
+      in_agora_member=true
+      continue
+    fi
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\]$ ]]; then
       workspace_finish_member "$file" || return 1
+      in_agora_member=false
       group="${BASH_REMATCH[1]}"
       workspace_group_known "$group" || workspace_groups+=("$group")
       continue
     fi
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\]$ ]]; then
       workspace_finish_member "$file" || return 1
+      in_agora_member=false
       group="${BASH_REMATCH[1]}"
       workspace_group_known "$group" || workspace_groups+=("$group")
       continue
     fi
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\.(\".*\")\]$ ]]; then
       workspace_finish_member "$file" || return 1
+      in_agora_member=false
       group="${BASH_REMATCH[1]}"
       value=$(toml_string "${BASH_REMATCH[2]}") || {
         printf 'mgit: %s: invalid workspace member path: %s\n' "$file" "$line" >&2
@@ -1046,6 +1083,10 @@ parse_workspace() {
       *=*)
         key=$(trim "${line%%=*}")
         value=$(trim "${line#*=}")
+        [ "$in_agora_member" = false ] || {
+          printf 'mgit: %s: Agora member tables must be empty\n' "$file" >&2
+          return 1
+        }
         if [ -z "$workspace_member_group" ]; then
           case "$key" in
             kind)
@@ -1091,6 +1132,12 @@ parse_workspace() {
                   ;;
               esac
               seen_default=true
+              ;;
+            agora)
+              [ "$seen_agora" = false ] || { printf 'mgit: %s: duplicate Agora field\n' "$file" >&2; return 1; }
+              workspace_agora=$(toml_string "$value") || return 1
+              [ -n "$workspace_agora" ] || { printf 'mgit: %s: empty Agora name\n' "$file" >&2; return 1; }
+              seen_agora=true
               ;;
             *)
               printf 'mgit: %s: unsupported workspace field: %s\n' "$file" "$key" >&2
@@ -1138,6 +1185,10 @@ parse_workspace() {
     esac
   done < "$file"
   workspace_finish_member "$file" || return 1
+  [ ${#workspace_agora_paths[@]} -eq 0 ] || [ "$seen_agora" = true ] || {
+    printf 'mgit: %s: Agora members require an Agora name\n' "$file" >&2
+    return 1
+  }
   workspace_sort_members
   if [ "$seen_schema" != true ] || [ "$schema" != 1 ]; then
     printf 'mgit: %s: missing schema = 1\n' "$file" >&2
@@ -1179,6 +1230,19 @@ default_member_kind() {
   return 1
 }
 
+write_agora_snapshot() {
+  local path
+  [ -n "$workspace_agora" ] || return 0
+  printf 'agora = '
+  toml_quote "$workspace_agora" || return 1
+  printf '\n'
+  for path in "${workspace_agora_paths[@]+"${workspace_agora_paths[@]}"}"; do
+    printf '\n[agora.members.'
+    toml_quote "$path" || return 1
+    printf ']\n'
+  done
+}
+
 # Write the parsed workspace records in the canonical shape used by register.
 # Group changes are transactional: the original manifest remains intact unless
 # the complete replacement can be written and renamed successfully.
@@ -1193,6 +1257,7 @@ write_workspace_manifest() {
     printf 'default = '
     toml_quote "$workspace_default" || return 1
     printf '\n'
+    write_agora_snapshot || return 1
     for group in "${workspace_groups[@]}"; do
       emitted=false
       for i in "${!workspace_record_paths[@]}"; do
@@ -1599,8 +1664,34 @@ register_manifest_preflight() {
   fi
 }
 
+register_agora_dirs=()
+register_agora_names=()
+register_agora_paths=()
+register_override_agora=""
+
+register_prepare_agora() {
+  local dir="$1" name="$2" canonical root relative
+  [ -n "$name" ] || return 0
+  toml_escape "$name" >/dev/null || {
+    printf 'mgit register: Agora name cannot be represented in TOML\n' >&2
+    return 1
+  }
+  select_ki_roots "$name" 'mgit register --agora' || return 1
+  canonical=$(canon_dir "$dir") || return 1
+  for root in "${selected_repo_dirs[@]}"; do
+    relative=$(relpath "$canonical" "$root")
+    if ! agora_path_safe "$relative" || ! toml_escape "$relative" >/dev/null; then
+      printf 'mgit register: Agora member path cannot be represented: %s\n' "$root" >&2
+      return 1
+    fi
+    register_agora_dirs+=("$dir")
+    register_agora_names+=("$name")
+    register_agora_paths+=("$relative")
+  done
+}
+
 register_preflight_tree() {
-  local dir="$1" child kind source
+  local dir="$1" child kind source agora_name=""
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     if [ "$kind" = standard ]; then
@@ -1613,7 +1704,10 @@ register_preflight_tree() {
   register_manifest_preflight "$dir" workspace || return 1
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 1
+    agora_name="$workspace_agora"
   fi
+  [ "$dir" != . ] || [ -z "$register_override_agora" ] || agora_name="$register_override_agora"
+  register_prepare_agora "$dir" "$agora_name" || return 1
   for child in "$dir"/*/; do
     [ -d "$child" ] || continue
     child="${child%/}"
@@ -1681,7 +1775,14 @@ register_tree() {
     old_kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
     old_paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
   fi
-  if [ ${#kid_types[@]} -gt 0 ]; then
+  workspace_agora=""
+  workspace_agora_paths=()
+  for i in "${!register_agora_dirs[@]}"; do
+    [ "${register_agora_dirs[$i]}" = "$dir" ] || continue
+    workspace_agora="${register_agora_names[$i]}"
+    workspace_agora_paths+=("${register_agora_paths[$i]}")
+  done
+  if [ ${#kid_types[@]} -gt 0 ] || [ -n "$workspace_agora" ]; then
     {
       printf '# Generated by `mgit register`.\n'
       printf 'schema = 1\n'
@@ -1689,6 +1790,7 @@ register_tree() {
       printf 'default = '
       toml_quote "$old_default" || return 2
       printf '\n'
+      write_agora_snapshot || return 2
       for i in "${!kid_types[@]}"; do
         printf '\n[groups.default.members.'
         toml_quote "${kid_paths[$i]}" || return 2
@@ -1704,6 +1806,7 @@ register_tree() {
         fi
         printf '\n'
       done
+      [ ${#kid_types[@]} -gt 0 ] || printf '\n[groups.default]\n'
       for i in "${!old_groups[@]}"; do
         [ "${old_groups[$i]}" != default ] || continue
         printf '\n[groups.%s.members.' "${old_groups[$i]}"
@@ -1721,7 +1824,12 @@ register_tree() {
       done
     } > "$dir/$MGIT_MANIFEST" || return 2
     chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
-    printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
+    if [ -n "$workspace_agora" ]; then
+      printf '%s%s%s%s: recorded %d local and %d Agora member(s)\n' \
+        "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}" "${#workspace_agora_paths[@]}"
+    else
+      printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
+    fi
     return 0
   fi
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
@@ -2573,7 +2681,7 @@ selected_path_seen() {
 
 select_workspace() {
   local base="$1" requested_group="$2" canonical group destination actual i
-  local groups=() kinds=() paths=()
+  local groups=() kinds=() paths=() agora_paths=() path
   canonical=$(canon_dir "$base") || {
     printf 'mgit: cannot read workspace directory: %s\n' "$base" >&2
     return 1
@@ -2593,6 +2701,7 @@ select_workspace() {
   groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
   kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
+  agora_paths=("${workspace_agora_paths[@]+"${workspace_agora_paths[@]}"}")
   for i in "${!paths[@]}"; do
     [ "${groups[$i]}" = "$group" ] || continue
     destination=$(resolve_path "${paths[$i]}" "$canonical")
@@ -2627,6 +2736,22 @@ select_workspace() {
         ;;
     esac
   done
+  if [ "$group" = default ]; then
+    for path in "${agora_paths[@]+"${agora_paths[@]}"}"; do
+      destination=$(resolve_path "$path" "$canonical")
+      if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+        printf 'mgit: unsafe or missing Agora member: %s\n' "$destination" >&2
+        return 1
+      fi
+      destination=$(canon_dir "$destination") || return 1
+      actual=$(repo_type "$destination")
+      [ "$actual" != unknown ] || {
+        printf 'mgit: Agora member is not a repository: %s\n' "$destination" >&2
+        return 1
+      }
+      selected_path_seen "$destination" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" || selected_repo_dirs+=("$destination")
+    done
+  fi
 }
 
 # Resolve one named KI Agora or the registered estate through ki. The NUL stream
@@ -2784,11 +2909,20 @@ fi
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
-  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with register"; exit $?; }
+  [ "$ki_selector" != --estate ] || { usage_error '--estate cannot be used with register'; exit $?; }
+  [ "$ki_selector" != --agora ] || [ -n "$agora_name" ] || { usage_error 'register: Agora name must not be empty'; exit $?; }
+  register_override_agora="$agora_name"
   register_help="$show_help"
   shift
   while [ $# -gt 0 ]; do
     case "$1" in
+      -a|--agora)
+        [ $# -ge 2 ] || { usage_error_for register_usage "$1 requires Agora name"; exit $?; }
+        [ -n "$2" ] || { usage_error_for register_usage 'register: Agora name must not be empty'; exit $?; }
+        [ -z "$register_override_agora" ] || { usage_error_for register_usage 'register: Agora may only be selected once'; exit $?; }
+        register_override_agora="$2"
+        shift
+        ;;
       -h|--help) register_help=true ;;
       *) usage_error_for register_usage "register: unexpected argument: $1"; exit $? ;;
     esac
@@ -2796,6 +2930,10 @@ if [ "${1:-}" = "register" ]; then
     shift
   done
   [ "$register_help" = false ] || { register_usage; exit 0; }
+  if [ -n "$register_override_agora" ] && [ "$(repo_type .)" != unknown ]; then
+    usage_error_for register_usage 'register: Agora snapshots require a workspace directory'
+    exit $?
+  fi
   chezmoi_init
   register_preflight_tree "." || exit 1
   if register_tree "."; then

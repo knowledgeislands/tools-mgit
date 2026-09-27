@@ -59,11 +59,12 @@ mgit group add ci tools-mgit
 mgit --group ci status
 ```
 
-When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. `mgit` invokes `ki` only for these selectors and does not read KI configuration itself.
+When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. `mgit register --agora personal` also saves an Agora snapshot in `.mgit.toml`, including members outside the current folder. Re-run `mgit register` to refresh it; ordinary commands read the snapshot without invoking `ki`.
 
 ```sh
 mgit --agora kis status
 mgit --estate status
+mgit register --agora personal
 ```
 
 Run `mgit help`, `mgit help <command>`, or `man mgit` for the complete command reference.

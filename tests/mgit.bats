@@ -132,6 +132,10 @@ make_fake_ki() {
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"passed through to Git"* ]]
+
+  run "$MGIT" help register
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--agora <name>"* ]]
 }
 
 @test "--version prints the version" {
@@ -225,6 +229,7 @@ make_fake_ki() {
   [[ "$output" == *"repair"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"--agora -a --help -h"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
@@ -234,6 +239,7 @@ make_fake_ki() {
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"save a named Agora snapshot"* ]]
   [[ "$output" == *"sync:update clean tracking branches"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
@@ -601,7 +607,6 @@ assert_usage_error() {
   assert_usage_error --agora focus --group dev status
   assert_usage_error --agora focus --ignore status
   assert_usage_error --agora focus --follow-symlinks status
-  assert_usage_error --agora focus register
   assert_usage_error --agora focus structure standard
   assert_usage_error --estate --agora focus status
   assert_usage_error --agora focus --estate status
@@ -613,9 +618,59 @@ assert_usage_error() {
   assert_usage_error --estate structure standard
 }
 
+@test "register snapshots Agora members alongside local repositories and refreshes them" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  mkrepo "$BATS_TEST_TMPDIR/replacement"
+  make_fake_ki
+  FAKE_KI_ROOTS="$TREE/local"$'\n'"$BATS_TEST_TMPDIR/external"
+
+  cd "$TREE"
+  run "$MGIT" register --agora focus
+  [ "$status" -eq 0 ]
+  grep -Fx 'agora = "focus"' "$TREE/.mgit.toml"
+  grep -Fx '[agora.members."../external"]' "$TREE/.mgit.toml"
+
+  FAKE_KI_FAIL=true
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'local\n../external' ]
+  run "$MGIT" group create review
+  [ "$status" -eq 0 ]
+  grep -Fx 'agora = "focus"' "$TREE/.mgit.toml"
+  before=$(cat "$TREE/.mgit.toml")
+  run "$MGIT" register
+  [ "$status" -eq 1 ]
+  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
+
+  FAKE_KI_FAIL=false
+  FAKE_KI_ROOTS="$TREE/local"$'\n'"$BATS_TEST_TMPDIR/replacement"
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.review]' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'local\n../replacement' ]
+}
+
+@test "register can create a workspace containing only Agora members" {
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  make_fake_ki
+  FAKE_KI_ROOTS="$BATS_TEST_TMPDIR/external"
+
+  cd "$TREE"
+  run "$MGIT" register --agora focus
+  [ "$status" -eq 0 ]
+  grep -Fx '[groups.default]' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = '../external' ]
+}
+
 @test "register rejects a stray argument" {
   run "$MGIT" register extra
   [ "$status" -eq 2 ]
+  assert_usage_error register --agora ''
 }
 
 @test "register writes schema-1 workspaces in physical postorder" {

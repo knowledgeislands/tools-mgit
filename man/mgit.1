@@ -209,22 +209,26 @@ Child workspaces use their own configured defaults.
 Select the local roots resolved by
 .B ki
 for the named Agora.
-MGit uses the resolver's NUL-delimited output and runs no KI command unless
-this option is present. This selector cannot be combined with
+MGit uses the resolver's NUL-delimited output. Ordinary commands invoke
+.B ki
+only when this selector is present. This selector cannot be combined with
 .BR \-P ,
 .BR \-L ,
 .BR \-I ,
 or
 .BR \-g ,
-and it is unavailable to MGit management commands.
+and it is unavailable to MGit management commands except
+.BR register .
 .sp
 .TP
 .B \-\-estate
 Select every local root in the registered KI estate. This is exactly equivalent
 to
 .BR "\-\-agora estate" .
-It has the same restrictions as
+It has the same selection restrictions as
 .BR \-\-agora ,
+but cannot be used with
+.BR register ,
 and the two selectors cannot be combined.
 .sp
 .TP
@@ -295,6 +299,20 @@ only in a repository that owns cross-repository symlinks.
 The command does not descend into repositories, always performs a fresh scan,
 and replaces generated structural default-group records.
 Existing non-default groups are preserved.
+.B mgit register \-\-agora
+.I NAME
+also saves a snapshot of the named Agora's resolved repository roots in the
+current workspace manifest. Later runs of
+.B mgit register
+refresh that snapshot through
+.BR ki ;
+resolution failure stops registration before writing. Ordinary commands use
+the saved snapshot without invoking
+.BR ki .
+The structural default selection combines local and Agora members without
+duplicates. Alternative groups and
+.B mgit repair
+do not include Agora members automatically.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
@@ -470,6 +488,14 @@ Non-default group repository members also use only
 .B kind ;
 they select already-present repositories and do not declare structure or
 clone sources.
+.PP
+An optional
+.B agora
+field names a saved Agora snapshot. Empty
+.B [agora.members."PATH"]
+tables contain its repository roots as paths relative to the manifest directory;
+these paths may reach outside the workspace. Group member paths remain confined
+below the manifest directory.
 .PP
 Use
 .B mgit group create engineering
