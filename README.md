@@ -59,12 +59,13 @@ mgit group add ci tools-mgit
 mgit --group ci status
 ```
 
-When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. `mgit register --agora personal` also saves an Agora snapshot in `.mgit.toml`, including members outside the current folder. Re-run `mgit register` to refresh it; ordinary commands read the snapshot without invoking `ki`.
+When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 
 ```sh
 mgit --agora kis status
 mgit --estate status
-mgit register --agora personal
+mgit register add --agora personal --repo ../shared-tools
+mgit register rm --repo ../shared-tools
 ```
 
 Run `mgit help`, `mgit help <command>`, or `man mgit` for the complete command reference.

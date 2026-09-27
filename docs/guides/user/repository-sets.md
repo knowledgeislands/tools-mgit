@@ -15,9 +15,11 @@ The command writes one filename, `.mgit.toml`, with a discriminator for each rol
 - `kind = "workspace"` in non-Git container directories records repository and child-workspace membership.
 - `kind = "repository"` in repository leaves records tracked symlinks whose targets live in other repositories.
 
-Registration stops at repository roots, never descends into repository internals, and replaces each workspace's generated structural `default` group after scanning current filesystem. Existing non-default groups are preserved.
+Registration stops at repository roots, never descends into repository internals, and replaces each workspace's generated structural `default` group after scanning its saved locations. Existing non-default groups are preserved.
 
-Run `mgit register --agora personal` to include a resolved Agora in the generated workspace document. The document saves the Agora name and a snapshot of its repository paths, including paths outside the workspace. A later `mgit register` refreshes that snapshot through `ki`; if resolution fails, registration stops before writing. Ordinary commands use the saved paths without invoking `ki`. The selected structural `default` group includes both discovered and Agora repositories, counting a repository present in both only once. Alternative groups and `mgit repair` do not include Agora members automatically.
+The `locations` list defaults to `local`, which scans the current workspace and descendants. Run `mgit register add --agora personal --repo ../shared-tools` to bind additional search locations, or `mgit register rm --agora personal --repo ../shared-tools` to remove them. Both commands accept repeated, combined `--agora` and `--repo` options and refresh generated entries immediately. `mgit register --agora personal` remains an add shorthand. Adding a `--repo` path requires an existing Git repository; removal also accepts its saved relative path if the repository has disappeared.
+
+Plain `mgit register` refreshes all saved locations. It resolves Agora locations through `ki` and validates repository paths before writing. Ordinary commands use the generated entries without invoking `ki`. The selected structural `default` group combines local and additional repositories without duplicate dispatch. Alternative groups and `mgit repair` do not include additional locations automatically.
 
 When Chezmoi is configured, `mgit register` synchronizes generated manifests below Chezmoi target directory into source state. Manifests outside target directory, and manifests generated inside Chezmoi source directory, remain local only.
 
@@ -29,6 +31,11 @@ A workspace document uses schema 1, explicit workspace kind, configured default 
 schema = 1
 kind = "workspace"
 default = "default"
+locations = ["local", "agora:personal", "repo:../shared-tools"]
+
+[registered.members."../chezmoi"]
+
+[registered.members."../shared-tools"]
 
 [groups.default.members."platform"]
 kind = "repository"
@@ -44,7 +51,7 @@ kind = "repository"
 
 Structural `default` group is required. Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Non-default group repository members also have only `kind` because they select already-present repositories rather than declaring structure or clone sources.
 
-Structural and alternative group member paths must be safe relative map keys below manifest directory. Agora snapshot paths are relative to the manifest directory and may reach outside it. The optional `agora = "personal"` field names the source, and empty `[agora.members."../chezmoi"]` tables record resolved roots. Blank lines and comments are ignored.
+Structural and alternative group member paths must be safe relative map keys below the manifest directory. The `locations` array is the durable search list; empty `[registered.members."../chezmoi"]` tables are generated repository entries. Their relative paths may reach outside the workspace and change only when registration runs. Older manifests without `locations` default to `local`; older `agora` snapshots are migrated on registration. Blank lines and comments are ignored.
 
 ## Repository configuration
 

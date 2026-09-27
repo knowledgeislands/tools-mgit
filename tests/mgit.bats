@@ -110,14 +110,16 @@ make_fake_ki() {
   mkdir -p "$bin"
   FAKE_KI_AGORA=focus
   FAKE_KI_ROOTS=""
+  FAKE_KI_SECOND_AGORA=second
+  FAKE_KI_SECOND_ROOTS=""
   FAKE_KI_FAIL=false
-  export FAKE_KI_AGORA FAKE_KI_ROOTS FAKE_KI_FAIL
+  export FAKE_KI_AGORA FAKE_KI_ROOTS FAKE_KI_SECOND_AGORA FAKE_KI_SECOND_ROOTS FAKE_KI_FAIL
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     '[ "$1" = agora ] && [ "$2" = roots ] && [ "$3" = --null ] || exit 64' \
-    '[ "$4" = "$FAKE_KI_AGORA" ] || { printf "unknown Agora: %s\\n" "$4" >&2; exit 65; }' \
+    'case "$4" in "$FAKE_KI_AGORA") roots="$FAKE_KI_ROOTS" ;; "$FAKE_KI_SECOND_AGORA") roots="$FAKE_KI_SECOND_ROOTS" ;; *) printf "unknown Agora: %s\\n" "$4" >&2; exit 65 ;; esac' \
     '[ "$FAKE_KI_FAIL" = false ] || { printf "fake Agora resolution failed\\n" >&2; exit 73; }' \
-    'while IFS= read -r root || [ -n "$root" ]; do printf "%s\\0" "$root"; done <<< "$FAKE_KI_ROOTS"' \
+    'while IFS= read -r root || [ -n "$root" ]; do printf "%s\\0" "$root"; done <<< "$roots"' \
     > "$bin/ki"
   chmod +x "$bin/ki"
   PATH="$bin:$PATH"
@@ -136,6 +138,7 @@ make_fake_ki() {
   run "$MGIT" help register
   [ "$status" -eq 0 ]
   [[ "$output" == *"--agora <name>"* ]]
+  [[ "$output" == *"--repo <path>"* ]]
 }
 
 @test "--version prints the version" {
@@ -229,7 +232,7 @@ make_fake_ki() {
   [[ "$output" == *"repair"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"--agora -a --help -h"* ]]
+  [[ "$output" == *"add rm --agora -a --repo --help -h"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
@@ -239,7 +242,8 @@ make_fake_ki() {
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
   [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"save a named Agora snapshot"* ]]
+  [[ "$output" == *"add or remove an Agora location"* ]]
+  [[ "$output" == *"add or remove a repository location"* ]]
   [[ "$output" == *"sync:update clean tracking branches"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
@@ -618,7 +622,7 @@ assert_usage_error() {
   assert_usage_error --estate structure standard
 }
 
-@test "register snapshots Agora members alongside local repositories and refreshes them" {
+@test "register binds Agora locations alongside local repositories and refreshes them" {
   mkrepo "$TREE/local"
   mkrepo "$BATS_TEST_TMPDIR/external"
   mkrepo "$BATS_TEST_TMPDIR/replacement"
@@ -626,10 +630,10 @@ assert_usage_error() {
   FAKE_KI_ROOTS="$TREE/local"$'\n'"$BATS_TEST_TMPDIR/external"
 
   cd "$TREE"
-  run "$MGIT" register --agora focus
+  run "$MGIT" register add --agora focus
   [ "$status" -eq 0 ]
-  grep -Fx 'agora = "focus"' "$TREE/.mgit.toml"
-  grep -Fx '[agora.members."../external"]' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
+  grep -Fx '[registered.members."../external"]' "$TREE/.mgit.toml"
 
   FAKE_KI_FAIL=true
   run "$MGIT"
@@ -637,7 +641,7 @@ assert_usage_error() {
   [ "$output" = $'local\n../external' ]
   run "$MGIT" group create review
   [ "$status" -eq 0 ]
-  grep -Fx 'agora = "focus"' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
   before=$(cat "$TREE/.mgit.toml")
   run "$MGIT" register
   [ "$status" -eq 1 ]
@@ -661,10 +665,101 @@ assert_usage_error() {
   cd "$TREE"
   run "$MGIT" register --agora focus
   [ "$status" -eq 0 ]
+  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
   grep -Fx '[groups.default]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = '../external' ]
+}
+
+@test "register add and rm accept repeated mixed locations and refresh entries" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/first"
+  mkrepo "$BATS_TEST_TMPDIR/second"
+  mkrepo "$BATS_TEST_TMPDIR/one"
+  mkrepo "$BATS_TEST_TMPDIR/two"
+  make_fake_ki
+  FAKE_KI_ROOTS="$BATS_TEST_TMPDIR/first"
+  FAKE_KI_SECOND_ROOTS="$BATS_TEST_TMPDIR/second"
+
+  cd "$TREE"
+  run "$MGIT" register add --agora focus --repo ../one --agora second --repo ../two
+  [ "$status" -eq 0 ]
+  grep -Fx 'locations = ["local", "agora:focus", "repo:../one", "agora:second", "repo:../two"]' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'local\n../first\n../one\n../second\n../two' ]
+
+  mv "$BATS_TEST_TMPDIR/two" "$BATS_TEST_TMPDIR/moved"
+  run "$MGIT" register rm --agora focus --repo ../one --agora second --repo ../two
+  [ "$status" -eq 0 ]
+  grep -Fx 'locations = ["local"]' "$TREE/.mgit.toml"
+  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'local' ]
+}
+
+@test "register can bind an external repository without an Agora" {
+  mkrepo "$BATS_TEST_TMPDIR/external space"
+  cd "$TREE"
+  run "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external space"
+  [ "$status" -eq 0 ]
+  grep -Fx 'locations = ["local", "repo:../external space"]' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = '../external space' ]
+}
+
+@test "register migrates a legacy Agora snapshot into locations" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  make_fake_ki
+  FAKE_KI_ROOTS="$BATS_TEST_TMPDIR/external"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    'agora = "focus"' \
+    '[agora.members."../external"]' \
+    '[groups.default.members."local"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'local\n../external' ]
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
+  ! grep -Fq 'agora = ' "$TREE/.mgit.toml"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'local\n../external' ]
+}
+
+@test "register rejects invalid location sources before rewriting the manifest" {
+  mkrepo "$TREE/local"
+  cd "$TREE"
+  "$MGIT" register >/dev/null
+  before=$(cat "$TREE/.mgit.toml")
+
+  mkdir "$BATS_TEST_TMPDIR/not-a-repo"
+  run "$MGIT" register add --repo "$BATS_TEST_TMPDIR/not-a-repo"
+  [ "$status" -eq 1 ]
+  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
+
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    'locations = ["local", 3]' \
+    '[groups.default]' > "$TREE/.mgit.toml"
+  before=$(cat "$TREE/.mgit.toml")
+  run "$MGIT" register
+  [ "$status" -eq 1 ]
+  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
 }
 
 @test "register rejects a stray argument" {
