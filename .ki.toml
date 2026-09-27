@@ -11,6 +11,8 @@
 harnesses = ["knowledgeislands/ki-agentic-harness"]
 
 [skills.ki-repo]
+repo_type = "project"
+primary_shape = "ki-repo-tools"
 repository = "https://github.com/knowledgeislands/tools-mgit"
 title = "mgit"
 description = "Run commands across many Git repositories at once."
