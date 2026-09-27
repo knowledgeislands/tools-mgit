@@ -1102,18 +1102,54 @@ assert_usage_error() {
   [[ "$output" == *"repoA/main"* ]]
   [[ "$output" == *"repoA/branch-b"* ]]
   [[ "$output" == *"repoB"* ]]
-  [[ "$output" == *"repoB-branch-c"* ]]
+  [[ "$output" == *"repoB [branch-c]"* ]]
   [[ "$output" != *"repoA/.bare"* ]]
 
   run "$MGIT" -W
   [ "$status" -eq 0 ]
   [[ "$output" == *"repoA/branch-b"* ]]
-  [[ "$output" == *"repoB-branch-c"* ]]
+  [[ "$output" == *"repoB [branch-c]"* ]]
 
   run "$MGIT" worktree list
   [ "$status" -eq 0 ]
   [[ "$output" == *"repoA/main"* ]]
   [[ "$output" == *"repoA/branch-b"* ]]
+}
+
+@test "external worktree labels hide storage paths without changing execution targets" {
+  mkrepo "$TREE/repo A"
+  mkrepo "$TREE/repoB"
+  local storage="$BATS_TEST_TMPDIR/runtime storage/company-uuid"
+  git -C "$TREE/repo A" worktree add -q -b GOV-104 "$storage/one"
+  git -C "$TREE/repoB" worktree add -q -b GOV-104 "$storage/two"
+  git -C "$TREE/repo A" worktree add -q --detach "$storage/held work"
+  git -C "$TREE/repoB" worktree add -q -b hidden "$TREE/repoB/.git/mgit-worktrees/hidden"
+
+  cd "$TREE"
+  "$MGIT" register >/dev/null
+  run "$MGIT" -W
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repo A [GOV-104]"* ]]
+  [[ "$output" == *"repoB [GOV-104]"* ]]
+  [[ "$output" == *"repo A [detached:held work@"* ]]
+  [[ "$output" == *"repoB [hidden]"* ]]
+  [[ "$output" != *"company-uuid"* ]]
+  [[ "$output" != *".git/mgit-worktrees"* ]]
+
+  run "$MGIT" -W -f 'repo A' rev-parse --show-toplevel
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repo A [GOV-104]: git rev-parse --show-toplevel"* ]]
+  [[ "$output" == *"$storage/one"* ]]
+  [[ "$output" != *"$storage/two"* ]]
+
+  run "$MGIT" -W --bare pwd -P
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repoB [GOV-104]: pwd -P"* ]]
+  [[ "$output" == *"$storage/two"* ]]
+
+  run "$MGIT" worktree list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"runtime storage/company-uuid/one"* ]]
 }
 
 @test "structure nested previews then restructures every standard repo in the set" {

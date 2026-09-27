@@ -2943,6 +2943,30 @@ if [ ${#filters[@]} -gt 0 ]; then
 fi
 
 repos=()
+repo_labels=()
+
+# Keep execution paths separate from labels for runtime-owned worktrees.
+add_checkout() {
+  local root="$1" checkout="$2" label branch
+  label=$(disp "$checkout")
+  case "$checkout" in
+    "$root") ;;
+    "$root"/.git/*|"$root"/.bare/*)
+      branch=$(git -C "$checkout" symbolic-ref --quiet --short HEAD 2>/dev/null) ||
+        branch="detached:${checkout##*/}@$(git -C "$checkout" rev-parse --short HEAD)"
+      label="$(disp "$root") [$branch]"
+      ;;
+    "$root"/*) ;;
+    *)
+      branch=$(git -C "$checkout" symbolic-ref --quiet --short HEAD 2>/dev/null) ||
+        branch="detached:${checkout##*/}@$(git -C "$checkout" rev-parse --short HEAD)"
+      label="$(disp "$root") [$branch]"
+      ;;
+  esac
+  repos+=("$(disp "$checkout")")
+  repo_labels+=("$label")
+}
+
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
   c=$(canon_dir "$r") || continue
   case "$(repo_type "$c")" in
@@ -2950,23 +2974,23 @@ for r in "${repo_units[@]+"${repo_units[@]}"}"; do
       if [ "$all_worktrees" = true ]; then
         while IFS= read -r wt; do
           [ -z "$wt" ] && continue
-          repos+=("$(disp "$(canon_dir "$wt")")")
+          add_checkout "$c" "$(canon_dir "$wt")"
         done < <(active_worktree_paths "$c")
       else
-        repos+=("$(disp "$c")")
+        add_checkout "$c" "$c"
       fi
       ;;
     nested)
       if [ "$all_worktrees" = true ]; then
         while IFS= read -r wt; do
           [ -z "$wt" ] && continue
-          repos+=("$(disp "$(canon_dir "$wt")")")
+          add_checkout "$c" "$(canon_dir "$wt")"
         done < <(active_worktree_paths "$c")
       else
-        repos+=("$(disp "$(canon_dir "$c/main")")")
+        add_checkout "$c" "$(canon_dir "$c/main")"
       fi
       ;;
-    bare) repos+=("$(disp "$c")") ;;
+    bare) add_checkout "$c" "$c" ;;
   esac
 done
 
@@ -2989,7 +3013,7 @@ if [ "${1:-}" = "sync" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-  for r in "${repos[@]+"${repos[@]}"}"; do
+  for r in "${repo_labels[@]+"${repo_labels[@]}"}"; do
     printf '%s\n' "$r"
   done
   exit 0
@@ -3000,12 +3024,14 @@ fi
 printed_cmd=$(printf '%q ' "$@")
 printed_cmd="${printed_cmd% }"
 
-for d in "${repos[@]+"${repos[@]}"}"; do
+for i in "${!repos[@]}"; do
+  d="${repos[$i]}"
+  label="${repo_labels[$i]}"
   if [ "$bare" = true ]; then
-    printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$d" "$CLEAR" "$printed_cmd"
+    printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
     ( cd "$d" && "$@" )
   else
-    printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$d" "$CLEAR" "$printed_cmd"
+    printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
     ( cd "$d" && git "$@" )
   fi
 done

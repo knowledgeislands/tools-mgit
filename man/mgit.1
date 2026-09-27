@@ -251,6 +251,12 @@ or
 Include every active linked worktree as well as the primary checkout when
 listing repositories or running ordinary commands and
 .BR sync .
+Normal listings and command headers label worktrees outside the repository or
+under its hidden Git storage as repository [branch], without the storage prefix.
+Detached worktrees use their directory name and abbreviated commit.
+Execution still uses the actual checkout path; use
+.B worktree list
+to inspect physical paths.
 Without this option, a standard repository uses its root checkout and a nested
 repository uses its required
 .I main/

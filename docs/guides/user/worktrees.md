@@ -68,8 +68,10 @@ mgit --all-worktrees status
 repoA/main
 repoA/featureA
 repoB
-repoB/.git/mgit-worktrees/featureA
+repoB [featureA]
 ```
+
+For linked worktrees outside the repository or under its hidden Git storage, normal listings and command headers show `repository [branch]`, not the storage path. Detached checkouts show their directory name and abbreviated commit. Commands still execute in the actual checkout; use `mgit worktree list` for physical paths. Existing worktrees are not moved or renamed.
 
 ## Change a repository structure
 
