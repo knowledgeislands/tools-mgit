@@ -454,6 +454,8 @@ assert_usage_error() {
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: [1/2] current: checking"* ]]
+  [[ "$output" == *"mgit sync: [2/2] dirty: checking"* ]]
   [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]]
   [[ "$output" == *" M payload"* ]]
   [[ "$output" == *"mgit sync: 1 repository already in sync"* ]]
@@ -522,6 +524,7 @@ assert_usage_error() {
   run "$MGIT" --filter selected sync
 
   [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: [1/1] selected: checking"* ]]
   [[ "$output" == *"mgit sync: selected: local changes (skipped)"* ]]
   [[ "$output" != *"omitted"* ]]
 }

@@ -212,6 +212,7 @@ Update clean tracking branches across the current repository set.
 
 Primary checkouts are selected by default; pass -W or --all-worktrees to
 include linked worktrees.
+Numbered progress is printed as each selected repository is checked.
 Dirty worktrees print their short status and are skipped. Clean worktrees use
 git pull --ff-only, then git push when local commits remain ahead of upstream.
 Repositories already current are collapsed into one final count.
@@ -2726,6 +2727,7 @@ sync_commit_noun() {
 sync_command() {
   local help=false d kind status_output branch upstream before after ahead
   local pull_output push_output pulled_count synced=0 failed=false
+  local current=0 total=${#repos[@]}
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2737,6 +2739,8 @@ sync_command() {
   [ "$help" = false ] || { sync_usage; return 0; }
 
   for d in "${repos[@]+"${repos[@]}"}"; do
+    current=$((current + 1))
+    printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$d"
     kind=$(repo_type "$d")
     if [ "$kind" = bare ]; then
       printf 'mgit sync: %s: bare repository (skipped)\n' "$d"
