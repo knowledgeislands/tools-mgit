@@ -377,6 +377,13 @@ branches run
 then
 .B git push
 when local commits remain ahead of upstream.
+The command announces pulls and pushes before they start.
+With
+.BR \-i " or " \-\-interactive ,
+it asks before each pull and push; an empty answer skips the action.
+If a pull is skipped, the checkout is not pushed.
+Declined actions are counted at the end and do not cause failure.
+If input ends before an answer, the command stops unsuccessfully.
 .PP
 Repositories that pulled or pushed commits are named. Already-current
 repositories are collapsed into one final count. Bare repositories, detached

@@ -44,10 +44,11 @@ Run `mgit` without a command to list the selected repositories. Pass a Git subco
 mgit
 mgit status
 mgit sync
+mgit sync -i
 mgit -B npm test
 ```
 
-`mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows repositories that changed or need attention and rolls repositories already current into one count.
+`mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows progress before each pull and push, names repositories that changed or need attention, and rolls repositories already current into one count. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
 
 Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 

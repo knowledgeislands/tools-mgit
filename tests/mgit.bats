@@ -459,7 +459,8 @@ assert_usage_error() {
   [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]]
   [[ "$output" == *" M payload"* ]]
   [[ "$output" == *"mgit sync: 1 repository already in sync"* ]]
-  [[ "$output" != *"mgit sync: current:"* ]]
+  [[ "$output" != *"mgit sync: current: pulled"* ]]
+  [[ "$output" != *"mgit sync: current: pushed"* ]]
 }
 
 @test "sync pulls incoming commits and pushes outgoing commits" {
@@ -482,9 +483,56 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]]
   [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]]
+  [[ "$output" == *"mgit sync: incoming: pulling"* ]]
+  [[ "$output" == *"mgit sync: outgoing: pushing"* ]]
+  [[ "$output" != *"[y/N]"* ]]
   [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]]
   [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
+}
+
+@test "sync interactive mode confirms pull and push separately" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  local before
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/repo"
+  git -C "$TREE/repo" commit -q --allow-empty -m local-update
+  before=$(git --git-dir="$origin" rev-parse HEAD)
+
+  cd "$TREE"
+  run bash -c 'printf "n\n" | "$1" sync -i' _ "$MGIT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: repo: pull skipped"* ]]
+  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]]
+  [[ "$output" != *"mgit sync: repo: pushing"* ]]
+  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
+
+  run bash -c 'printf "y\nn\n" | "$1" sync -i' _ "$MGIT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: repo: pull "*"? [y/N]"* ]]
+  [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]]
+  [[ "$output" == *"mgit sync: repo: push skipped (1 commit ahead)"* ]]
+  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]]
+  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
+
+  run bash -c 'printf "y\ny\n" | "$1" sync --interactive' _ "$MGIT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: repo: pushed 1 commit"* ]]
+  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$(git -C "$TREE/repo" rev-parse HEAD)" ]
+}
+
+@test "sync interactive mode stops when input ends before confirmation" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/repo"
+
+  cd "$TREE"
+  run bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: interactive input ended"* ]]
+  [[ "$output" != *"mgit sync: repo: pulling"* ]]
 }
 
 @test "sync reports no-upstream bare and divergent repositories" {

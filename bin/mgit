@@ -206,7 +206,7 @@ EOF
 
 sync_usage() {
   cat <<'EOF'
-Usage: mgit sync
+Usage: mgit sync [-i|--interactive]
 
 Update clean tracking branches across the current repository set.
 
@@ -216,6 +216,10 @@ Numbered progress is printed as each selected repository is checked.
 Dirty worktrees print their short status and are skipped. Clean worktrees use
 git pull --ff-only, then git push when local commits remain ahead of upstream.
 Repositories already current are collapsed into one final count.
+
+Options:
+ -i, --interactive       confirm each pull and push; an empty answer skips
+ -h, --help              display help for this command
 EOF
 }
 
@@ -287,8 +291,11 @@ _mgit() {
         COMPREPLY=( $(compgen -W '--agora -a --repo --help -h' -- "$cur") )
       fi
       ;;
-    repair|sync)
+    repair)
       COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
+      ;;
+    sync)
+      COMPREPLY=( $(compgen -W '--interactive -i --help -h' -- "$cur") )
       ;;
     group)
       case "$subcommand" in
@@ -411,7 +418,8 @@ _mgit() {
   )
   case $words[2] in
     register) _arguments -s '1:action:(add rm)' '*--agora[add or remove an Agora location]:Agora name:' '*-a[add or remove an Agora location]:Agora name:' '*--repo[add or remove a repository location]:repository path:_files -/' '-h[display help for command]' '--help[display help for command]' ;;
-    repair|sync) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    repair) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-h[display help for command]' '--help[display help for command]' ;;
     group)
       case $words[3] in
         '') _describe -t commands 'group command' group_commands ;;
@@ -2724,14 +2732,31 @@ sync_commit_noun() {
   fi
 }
 
+sync_confirm_action() {
+  local answer
+  while true; do
+    printf 'mgit sync: %s: %s? [y/N]\n' "$1" "$2"
+    if ! IFS= read -r answer; then
+      printf 'mgit sync: interactive input ended\n' >&2
+      return 2
+    fi
+    case "$answer" in
+      y|Y|yes|YES) return 0 ;;
+      n|N|no|NO|'') return 1 ;;
+      *) printf 'mgit sync: answer y or n\n' >&2 ;;
+    esac
+  done
+}
+
 sync_command() {
-  local help=false d kind status_output branch upstream before after ahead
-  local pull_output push_output pulled_count synced=0 failed=false
-  local current=0 total=${#repos[@]}
+  local help=false interactive=false d kind status_output branch upstream before after ahead
+  local pull_output push_output pulled_count synced=0 skipped=0 failed=false
+  local current=0 total=${#repos[@]} answer_status
 
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
+      -i|--interactive) interactive=true ;;
       *) usage_error_for sync_usage "sync: unexpected argument: $1"; return ;;
     esac
     shift
@@ -2777,6 +2802,19 @@ sync_command() {
       continue
     fi
 
+    if [ "$interactive" = true ]; then
+      sync_confirm_action "$d" "pull $branch from $upstream"
+      answer_status=$?
+      case "$answer_status" in
+        1)
+          printf 'mgit sync: %s: pull skipped\n' "$d"
+          skipped=$((skipped + 1))
+          continue
+          ;;
+        2) return 1 ;;
+      esac
+    fi
+    printf 'mgit sync: %s: pulling\n' "$d"
     if ! pull_output=$(git -C "$d" pull --ff-only --quiet 2>&1); then
       printf 'mgit sync: %s: pull failed\n' "$d"
       sync_print_detail "$pull_output"
@@ -2819,6 +2857,26 @@ sync_command() {
     fi
 
     if [ "$ahead" -gt 0 ]; then
+      if [ "$interactive" = true ]; then
+        sync_confirm_action "$d" "push $ahead $(sync_commit_noun "$ahead")"
+        answer_status=$?
+        case "$answer_status" in
+          1)
+            [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+              "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+            printf 'mgit sync: %s: push skipped (%d %s ahead)\n' \
+              "$d" "$ahead" "$(sync_commit_noun "$ahead")"
+            skipped=$((skipped + 1))
+            continue
+            ;;
+          2)
+            [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
+              "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+            return 1
+            ;;
+        esac
+      fi
+      printf 'mgit sync: %s: pushing\n' "$d"
       if ! push_output=$(git -C "$d" push --quiet 2>&1); then
         [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
           "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
@@ -2847,6 +2905,11 @@ sync_command() {
     printf 'mgit sync: 1 repository already in sync\n'
   else
     printf 'mgit sync: %d repositories already in sync\n' "$synced"
+  fi
+  if [ "$skipped" -eq 1 ]; then
+    printf 'mgit sync: 1 action skipped by user\n'
+  elif [ "$skipped" -gt 1 ]; then
+    printf 'mgit sync: %d actions skipped by user\n' "$skipped"
   fi
   [ "$failed" = false ]
 }
