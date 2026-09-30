@@ -94,4 +94,4 @@ export = ["work", "knowledge"]
 import = ["work", "knowledge"]
 
 [skills.ki-agora]
-memberships.kis = { home = "https://github.com/knowledgeislands/ki-arcadia-principal", role = "member" }
+memberships.kis = { home = "https://github.com/knowledgeislands/ki-arcadia-principal" }
