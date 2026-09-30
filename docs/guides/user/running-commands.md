@@ -76,7 +76,7 @@ mgit --estate status
 
 The two selectors carry the same restrictions and cannot be combined with each other.
 
-MGit invokes `ki agora roots --null <name>` once, and uses only the returned repository roots. It does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but neither selector can be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, `--ignore`, or `--group`). `mgit register add --agora <name>` binds an Agora as a saved search location and refreshes its generated entries; plain `mgit register` refreshes them later. Other management commands do not accept the selectors.
+MGit invokes `ki agora roots --null <name>` once and uses exactly the returned repository roots, including any repositories added by that Agora's `includes` declaration. `ki` deduplicates and orders the roots alphabetically; MGit's selector does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but neither selector can be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, `--ignore`, or `--group`). `mgit register add --agora <name>` binds an Agora as a saved search location and refreshes its generated entries; plain `mgit register` refreshes them later. Other management commands do not accept the selectors.
 
 ## Discovery options
 
