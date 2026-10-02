@@ -159,3 +159,15 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `sync rolls up current repositories and shows dirty worktrees`; `sync pulls incoming commits and pushes outgoing commits`; `sync reports no-upstream bare and divergent repositories`; `sync honors repository filters`.
 
 _Evidence:_ The named Bats checks cover clean, dirty, incoming, outgoing, no-upstream, bare, divergent, and filtered repository states.
+
+## Fan-out result
+
+### MGIT-WS-019 — Aggregate command failure
+
+Ordinary Git and `-B` dispatch MUST attempt every selected checkout in order and return status `1` when any child command fails, even when the final child succeeds. It MUST return `0` only when every child succeeds.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `fan-out reports an early failure after a successful final checkout`.
+
+_Evidence:_ The named Bats case exercises both dispatch families with an early failure and successful final checkout.

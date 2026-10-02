@@ -543,7 +543,8 @@ The command grammar was invalid or an unsupported option was supplied.
 .PP
 For a fan-out command,
 .B mgit
-returns the exit status of the last command it invokes.
+returns status 1 if any selected repository command fails, after attempting
+every selected checkout. It returns 0 only when every command succeeds.
 .SH SEE ALSO
 \&
 .BR git (1),

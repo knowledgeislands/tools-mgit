@@ -8,6 +8,8 @@ mgit status
 mgit sync
 ```
 
+Ordinary Git and `-B` commands continue through every selected checkout. The invocation exits with status `1` if any checkout command fails, even when the final checkout succeeds.
+
 Prefix a command with `-B` to run it directly rather than as a Git subcommand:
 
 ```sh

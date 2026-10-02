@@ -384,6 +384,30 @@ assert_usage_error() {
   [[ "$output" == *"git status --short"* ]]
 }
 
+@test "fan-out reports an early failure after a successful final checkout" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  git -C "$TREE/b" branch only-b
+  touch "$TREE/b/success"
+  cd "$TREE"
+
+  run "$MGIT" rev-parse --verify only-b
+  [ "$status" -eq 1 ]
+  plain_output=${output//$'\033[1m'/}
+  plain_output=${plain_output//$'\033[33m'/}
+  plain_output=${plain_output//$'\033[0m'/}
+  [[ "$plain_output" == *"a: git rev-parse --verify only-b"* ]]
+  [[ "$plain_output" == *"b: git rev-parse --verify only-b"* ]]
+
+  run "$MGIT" -B sh -c 'test -f success'
+  [ "$status" -eq 1 ]
+  plain_output=${output//$'\033[1m'/}
+  plain_output=${plain_output//$'\033[33m'/}
+  plain_output=${plain_output//$'\033[0m'/}
+  [[ "$plain_output" == *"a: sh -c"* ]]
+  [[ "$plain_output" == *"b: sh -c"* ]]
+}
+
 @test "sync rolls up current repositories and shows dirty worktrees" {
   local seed="$BATS_TEST_TMPDIR/seed"
   local origin="$BATS_TEST_TMPDIR/origin.git"

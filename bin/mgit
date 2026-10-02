@@ -3033,14 +3033,16 @@ fi
 printed_cmd=$(printf '%q ' "$@")
 printed_cmd="${printed_cmd% }"
 
+dispatch_failed=false
 for i in "${!repos[@]}"; do
   d="${repos[$i]}"
   label="${repo_labels[$i]}"
   if [ "$bare" = true ]; then
     printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
-    ( cd "$d" && "$@" )
+    ( cd "$d" && "$@" ) || dispatch_failed=true
   else
     printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
-    ( cd "$d" && git "$@" )
+    ( cd "$d" && git "$@" ) || dispatch_failed=true
   fi
 done
+[ "$dispatch_failed" = false ]

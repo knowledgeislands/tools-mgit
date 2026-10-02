@@ -4,12 +4,12 @@ area: CLI
 title: Report fan-out failures
 theme: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: f87f17297e5bdd0730de5cc604336de8366b536c
 created_at: 2026-09-28T09:21:04Z
-updated_at: 2026-10-02T11:09:21Z
+updated_at: 2026-10-02T11:12:47Z
 ---
 
 ## Goal
@@ -30,9 +30,9 @@ Ordinary Git and `-B` fan-out return the final child status even when an earlier
 
 ## Steps
 
-- [ ] Track whether any selected child command fails while continuing through every checkout.
-- [ ] Return status 1 when any child fails and 0 only when all succeed, for both Git and `-B` dispatch.
-- [ ] Update the manual and accepted behavior specification, then test early failure followed by final success.
+- [x] Track whether any selected child command fails while continuing through every checkout.
+- [x] Return status 1 when any child fails and 0 only when all succeed, for both Git and `-B` dispatch.
+- [x] Update the manual and accepted behavior specification, then test early failure followed by final success.
 
 ## Files touched
 
@@ -63,6 +63,32 @@ Explain the caller-visible exit result in the running-commands guide.
 ### Roadmap
 
 No follow-on roadmap item is expected.
+
+## Review
+
+### Delivered
+
+From baseline `f87f17297e5bdd0730de5cc604336de8366b536c`, ordinary Git and `-B` dispatch continue across every selected checkout and return status `1` if any child fails. Management command results remain outside this item.
+
+### Change Summary
+
+`bin/mgit` accumulates child failures. `tests/mgit.bats` covers an early failure and successful final checkout in both dispatch modes. The manual, running-commands guide, changelog, and workspace-dispatch specification describe the result.
+
+### Verification
+
+The focused Bats case and complete gate passed: repository audit, ShellCheck, Bash syntax, Bats, mandoc lint, and `git diff --check`.
+
+### Outstanding concerns
+
+None.
+
+### Post-change review
+
+The result matches the goal without changing selection or execution order. The aggregate status gives callers a reliable failure signal, and the added test catches regression to final-child status.
+
+### Mini recap
+
+Fan-out failure reporting is delivered and verified; no follow-on work was identified.
 
 ## Discussion
 
