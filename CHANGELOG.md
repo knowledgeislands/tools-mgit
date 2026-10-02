@@ -1,12 +1,12 @@
 # Changelog
 
-All notable changes to `mgit` are documented here. This changelog records the v1 release baseline; it does not retroactively track individual 0.x releases. Tags and commit history remain the record of pre-v1 run-up.
+All notable changes to `mgit` are documented here as a consolidated Pre-1.0 baseline. It is updated as the tool evolves; tags, GitHub releases and commit history retain the exact 0.x snapshots.
 
-## [1.0.0] — in progress
+## Pre-1.0 baseline
 
-Pre-v1 work is summarized as one baseline. Separate 0.x release entries are not maintained.
+Separate 0.x release entries are not maintained here.
 
-### Shipped commands
+### Command surface
 
 #### General
 

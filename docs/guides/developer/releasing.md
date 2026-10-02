@@ -5,7 +5,7 @@ Use this guide only after the candidate satisfies the [definition of done](defin
 ## Prepare the release
 
 1. Set `MGIT_VERSION` in `bin/mgit` to the intended semantic version without a `v` prefix.
-2. Keep `CHANGELOG.md` as the curated V1 feature baseline while pre-1.0 tags remain recorded in Git history. From `v1.0.0` onward, add the dated release entry required by repository policy.
+2. Before 1.0, update the consolidated Pre-1.0 command and feature baseline in `CHANGELOG.md`; tags and releases retain the exact 0.x snapshots. From `v1.0.0` onward, add a dated release entry.
 3. Confirm that help, the README, user guides, `man/mgit.1`, completion, the installer, version tests, and the executable report the same candidate surface and version.
 4. Run the complete verification gate from the [developer guide](README.md) on a clean checkout.
 5. Commit the release candidate before creating any tag.

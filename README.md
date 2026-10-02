@@ -75,7 +75,7 @@ Run `mgit help`, `mgit help <command>`, or `man mgit` for the complete command r
 
 - [User guide](docs/guides/user/README.md) — installation, command execution, repository sets, and worktrees.
 - [Developer guide](docs/guides/developer/README.md) — local development and verification.
-- [Changelog](CHANGELOG.md) — the curated feature baseline planned for v1.
+- [Changelog](CHANGELOG.md) — the consolidated pre-1.0 command and feature baseline.
 
 ## Maintainer
 
