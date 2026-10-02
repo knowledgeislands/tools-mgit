@@ -33,6 +33,11 @@ MGIT_VERSION=0.13.0
 CLEAR=$'\033[0m'
 BOLD=$'\033[1m'
 YELLOW=$'\033[33m'
+if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
+  CLEAR=""
+  BOLD=""
+  YELLOW=""
+fi
 
 usage() {
   cat <<'EOF'
@@ -2367,7 +2372,7 @@ sync_confirm_action() {
 }
 
 sync_command() {
-  local help=false interactive=false d kind status_output branch upstream before after ahead
+  local help=false interactive=false d label index kind status_output branch upstream before after ahead
   local pull_output push_output pulled_count synced=0 skipped=0 failed=false
   local current=0 total=${#repos[@]} answer_status
 
@@ -2381,66 +2386,68 @@ sync_command() {
   done
   [ "$help" = false ] || { sync_usage; return 0; }
 
-  for d in "${repos[@]+"${repos[@]}"}"; do
+  for index in "${!repos[@]}"; do
+    d="${repos[$index]}"
+    label="${repo_labels[$index]}"
     current=$((current + 1))
-    printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$d"
+    printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$label"
     kind=$(repo_type "$d")
     if [ "$kind" = bare ]; then
-      printf 'mgit sync: %s: bare repository (skipped)\n' "$d"
+      printf 'mgit sync: %s: bare repository (skipped)\n' "$label"
       failed=true
       continue
     fi
 
     if ! status_output=$(git -C "$d" status --short 2>&1); then
-      printf 'mgit sync: %s: status failed\n' "$d"
+      printf 'mgit sync: %s: status failed\n' "$label"
       sync_print_detail "$status_output"
       failed=true
       continue
     fi
     if [ -n "$status_output" ]; then
-      printf 'mgit sync: %s: local changes (skipped)\n' "$d"
+      printf 'mgit sync: %s: local changes (skipped)\n' "$label"
       sync_print_detail "$status_output"
       failed=true
       continue
     fi
 
     if ! branch=$(git -C "$d" symbolic-ref --quiet --short HEAD 2>/dev/null); then
-      printf 'mgit sync: %s: detached HEAD (skipped)\n' "$d"
+      printf 'mgit sync: %s: detached HEAD (skipped)\n' "$label"
       failed=true
       continue
     fi
     if ! upstream=$(git -C "$d" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
-      printf 'mgit sync: %s: branch %s has no upstream (skipped)\n' "$d" "$branch"
+      printf 'mgit sync: %s: branch %s has no upstream (skipped)\n' "$label" "$branch"
       failed=true
       continue
     fi
     if ! before=$(git -C "$d" rev-parse HEAD 2>/dev/null); then
-      printf 'mgit sync: %s: cannot resolve HEAD\n' "$d"
+      printf 'mgit sync: %s: cannot resolve HEAD\n' "$label"
       failed=true
       continue
     fi
 
     if [ "$interactive" = true ]; then
-      sync_confirm_action "$d" "pull $branch from $upstream"
+      sync_confirm_action "$label" "pull $branch from $upstream"
       answer_status=$?
       case "$answer_status" in
         1)
-          printf 'mgit sync: %s: pull skipped\n' "$d"
+          printf 'mgit sync: %s: pull skipped\n' "$label"
           skipped=$((skipped + 1))
           continue
           ;;
         2) return 1 ;;
       esac
     fi
-    printf 'mgit sync: %s: pulling\n' "$d"
+    printf 'mgit sync: %s: pulling\n' "$label"
     if ! pull_output=$(git -C "$d" pull --ff-only --quiet 2>&1); then
-      printf 'mgit sync: %s: pull failed\n' "$d"
+      printf 'mgit sync: %s: pull failed\n' "$label"
       sync_print_detail "$pull_output"
       failed=true
       continue
     fi
     after=$(git -C "$d" rev-parse HEAD 2>/dev/null) || {
-      printf 'mgit sync: %s: cannot resolve HEAD after pull\n' "$d"
+      printf 'mgit sync: %s: cannot resolve HEAD after pull\n' "$label"
       failed=true
       continue
     }
@@ -2451,16 +2458,16 @@ sync_command() {
 
     if ! status_output=$(git -C "$d" status --short 2>&1); then
       [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: status failed after pull\n' "$d"
+        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: status failed after pull\n' "$label"
       sync_print_detail "$status_output"
       failed=true
       continue
     fi
     if [ -n "$status_output" ]; then
       [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: local changes after pull (push skipped)\n' "$d"
+        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: local changes after pull (push skipped)\n' "$label"
       sync_print_detail "$status_output"
       failed=true
       continue
@@ -2468,52 +2475,52 @@ sync_command() {
 
     if ! ahead=$(git -C "$d" rev-list --count "$upstream..HEAD" 2>/dev/null); then
       [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: cannot compare with upstream %s\n' "$d" "$upstream"
+        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      printf 'mgit sync: %s: cannot compare with upstream %s\n' "$label" "$upstream"
       failed=true
       continue
     fi
 
     if [ "$ahead" -gt 0 ]; then
       if [ "$interactive" = true ]; then
-        sync_confirm_action "$d" "push $ahead $(sync_commit_noun "$ahead")"
+        sync_confirm_action "$label" "push $ahead $(sync_commit_noun "$ahead")"
         answer_status=$?
         case "$answer_status" in
           1)
             [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-              "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+              "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
             printf 'mgit sync: %s: push skipped (%d %s ahead)\n' \
-              "$d" "$ahead" "$(sync_commit_noun "$ahead")"
+              "$label" "$ahead" "$(sync_commit_noun "$ahead")"
             skipped=$((skipped + 1))
             continue
             ;;
           2)
             [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-              "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+              "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
             return 1
             ;;
         esac
       fi
-      printf 'mgit sync: %s: pushing\n' "$d"
+      printf 'mgit sync: %s: pushing\n' "$label"
       if ! push_output=$(git -C "$d" push --quiet 2>&1); then
         [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-          "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-        printf 'mgit sync: %s: push failed\n' "$d"
+          "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+        printf 'mgit sync: %s: push failed\n' "$label"
         sync_print_detail "$push_output"
         failed=true
         continue
       fi
       if [ "$pulled_count" -gt 0 ]; then
         printf 'mgit sync: %s: pulled %d %s and pushed %d %s\n' \
-          "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")" \
+          "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")" \
           "$ahead" "$(sync_commit_noun "$ahead")"
       else
         printf 'mgit sync: %s: pushed %d %s\n' \
-          "$d" "$ahead" "$(sync_commit_noun "$ahead")"
+          "$label" "$ahead" "$(sync_commit_noun "$ahead")"
       fi
     elif [ "$pulled_count" -gt 0 ]; then
       printf 'mgit sync: %s: pulled %d %s\n' \
-        "$d" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
     else
       synced=$((synced + 1))
     fi

@@ -68,8 +68,8 @@ Print contextual help for an mgit command.
 runs a Git command, or an arbitrary command with
 .BR \-B ,
 across a set of repositories.
-Before each invocation it prints the repository path and command.
-With no command it prints the repository paths that would be used.
+Before each invocation it prints the checkout label and command.
+With no command it prints the checkout labels that would be used.
 .PP
 The reserved command tree consists of
 .BR register ,
@@ -85,6 +85,12 @@ Their subcommands and arguments are validated by
 Other commands are passed to Git unchanged, so
 .B mgit status --short
 means the same Git command in every selected repository.
+.PP
+Command headers and sync progress use checkout labels. A linked worktree
+outside its repository appears as repository [branch], while execution uses
+the real checkout path. ANSI styling appears only on a terminal; a non-empty
+.B NO_COLOR
+disables it there as well.
 .B mgit help \fICOMMAND\fR
 and
 .B mgit \fICOMMAND\fR --help

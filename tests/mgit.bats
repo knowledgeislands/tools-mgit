@@ -543,6 +543,25 @@ assert_usage_error() {
   [[ "$output" != *"omitted"* ]]
 }
 
+@test "captured command output has no color and sync uses checkout labels" {
+  mkrepo "$TREE/standard"
+  mkrepo "$TREE/nested"
+  make_managed_worktree_repo "$TREE/nested"
+  git -C "$TREE/standard" worktree add -q -b topic "$TREE/storage-topic"
+  cd "$TREE"
+
+  run "$MGIT" status --short
+  [ "$status" -eq 0 ]
+  [[ "$output" != *$'\033['* ]]
+
+  run "$MGIT" --all-worktrees sync
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"standard [topic]: checking"* ]]
+  [[ "$output" == *"nested/main: checking"* ]]
+  [[ "$output" != *"storage-topic"* ]]
+  [[ "$output" != *$'\033['* ]]
+}
+
 @test "--agora selects only NUL-delimited roots from ki" {
   mkrepo "$TREE/first"
   mkrepo "$TREE/with space"

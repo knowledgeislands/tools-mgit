@@ -171,3 +171,13 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `fan-out reports an early failure after a successful final checkout`.
 
 _Evidence:_ The named Bats case exercises both dispatch families with an early failure and successful final checkout.
+
+### MGIT-WS-020 — Checkout output identity
+
+Ordinary command headers and `sync` progress and outcomes MUST use the selected checkout label, including external worktrees, while Git executes at the checkout path. Captured standard output MUST contain no ANSI styling; a non-empty `NO_COLOR` MUST disable styling on a terminal.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `captured command output has no color and sync uses checkout labels`.
+
+_Evidence:_ The named Bats case covers standard, nested, and external worktree output in a captured stream.

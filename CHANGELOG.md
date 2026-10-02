@@ -59,6 +59,7 @@ Separate 0.x release entries are not maintained here.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 - Ordinary Git and `-B` fan-out attempt every selected checkout and return status `1` if any child command fails.
+- Command headers and `sync` use checkout labels consistently; ANSI styling appears only on a terminal unless `NO_COLOR` is set.
 
 ### Distribution baseline
 

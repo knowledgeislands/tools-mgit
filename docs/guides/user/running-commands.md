@@ -10,6 +10,8 @@ mgit sync
 
 Ordinary Git and `-B` commands continue through every selected checkout. The invocation exits with status `1` if any checkout command fails, even when the final checkout succeeds.
 
+Command headers and `sync` progress use the same checkout labels. A linked worktree outside its repository is shown as `repository [branch]`, while Git still runs at the real checkout path. Color appears only on a terminal; captured output contains plain text. Set `NO_COLOR` to a non-empty value to disable color on a terminal.
+
 Prefix a command with `-B` to run it directly rather than as a Git subcommand:
 
 ```sh
