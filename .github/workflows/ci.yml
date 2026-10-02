@@ -15,9 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - name: Install and verify released KI
+      - name: Link latest KI from main
         env:
-          KI_VERSION: v0.4.1
           KI_CLI_INSTALL_DIR: ${{ runner.temp }}/ki/bin
           KI_MAN_INSTALL_DIR: ${{ runner.temp }}/ki/man/man1
           KI_DATA_HOME: ${{ runner.temp }}/ki/data
@@ -29,13 +28,14 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.agents" "$HOME/.claude"
           printf '{}\n' > "$HOME/.claude/settings.json"
-          curl --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' \
-            --output "$RUNNER_TEMP/ki-install.sh" "https://raw.githubusercontent.com/knowledgeislands/tools-ki/$KI_VERSION/install.sh"
-          bash "$RUNNER_TEMP/ki-install.sh" "$KI_VERSION"
+          git clone --quiet --depth 1 --branch main https://github.com/knowledgeislands/tools-ki.git "$RUNNER_TEMP/tools-ki-source"
+          printf 'KI source commit: %s\n' "$(git -C "$RUNNER_TEMP/tools-ki-source" rev-parse HEAD)"
+          (cd "$RUNNER_TEMP/tools-ki-source" && bun install --frozen-lockfile)
+          bash "$RUNNER_TEMP/tools-ki-source/install.sh" --link
           export PATH="$KI_CLI_INSTALL_DIR:$PATH"
           test "$(command -v ki)" = "$KI_CLI_INSTALL_DIR/ki"
-          test "$(ki --version)" = "${KI_VERSION#v}"
-          ki manage diag | grep -F 'Installation: regular'
+          ki --version
+          ki manage diag | grep -F 'Installation: local'
           ki manage diag | grep -F "Executable: $KI_CLI_INSTALL_DIR/ki"
           ki bootstrap
           ki registry add --repo .
