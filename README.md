@@ -18,7 +18,7 @@ Run commands across many Git repositories at once.
 
 Working with a directory full of related repositories often means repeating the same Git command or maintaining an ad hoc shell loop. `mgit` provides one predictable interface for that work while remaining a standalone Bash script with only Bash 3.2 or later and Git as runtime dependencies.
 
-Repository sets can be discovered at runtime by walking the current directory for Git repositories or predetermined by an optional checked-in `.mgit.toml` workspace document. Configuration is useful when the set should be explicit, reproducible, or divided into named groups; it is not required for ordinary discovery.
+Repository sets can be discovered at runtime by walking the current directory for Git repositories or predetermined by an optional checked-in `.mgit.toml` workspace document. Configuration is useful when the set should be explicit and reproducible; it is not required for ordinary discovery.
 
 ## Install
 
@@ -50,15 +50,7 @@ mgit -B npm test
 
 `mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows progress before each pull and push, names repositories that changed or need attention, and rolls repositories already current into one count. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
 
-Use `mgit register` to write a schema-1 `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
-
-Create and select alternative named groups without editing the document directly:
-
-```sh
-mgit group create ci
-mgit group add ci tools-mgit
-mgit --group ci status
-```
+Use `mgit register` to write an unversioned `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 
 When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 

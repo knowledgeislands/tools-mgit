@@ -1,6 +1,6 @@
 # Run commands across repositories
 
-From a workspace directory, `mgit` runs the requested command in the primary checkout of every selected repository. With no command, it lists the checkouts that would be used. If the current directory contains a workspace-kind `.mgit.toml`, it uses the selected group; otherwise it discovers Git repositories beneath the current directory.
+From a workspace directory, `mgit` runs the requested command in the primary checkout of every selected repository. With no command, it lists the checkouts that would be used. If the current directory contains a workspace-kind `.mgit.toml`, it uses the declared members; otherwise it discovers Git repositories beneath the current directory.
 
 ```sh
 mgit
@@ -36,7 +36,7 @@ Repositories that pulled or pushed commits are named. Repositories that were alr
 The existing selectors and filters narrow the same way as ordinary commands:
 
 ```sh
-mgit --group engineering sync
+mgit --filter 'tools-*' sync
 mgit --filter 'tools-*' sync
 mgit --agora kis sync
 ```
@@ -51,13 +51,6 @@ mgit -f 'mcp-*' -B bun run build
 ```
 
 Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. It does not change what `register` or `repair` reads.
-
-Use `-g` or `--group` to choose a named group from the workspace in the current directory instead of its configured default. Child workspaces always use their own configured defaults.
-
-```sh
-mgit --group ci status
-mgit -g ci -B bun run test
-```
 
 ## Select an Agora
 
@@ -76,7 +69,7 @@ mgit --estate status
 
 The two selectors carry the same restrictions and cannot be combined with each other.
 
-MGit invokes `ki agora roots --null <name>` once and uses exactly the returned repository roots, including any repositories added by that Agora's `includes` declaration. `ki` deduplicates and orders the roots alphabetically; MGit's selector does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but neither selector can be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, `--ignore`, or `--group`). `mgit register add --agora <name>` binds an Agora as a saved search location and refreshes its generated entries; plain `mgit register` refreshes them later. Other management commands do not accept the selectors.
+MGit invokes `ki agora roots --null <name>` once and uses exactly the returned repository roots, including any repositories added by that Agora's `includes` declaration. `ki` deduplicates and orders the roots alphabetically; MGit's selector does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but neither selector can be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, or `--ignore`). `mgit register add --agora <name>` binds an Agora as a saved search location and refreshes its generated entries; plain `mgit register` refreshes them later. Other management commands do not accept the selectors.
 
 ## Discovery options
 

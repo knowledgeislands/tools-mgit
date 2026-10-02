@@ -11,7 +11,8 @@
 # is walked for .git entries (dropping any nested under another repo).
 #
 # A .mgit.toml manifest defines path-keyed repository/workspace
-# members in named groups. A repository-owned .mgit.toml only maps a
+# members directly. Existing schema-1 grouped manifests remain readable. A
+# repository-owned .mgit.toml only maps a
 # symlink to its target under `symlinks`.
 #
 # `mgit register` writes a .mgit.toml in every container dir (listing
@@ -47,7 +48,6 @@ Options:
   -L, --follow-symlinks   follow symlinked container directories
   -B, --bare              run COMMAND directly instead of as a Git subcommand
   -I, --ignore            ignore workspace manifests and discover repositories
-  -g, --group <name>      select a named group from the current workspace
   -a, --agora <name>      select roots resolved by ki for a named Agora
       --estate            select every root in the registered KI estate
   -f, --filter <glob>     limit the repository set; repeatable
@@ -57,8 +57,7 @@ Options:
 
 Commands:
   register                generate workspace manifests and symlink metadata
-  repair                  clone missing default-group repositories
-  group                   create or delete named workspace groups
+  repair                  clone missing workspace repositories
   sync                    update clean tracking branches across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
@@ -76,7 +75,7 @@ Usage: mgit register [add|rm] [options]
 Generate workspace- and repository-kind .mgit.toml documents for current tree.
 
 The command scans saved locations (default: local), does not descend into
-repositories, and refreshes generated members while preserving named groups.
+repositories, and refreshes generated members.
 Add or remove locations and refresh in one command. When Chezmoi manages a
 generated manifest, its source state is updated too.
 
@@ -91,65 +90,11 @@ repair_usage() {
   cat <<'EOF'
 Usage: mgit repair [options]
 
-Clone missing repositories declared by structural default groups in current
+Clone missing repositories declared by members in current
 workspace-kind .mgit.toml. Existing paths are never replaced.
 
 Options:
   -h, --help  display help for command
-EOF
-}
-
-group_usage() {
-  cat <<'EOF'
-Usage: mgit group <command>
-
-Create and remove named alternative groups in the current workspace manifest.
-Group members must be direct members of the structural default group.
-
-Commands:
-  create <name>                  create an empty alternative group
-  delete <name>                  delete an alternative group
-  add <name> <member>            add a default-group member to a group
-  remove <name> <member>         remove a member from a group
-
-Run 'mgit help group <command>' for detailed help on a group command.
-EOF
-}
-
-group_create_usage() {
-  cat <<'EOF'
-Usage: mgit group create <name>
-
-Create an empty named alternative group in ./.mgit.toml. NAME must
-contain only letters, digits, hyphens, or underscores. Existing groups are
-never replaced. Add members with 'mgit group add <name> <member>'.
-EOF
-}
-
-group_delete_usage() {
-  cat <<'EOF'
-Usage: mgit group delete <name>
-
-Delete a named alternative group from ./.mgit.toml. The structural
-'default' group cannot be deleted.
-EOF
-}
-
-group_add_usage() {
-  cat <<'EOF'
-Usage: mgit group add <name> <member>
-
-Add a direct structural default-group member to an alternative group in
-./.mgit.toml. The structural 'default' group cannot be changed.
-EOF
-}
-
-group_remove_usage() {
-  cat <<'EOF'
-Usage: mgit group remove <name> <member>
-
-Remove MEMBER from an alternative group in ./.mgit.toml. An empty
-group remains available until deleted with 'mgit group delete <name>'.
 EOF
 }
 
@@ -255,13 +200,9 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register repair group sync structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -g --group -a --agora --estate -f --filter -W --all-worktrees -h --help -V --version'
+  commands='register repair sync structure worktree completion help'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -a --agora --estate -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
-    -g|--group)
-      COMPREPLY=( $(compgen -W "$(_mgit_workspace_groups)" -- "$cur") )
-      return
-      ;;
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
       return
@@ -274,7 +215,7 @@ _mgit() {
   while (( i < COMP_CWORD )); do
     word="${COMP_WORDS[i]}"
     case "$word" in
-      -g|--group|-a|--agora|-f|--filter) ((i += 2)); continue ;;
+      -a|--agora|-f|--filter) ((i += 2)); continue ;;
       -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
@@ -296,25 +237,6 @@ _mgit() {
       ;;
     sync)
       COMPREPLY=( $(compgen -W '--interactive -i --help -h' -- "$cur") )
-      ;;
-    group)
-      case "$subcommand" in
-        '') COMPREPLY=( $(compgen -W 'create delete add remove --help -h' -- "$cur") ) ;;
-        create) COMPREPLY=() ;;
-        delete) COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") ) ;;
-        add)
-          if (( COMP_CWORD == command_index + 2 )); then
-            COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") )
-          else
-            COMPREPLY=( $(compgen -W "$(_mgit_default_members)" -- "$cur") )
-          fi ;;
-        remove)
-          if (( COMP_CWORD == command_index + 2 )); then
-            COMPREPLY=( $(compgen -W "$(_mgit_alternative_groups)" -- "$cur") )
-          else
-            COMPREPLY=( $(compgen -W "$(_mgit_group_members "${COMP_WORDS[command_index + 2]:-}")" -- "$cur") )
-          fi ;;
-      esac
       ;;
     structure)
       COMPREPLY=( $(compgen -W 'standard nested --dry-run --help -h' -- "$cur") )
@@ -340,26 +262,6 @@ _mgit() {
   esac
 }
 
-_mgit_default_members() {
-  awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit.toml 2>/dev/null
-}
-
-_mgit_alternative_groups() {
-  awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' \
-    .mgit.toml 2>/dev/null | sort -u
-}
-
-_mgit_workspace_groups() {
-  awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' \
-    .mgit.toml 2>/dev/null | sort -u
-}
-
-_mgit_group_members() {
-  local group="$1"
-  awk -F'[.\"]' -v group="$group" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' \
-    .mgit.toml 2>/dev/null
-}
-
 complete -F _mgit mgit
 EOF
       ;;
@@ -369,12 +271,11 @@ EOF
 
 _mgit() {
   local context state state_descr line
-  local -a global_commands global_options group_commands worktree_commands
+  local -a global_commands global_options worktree_commands
   typeset -A opt_args
   global_commands=(
     'register:generate workspace manifests and repository symlink metadata'
     'repair:clone missing repositories declared by workspace defaults'
-    'group:create or delete named workspace groups'
     'sync:update clean tracking branches across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
@@ -390,8 +291,6 @@ _mgit() {
     '--bare[run command without git prefix]'
     '-I[ignore workspace selection from .mgit.toml]'
     '--ignore[ignore workspace selection from .mgit.toml]'
-    '-g[select a workspace group]:group name:_mgit_workspace_groups'
-    '--group[select a workspace group]:group name:_mgit_workspace_groups'
     '-a[select roots resolved by ki for a named Agora]:Agora name:'
     '--agora[select roots resolved by ki for a named Agora]:Agora name:'
     '--estate[select every root in the registered KI estate]'
@@ -410,24 +309,10 @@ _mgit() {
     'add:add a remote branch'
     'remove:remove a worktree'
   )
-  group_commands=(
-    'create:create a named alternative group'
-    'delete:delete a named alternative group'
-    'add:add a default-group member to a group'
-    'remove:remove a member from a group'
-  )
   case $words[2] in
     register) _arguments -s '1:action:(add rm)' '*--agora[add or remove an Agora location]:Agora name:' '*-a[add or remove an Agora location]:Agora name:' '*--repo[add or remove a repository location]:repository path:_files -/' '-h[display help for command]' '--help[display help for command]' ;;
     repair) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-h[display help for command]' '--help[display help for command]' ;;
-    group)
-      case $words[3] in
-        '') _describe -t commands 'group command' group_commands ;;
-        create) _arguments '1:group name:' ;;
-        delete) _arguments '1:group name:_mgit_alternative_groups' ;;
-        add) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_default_members' ;;
-        remove) _arguments '1:group name:_mgit_alternative_groups' '2:workspace member:_mgit_group_members' ;;
-      esac ;;
     structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
       case $words[3] in
@@ -444,30 +329,6 @@ _mgit() {
         command) _describe -t commands command global_commands ;;
       esac ;;
   esac
-}
-
-_mgit_default_members() {
-  local -a members
-  members=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.default\.members\./ { print $5 }' .mgit.toml 2>/dev/null)"} )
-  _describe -t members 'workspace member' members
-}
-
-_mgit_alternative_groups() {
-  local -a groups
-  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); if ($2 != "default") print $2 }' .mgit.toml 2>/dev/null | sort -u)"} )
-  _describe -t groups 'workspace group' groups
-}
-
-_mgit_workspace_groups() {
-  local -a groups
-  groups=( ${(f)"$(awk -F'[.\"]' '/^\[groups\.[A-Za-z0-9_-]+\]$/ || /^\[groups\.[A-Za-z0-9_-]+\.members\./ { gsub(/\]$/, "", $2); print $2 }' .mgit.toml 2>/dev/null | sort -u)"} )
-  _describe -t groups 'workspace group' groups
-}
-
-_mgit_group_members() {
-  local -a members
-  members=( ${(f)"$(awk -F'[.\"]' -v group="$words[4]" '$2 == group && /^\[groups\.[A-Za-z0-9_-]+\.members\./ { print $5 }' .mgit.toml 2>/dev/null)"} )
-  _describe -t members 'workspace member' members
 }
 
 compdef _mgit mgit
@@ -844,11 +705,11 @@ manifest_kind() {
   esac
 }
 
-# Parse repository-kind schema-1 metadata and emit symlink records.
+# Parse repository-kind metadata and emit symlink records.
 parse_mgit() {
   local repo="$1" line key value section=""
   local file="$repo/$MGIT_MANIFEST"
-  local schema="" kind="" seen_schema=false seen_kind=false
+  local kind="" seen_schema=false seen_kind=false
   local seen_symlinks=() existing
 
   [ -f "$file" ] || return 0
@@ -878,7 +739,6 @@ parse_mgit() {
                 printf 'mgit: %s: unsupported repository schema: %s\n' "$file" "$value" >&2
                 return 1
               }
-              schema=1
               seen_schema=true
               ;;
             kind)
@@ -931,10 +791,6 @@ parse_mgit() {
     esac
   done < "$file"
 
-  if [ "$seen_schema" != true ] || [ "$schema" != 1 ]; then
-    printf 'mgit: %s: missing schema = 1\n' "$file" >&2
-    return 1
-  fi
   if [ "$seen_kind" != true ] || [ "$kind" != repository ]; then
     printf 'mgit: %s: missing kind = "repository"\n' "$file" >&2
     return 1
@@ -1085,13 +941,14 @@ workspace_sort_members() {
   done
 }
 
-# Parse the deliberately small schema-1 workspace map format into global record
+# Parse the deliberately small workspace map formats into global record
 # arrays. Unsupported or duplicate syntax is rejected instead of being partially
 # interpreted.
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
-  local file="$1" line key value group schema="" kind=""
+  local file="$1" line key value group kind=""
   local seen_schema=false seen_kind=false seen_default=false seen_agora=false seen_locations=false
+  local direct_members=false legacy_groups=false
   local in_location_member=false snapshot_source="" i
   workspace_default=""
   workspace_agora=""
@@ -1132,9 +989,37 @@ parse_workspace() {
       in_location_member=true
       continue
     fi
+    if [ "$line" = '[members]' ]; then
+      workspace_finish_member "$file" || return 1
+      in_location_member=false
+      direct_members=true
+      workspace_group_known default || workspace_groups+=(default)
+      continue
+    fi
+    if [[ "$line" =~ ^\[members\.(\".*\")\]$ ]]; then
+      workspace_finish_member "$file" || return 1
+      in_location_member=false
+      direct_members=true
+      value=$(toml_string "${BASH_REMATCH[1]}") || {
+        printf 'mgit: %s: invalid workspace member path: %s\n' "$file" "$line" >&2
+        return 1
+      }
+      workspace_group_known default || workspace_groups+=(default)
+      workspace_member_group=default
+      workspace_member_kind=""
+      workspace_member_path="$value"
+      workspace_member_type=""
+      workspace_member_source=""
+      workspace_member_seen_kind=false
+      workspace_member_seen_path=true
+      workspace_member_seen_type=false
+      workspace_member_seen_source=false
+      continue
+    fi
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\]$ ]]; then
       workspace_finish_member "$file" || return 1
       in_location_member=false
+      legacy_groups=true
       group="${BASH_REMATCH[1]}"
       workspace_group_known "$group" || workspace_groups+=("$group")
       continue
@@ -1142,6 +1027,7 @@ parse_workspace() {
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\]$ ]]; then
       workspace_finish_member "$file" || return 1
       in_location_member=false
+      legacy_groups=true
       group="${BASH_REMATCH[1]}"
       workspace_group_known "$group" || workspace_groups+=("$group")
       continue
@@ -1149,6 +1035,7 @@ parse_workspace() {
     if [[ "$line" =~ ^\[groups\.([A-Za-z0-9_-]+)\.members\.(\".*\")\]$ ]]; then
       workspace_finish_member "$file" || return 1
       in_location_member=false
+      legacy_groups=true
       group="${BASH_REMATCH[1]}"
       value=$(toml_string "${BASH_REMATCH[2]}") || {
         printf 'mgit: %s: invalid workspace member path: %s\n' "$file" "$line" >&2
@@ -1204,7 +1091,6 @@ parse_workspace() {
                 printf 'mgit: %s: unsupported workspace schema: %s\n' "$file" "$value" >&2
                 return 1
               }
-              schema=1
               seen_schema=true
               ;;
             default)
@@ -1300,44 +1186,25 @@ parse_workspace() {
     registered) [ "$seen_locations" = true ] || { printf 'mgit: %s: registered members require locations\n' "$file" >&2; return 1; } ;;
   esac
   workspace_sort_members
-  if [ "$seen_schema" != true ] || [ "$schema" != 1 ]; then
-    printf 'mgit: %s: missing schema = 1\n' "$file" >&2
-    return 1
-  fi
   if [ "$seen_kind" != true ] || [ "$kind" != workspace ]; then
     printf 'mgit: %s: missing kind = "workspace"\n' "$file" >&2
     return 1
   fi
-  [ "$seen_default" = true ] || {
-    printf 'mgit: %s: missing default group\n' "$file" >&2
-    return 1
-  }
-  workspace_group_known default || {
-    printf 'mgit: %s: missing structural default group\n' "$file" >&2
-    return 1
-  }
-  workspace_group_known "$workspace_default" || {
-    printf 'mgit: %s: selected default group does not exist: %s\n' "$file" "$workspace_default" >&2
-    return 1
-  }
-}
-
-valid_workspace_group_name() {
-  case "$1" in
-    ""|*[!A-Za-z0-9_-]*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
-default_member_kind() {
-  local path="$1" i
-  for i in "${!workspace_record_paths[@]}"; do
-    if [ "${workspace_record_groups[$i]}" = default ] && [ "${workspace_record_paths[$i]}" = "$path" ]; then
-      printf '%s' "${workspace_record_kinds[$i]}"
-      return 0
-    fi
-  done
-  return 1
+  if [ "$seen_schema" = true ]; then
+    [ "$direct_members" = false ] || { printf 'mgit: %s: mixed workspace member formats\n' "$file" >&2; return 1; }
+    [ "$seen_default" = true ] || { printf 'mgit: %s: missing default group\n' "$file" >&2; return 1; }
+    workspace_group_known default || { printf 'mgit: %s: missing structural default group\n' "$file" >&2; return 1; }
+    workspace_group_known "$workspace_default" || {
+      printf 'mgit: %s: selected default group does not exist: %s\n' "$file" "$workspace_default" >&2
+      return 1
+    }
+  else
+    [ "$legacy_groups" = false ] && [ "$seen_default" = false ] && [ "$direct_members" = true ] || {
+      printf 'mgit: %s: unversioned workspace requires direct members and no groups\n' "$file" >&2
+      return 1
+    }
+    workspace_default=default
+  fi
 }
 
 write_locations() {
@@ -1354,225 +1221,6 @@ write_locations() {
     toml_quote "$path" || return 1
     printf ']\n'
   done
-}
-
-# Write the parsed workspace records in the canonical shape used by register.
-# Group changes are transactional: the original manifest remains intact unless
-# the complete replacement can be written and renamed successfully.
-write_workspace_manifest() {
-  local file="$1" temporary i group kind path emitted
-  workspace_sort_members
-  temporary=$(mktemp "${file}.mgit.XXXXXX") || return 1
-  if ! {
-    printf '# Generated by `mgit register`; named groups may be managed with `mgit group`.\n'
-    printf 'schema = 1\n'
-    printf 'kind = "workspace"\n'
-    printf 'default = '
-    toml_quote "$workspace_default" || return 1
-    printf '\n'
-    write_locations || return 1
-    for group in "${workspace_groups[@]}"; do
-      emitted=false
-      for i in "${!workspace_record_paths[@]}"; do
-        [ "${workspace_record_groups[$i]}" = "$group" ] || continue
-        emitted=true
-        kind="${workspace_record_kinds[$i]}"
-        path="${workspace_record_paths[$i]}"
-        printf '\n[groups.%s.members.' "$group"
-        toml_quote "$path" || return 1
-        printf ']\nkind = '
-        toml_quote "$kind" || return 1
-        if [ "$group" = default ] && [ "$kind" = repository ]; then
-          printf '\ntype = '
-          toml_quote "${workspace_record_types[$i]}" || return 1
-          if [ -n "${workspace_record_sources[$i]}" ]; then
-            printf '\nsource = '
-            toml_quote "${workspace_record_sources[$i]}" || return 1
-          fi
-        fi
-        printf '\n'
-      done
-      [ "$emitted" = true ] || printf '\n[groups.%s]\n' "$group"
-    done
-  } > "$temporary"; then
-    rm -f "$temporary"
-    return 1
-  fi
-  mv "$temporary" "$file"
-}
-
-group_require_alternative() {
-  local action="$1" name="$2" usage_function="$3"
-  [ "$name" != default ] || {
-    usage_error_for "$usage_function" "group $action: default is the structural group and cannot be changed"
-    return $?
-  }
-  workspace_group_known "$name" || {
-    printf 'mgit group %s: group does not exist: %s\n' "$action" "$name" >&2
-    return 1
-  }
-}
-
-group_create() {
-  local name="$1"
-  valid_workspace_group_name "$name" || {
-    usage_error_for group_create_usage "group create: invalid group name: $name"
-    return
-  }
-  [ "$name" != default ] || {
-    usage_error_for group_create_usage 'group create: default is the structural group and cannot be created'
-    return
-  }
-  workspace_group_known "$name" && {
-    printf 'mgit group create: group already exists: %s\n' "$name" >&2
-    return 1
-  }
-  workspace_groups+=("$name")
-  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
-  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
-  printf 'mgit group create: created %s\n' "$name"
-}
-
-group_delete() {
-  local name="$1" i group
-  local new_groups=() new_kinds=() new_paths=() new_types=() new_sources=() new_group_names=()
-  group_require_alternative delete "$name" group_delete_usage || return $?
-  for i in "${!workspace_record_paths[@]}"; do
-    [ "${workspace_record_groups[$i]}" != "$name" ] || continue
-    new_groups+=("${workspace_record_groups[$i]}")
-    new_kinds+=("${workspace_record_kinds[$i]}")
-    new_paths+=("${workspace_record_paths[$i]}")
-    new_types+=("${workspace_record_types[$i]}")
-    new_sources+=("${workspace_record_sources[$i]}")
-  done
-  for group in "${workspace_groups[@]}"; do
-    [ "$group" = "$name" ] || new_group_names+=("$group")
-  done
-  workspace_groups=("${new_group_names[@]+"${new_group_names[@]}"}")
-  workspace_record_groups=("${new_groups[@]+"${new_groups[@]}"}")
-  workspace_record_kinds=("${new_kinds[@]+"${new_kinds[@]}"}")
-  workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
-  workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
-  workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
-  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
-  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
-  printf 'mgit group delete: deleted %s\n' "$name"
-}
-
-group_add() {
-  local name="$1" member="$2" kind i
-  group_require_alternative add "$name" group_add_usage || return $?
-  kind=$(default_member_kind "$member") || {
-    printf 'mgit group add: not a direct default-group member: %s\n' "$member" >&2
-    return 1
-  }
-  for i in "${!workspace_record_paths[@]}"; do
-    if [ "${workspace_record_groups[$i]}" = "$name" ] && [ "${workspace_record_paths[$i]}" = "$member" ]; then
-      printf 'mgit group add: member already belongs to %s: %s\n' "$name" "$member" >&2
-      return 1
-    fi
-  done
-  workspace_record_groups+=("$name")
-  workspace_record_kinds+=("$kind")
-  workspace_record_paths+=("$member")
-  workspace_record_types+=("")
-  workspace_record_sources+=("")
-  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
-  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
-  printf 'mgit group add: added %s to %s\n' "$member" "$name"
-}
-
-group_remove() {
-  local name="$1" member="$2" i found=false
-  local new_groups=() new_kinds=() new_paths=() new_types=() new_sources=()
-  group_require_alternative remove "$name" group_remove_usage || return $?
-  for i in "${!workspace_record_paths[@]}"; do
-    if [ "${workspace_record_groups[$i]}" = "$name" ] && [ "${workspace_record_paths[$i]}" = "$member" ]; then
-      found=true
-      continue
-    fi
-    new_groups+=("${workspace_record_groups[$i]}")
-    new_kinds+=("${workspace_record_kinds[$i]}")
-    new_paths+=("${workspace_record_paths[$i]}")
-    new_types+=("${workspace_record_types[$i]}")
-    new_sources+=("${workspace_record_sources[$i]}")
-  done
-  [ "$found" = true ] || {
-    printf 'mgit group remove: member does not belong to %s: %s\n' "$name" "$member" >&2
-    return 1
-  }
-  workspace_record_groups=("${new_groups[@]+"${new_groups[@]}"}")
-  workspace_record_kinds=("${new_kinds[@]+"${new_kinds[@]}"}")
-  workspace_record_paths=("${new_paths[@]+"${new_paths[@]}"}")
-  workspace_record_types=("${new_types[@]+"${new_types[@]}"}")
-  workspace_record_sources=("${new_sources[@]+"${new_sources[@]}"}")
-  write_workspace_manifest "./$MGIT_MANIFEST" || return 1
-  chezmoi_add_manifest "./$MGIT_MANIFEST" || return 1
-  printf 'mgit group remove: removed %s from %s\n' "$member" "$name"
-}
-
-group_command() {
-  local action="${1:-}" name="" member="" help=false
-  [ $# -gt 0 ] && shift
-  case "$action" in
-    create)
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          -h|--help) help=true ;;
-          *) break ;;
-        esac
-        shift
-      done
-      [ "$help" = false ] || { [ $# -eq 0 ] || { usage_error_for group_create_usage "group create: unexpected argument: $1"; return; }; group_create_usage; return 0; }
-      [ $# -gt 0 ] || { usage_error_for group_create_usage 'group create: NAME is required'; return; }
-      [ $# -eq 1 ] || { usage_error_for group_create_usage "group create: unexpected argument: $2"; return; }
-      name="$1"
-      ;;
-    delete)
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          -h|--help) help=true ;;
-          *) [ -z "$name" ] || { usage_error_for group_delete_usage "group delete: unexpected argument: $1"; return; }; name="$1" ;;
-        esac
-        shift
-      done
-      [ "$help" = false ] || { [ -z "$name" ] || { usage_error_for group_delete_usage "group delete: unexpected argument: $name"; return; }; group_delete_usage; return 0; }
-      [ -n "$name" ] || { usage_error_for group_delete_usage 'group delete: NAME is required'; return; }
-      ;;
-    add|remove)
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          -h|--help) help=true ;;
-          *)
-            if [ -z "$name" ]; then name="$1"; elif [ -z "$member" ]; then member="$1"; else
-              usage_error_for "group_${action}_usage" "group $action: unexpected argument: $1"; return
-            fi ;;
-        esac
-        shift
-      done
-      [ "$help" = false ] || {
-        [ -z "$name$member" ] || { usage_error_for "group_${action}_usage" "group $action: unexpected argument"; return; }
-        "group_${action}_usage"; return 0
-      }
-      if [ -z "$name" ] || [ -z "$member" ]; then
-        usage_error_for "group_${action}_usage" "group $action: NAME and MEMBER are required"
-        return
-      fi
-      ;;
-    -h|--help|'')
-      [ $# -eq 0 ] || { usage_error_for group_usage "group: unexpected argument: $1"; return; }
-      group_usage
-      return 0 ;;
-    *) usage_error_for group_usage "group: unknown command: $action"; return ;;
-  esac
-  [ -f "./$MGIT_MANIFEST" ] || { printf 'mgit group %s: no %s workspace manifest in %s\n' "$action" "$MGIT_MANIFEST" "$(pwd)" >&2; return 1; }
-  [ "$(manifest_kind "./$MGIT_MANIFEST")" = workspace ] || return 1
-  parse_workspace "./$MGIT_MANIFEST" || return 1
-  chezmoi_init
-  case "$action" in
-    create|delete) "group_$action" "$name" ;;
-    add|remove) "group_$action" "$name" "$member" ;;
-  esac
 }
 
 help_command() {
@@ -1594,12 +1242,6 @@ help_command() {
         1) worktree_usage ;;
         2) case "$subcommand" in list|status) worktree_usage ;; add) worktree_add_usage ;; remove) worktree_remove_usage ;; *) usage_error_for worktree_usage "help worktree: unknown command: $subcommand" ;; esac ;;
         *) usage_error_for worktree_usage "help worktree: unexpected argument: ${3:-}" ;;
-      esac ;;
-    group)
-      case $# in
-        1) group_usage ;;
-        2) case "$subcommand" in create) group_create_usage ;; delete) group_delete_usage ;; add) group_add_usage ;; remove) group_remove_usage ;; *) usage_error_for group_usage "help group: unknown command: $subcommand" ;; esac ;;
-        *) usage_error_for group_usage "help group: unexpected argument: ${3:-}" ;;
       esac ;;
     *) usage_error "help: unknown mgit command: $command"; return ;;
   esac
@@ -1709,7 +1351,6 @@ register_repo() {
   fi
   {
     printf '# Generated by `mgit register`.\n'
-    printf 'schema = 1\n'
     printf 'kind = "repository"\n'
     printf '\n[symlinks]\n'
     for i in "${!found_links[@]}"; do
@@ -1890,6 +1531,10 @@ register_preflight_tree() {
   register_manifest_preflight "$dir" workspace || return 1
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 1
+    if [ "$workspace_default" != default ] || [ "${#workspace_groups[@]}" -ne 1 ]; then
+      printf 'mgit register: remove alternative groups before migrating %s\n' "$dir/$MGIT_MANIFEST" >&2
+      return 1
+    fi
   else
     workspace_locations=(local)
   fi
@@ -1913,8 +1558,7 @@ register_preflight_tree() {
 
 register_tree() {
   local dir="$1" child kid_kinds=() kid_types=() kid_paths=() kid_sources=()
-  local kind child_kind source status i group old_default=default
-  local old_group_names=() old_groups=() old_kinds=() old_paths=()
+  local kind child_kind source status i
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
@@ -1954,13 +1598,6 @@ register_tree() {
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 2
   fi
-  if [ -f "$dir/$MGIT_MANIFEST" ]; then
-    old_default="$workspace_default"
-    old_group_names=("${workspace_groups[@]+"${workspace_groups[@]}"}")
-    old_groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
-    old_kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
-    old_paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
-  fi
   workspace_locations=()
   workspace_location_paths=()
   for i in "${!register_location_dirs[@]}"; do
@@ -1974,14 +1611,10 @@ register_tree() {
   if [ ${#kid_types[@]} -gt 0 ] || [ ${#workspace_location_paths[@]} -gt 0 ]; then
     {
       printf '# Generated by `mgit register`.\n'
-      printf 'schema = 1\n'
       printf 'kind = "workspace"\n'
-      printf 'default = '
-      toml_quote "$old_default" || return 2
-      printf '\n'
       write_locations || return 2
       for i in "${!kid_types[@]}"; do
-        printf '\n[groups.default.members.'
+        printf '\n[members.'
         toml_quote "${kid_paths[$i]}" || return 2
         printf ']\nkind = '
         toml_quote "${kid_kinds[$i]}" || return 2
@@ -1995,22 +1628,7 @@ register_tree() {
         fi
         printf '\n'
       done
-      [ ${#kid_types[@]} -gt 0 ] || printf '\n[groups.default]\n'
-      for i in "${!old_groups[@]}"; do
-        [ "${old_groups[$i]}" != default ] || continue
-        printf '\n[groups.%s.members.' "${old_groups[$i]}"
-        toml_quote "${old_paths[$i]}" || return 2
-        printf ']\nkind = '
-        toml_quote "${old_kinds[$i]}" || return 2
-        printf '\n'
-      done
-      for group in "${old_group_names[@]}"; do
-        [ "$group" != default ] || continue
-        for i in "${!old_groups[@]}"; do
-          [ "${old_groups[$i]}" = "$group" ] && break
-        done
-        [ "${old_groups[$i]:-}" = "$group" ] || printf '\n[groups.%s]\n' "$group"
-      done
+      [ ${#kid_types[@]} -gt 0 ] || printf '\n[members]\n'
     } > "$dir/$MGIT_MANIFEST" || return 2
     chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
     if [ ${#workspace_location_paths[@]} -gt 0 ]; then
@@ -3082,7 +2700,6 @@ bare=false
 all_worktrees=false
 read_config=true
 filters=()
-group_name=""
 agora_name=""
 ki_selector=""
 show_help=false
@@ -3095,10 +2712,6 @@ while [ $# -gt 0 ]; do
     -B|--bare)            bare=true ;;
     -W|--all-worktrees)   all_worktrees=true ;;
     -I|--ignore)          read_config=false ;;
-    -g|--group)
-      [ $# -ge 2 ] || { usage_error "$1 requires a group name"; exit $?; }
-      [ -z "$group_name" ] || { usage_error 'group may only be selected once'; exit $?; }
-      group_name="$2"; shift ;;
     -a|--agora)
       [ $# -ge 2 ] || { usage_error "$1 requires an Agora name"; exit $?; }
       [ -z "$ki_selector" ] || { usage_error '--agora and --estate cannot be combined or repeated'; exit $?; }
@@ -3143,13 +2756,6 @@ if [ "${1:-}" = "repair" ]; then
   [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with repair"; exit $?; }
   shift
   if [ "$show_help" = true ]; then repair_command "$@" --help; else repair_command "$@"; fi
-  exit $?
-fi
-
-if [ "${1:-}" = "group" ]; then
-  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with group"; exit $?; }
-  shift
-  group_command "$@"
   exit $?
 fi
 
@@ -3225,7 +2831,6 @@ if [ -z "$agora_name" ] && [ "$read_config" = true ] && [ -f "./$MGIT_MANIFEST" 
 fi
 
 if [ -n "$agora_name" ]; then
-  [ -z "$group_name" ] || { usage_error "$ki_selector cannot be combined with --group"; exit $?; }
   [ "$read_config" = true ] || { usage_error "$ki_selector cannot be combined with --ignore"; exit $?; }
   [ "$discovery_option" = false ] || {
     usage_error "$ki_selector cannot be combined with discovery traversal options"
@@ -3245,13 +2850,9 @@ if [ -n "$agora_name" ]; then
   select_ki_roots "$agora_name" "$ki_selector" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 elif [ "$read_config" = true ] && [ "$cwd_manifest_kind" = workspace ]; then
-  select_workspace "." "$group_name" || exit 1
+  select_workspace "." "" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 else
-  [ -z "$group_name" ] || {
-    printf 'mgit: --group requires ./.mgit.toml\n' >&2
-    exit 1
-  }
   # Include the current directory itself when it is a repository.  In
   # particular, a bare store has no nested .git marker for `find` to discover.
   [ "$(repo_type ".")" != unknown ] && repos+=(".")

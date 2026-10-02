@@ -17,7 +17,6 @@ Separate 0.x release entries are not maintained here.
 
 #### Repository-set selection
 
-- `mgit --group <name>`
 - `mgit --filter <glob>`
 - `mgit --all-worktrees`
 - `mgit --physical`
@@ -31,10 +30,6 @@ Separate 0.x release entries are not maintained here.
 
 - `mgit register [add|rm] [--agora <name>] [--repo <path>]`
 - `mgit repair`
-- `mgit group create <name>`
-- `mgit group delete <name>`
-- `mgit group add <name> <member>`
-- `mgit group remove <name> <member>`
 
 #### Repository management
 
@@ -54,13 +49,12 @@ Separate 0.x release entries are not maintained here.
 ### Behaviours
 
 - Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
-- Schema-1 `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
-- `mgit register` refreshes repository entries from saved local, Agora, and explicit repository locations; add/rm change locations, while registration preserves named groups and synchronizes Chezmoi-managed state.
+- Unversioned `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
+- `mgit register` refreshes repository entries from saved local, Agora, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
-- Named groups provide alternative direct-member views without changing structural default group.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
-- `mgit repair` recreates missing standard, nested, and bare repositories from structural workspace metadata without replacing existing paths.
+- `mgit repair` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.

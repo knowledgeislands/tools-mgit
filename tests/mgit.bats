@@ -326,7 +326,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair group sync structure worktree completion; do
+  for command in register repair sync structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
@@ -336,16 +336,8 @@ assert_usage_error() {
 @test "help is contextual for reserved commands and their subcommands" {
   run "$MGIT" register -h
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit register [options]"* ]]
+  [[ "$output" == "Usage: mgit register [add|rm] [options]"* ]]
   [[ "$output" != *"Commands:"* ]]
-
-  run "$MGIT" help group create
-  [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit group create <name>"* ]]
-
-  run "$MGIT" help group add
-  [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit group add <name> <member>"* ]]
 
   run "$MGIT" help sync
   [ "$status" -eq 0 ]
@@ -357,79 +349,29 @@ assert_usage_error() {
 }
 
 @test "reserved command trees reject unknown subcommands" {
-  run "$MGIT" group unknown
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"group: unknown command: unknown"* ]]
-
   run "$MGIT" structure sideways
   [ "$status" -eq 2 ]
   [[ "$output" == *"structure: unknown command: sideways"* ]]
 }
 
-@test "bash completion includes group commands" {
-  mkrepo "$TREE/a"
-  cd "$TREE"
-  "$MGIT" register >/dev/null
-  "$MGIT" group create engineering >/dev/null
-  eval "$("$MGIT" completion bash)"
-  COMP_WORDS=(mgit group "")
-  COMP_CWORD=2
-  _mgit
-  [[ " ${COMPREPLY[*]} " == *" create "* ]]
-  [[ " ${COMPREPLY[*]} " == *" delete "* ]]
-  [[ " ${COMPREPLY[*]} " == *" add "* ]]
-  [[ " ${COMPREPLY[*]} " == *" remove "* ]]
+@test "removed group interface is absent from help and completion" {
+  run "$MGIT" --group focus status
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown option: --group"* ]]
 
-  COMP_WORDS=(mgit --group e)
-  COMP_CWORD=2
-  _mgit
-  [[ " ${COMPREPLY[*]} " == *" engineering "* ]]
+  run "$MGIT" help group
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown mgit command: group"* ]]
 
-  COMP_WORDS=(mgit group add "")
-  COMP_CWORD=3
-  _mgit
-  [[ " ${COMPREPLY[*]} " == *" engineering "* ]]
-
-  COMP_WORDS=(mgit group add engineering "")
-  COMP_CWORD=4
-  _mgit
-  [[ " ${COMPREPLY[*]} " == *" a "* ]]
-}
-
-@test "zsh completion exposes the complete group command inventory" {
-  run zsh -f -c '
-    autoload -Uz compinit && compinit -C
-    eval "$("$1" completion zsh)"
-    _describe() { print -r -- "$@"; }
-    words=(mgit group "")
-    _mgit
-  ' zsh "$MGIT"
-
+  run "$MGIT" completion bash
   [ "$status" -eq 0 ]
-  [ "$output" = '-t commands group command group_commands' ]
+  [[ "$output" != *"--group"* ]]
+  [[ "$output" != *"group:create"* ]]
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
-  [[ "$output" == *"'create:create a named alternative group'"* ]]
-  [[ "$output" == *"'delete:delete a named alternative group'"* ]]
-  [[ "$output" == *"'add:add a default-group member to a group'"* ]]
-  [[ "$output" == *"'remove:remove a member from a group'"* ]]
-}
-
-@test "group commands reject incomplete and surplus arguments" {
-  mkrepo "$TREE/a"
-  cd "$TREE"
-  "$MGIT" register >/dev/null
-
-  assert_usage_error group create
-  assert_usage_error group create engineering a
-  assert_usage_error group delete
-  assert_usage_error group add
-  assert_usage_error group add engineering
-  assert_usage_error group add engineering a extra
-  assert_usage_error group remove
-  assert_usage_error group remove engineering
-  assert_usage_error group remove engineering a extra
+  [[ "$output" != *"--group"* ]]
+  [[ "$output" != *"group:create"* ]]
 }
 
 @test "ordinary Git command options remain pass-through" {
@@ -690,8 +632,6 @@ assert_usage_error() {
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = $'local\n../external' ]
-  run "$MGIT" group create review
-  [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
   before=$(cat "$TREE/.mgit.toml")
   run "$MGIT" register
@@ -702,7 +642,7 @@ assert_usage_error() {
   FAKE_KI_ROOTS="$TREE/local"$'\n'"$BATS_TEST_TMPDIR/replacement"
   run "$MGIT" register
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.review]' "$TREE/.mgit.toml"
+  grep -Fx '[members."local"]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = $'local\n../replacement' ]
@@ -717,7 +657,7 @@ assert_usage_error() {
   run "$MGIT" register --agora focus
   [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
-  grep -Fx '[groups.default]' "$TREE/.mgit.toml"
+  grep -Fx '[members]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = '../external' ]
@@ -819,7 +759,7 @@ assert_usage_error() {
   assert_usage_error register --agora ''
 }
 
-@test "register writes schema-1 workspaces in physical postorder" {
+@test "register writes unversioned group-free workspaces in physical postorder" {
   mkrepo "$TREE/a"
   mkrepo "$TREE/b"
   mkrepo "$TREE/sub/c"
@@ -827,12 +767,12 @@ assert_usage_error() {
 
   [ -f "$TREE/.mgit.toml" ]
   [ -f "$TREE/sub/.mgit.toml" ]
-  grep -Fx 'schema = 1' "$TREE/.mgit.toml"
-  grep -Fx 'default = "default"' "$TREE/.mgit.toml"
+  ! grep -Fq 'schema =' "$TREE/.mgit.toml"
+  ! grep -Fq 'default =' "$TREE/.mgit.toml"
   [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit.toml")" -eq 2 ]
   grep -Fx 'kind = "workspace"' "$TREE/.mgit.toml"
-  grep -Fx '[groups.default.members."sub"]' "$TREE/.mgit.toml"
-  grep -Fx '[groups.default.members."c"]' "$TREE/sub/.mgit.toml"
+  grep -Fx '[members."sub"]' "$TREE/.mgit.toml"
+  grep -Fx '[members."c"]' "$TREE/sub/.mgit.toml"
 
   cd "$TREE"
   run "$MGIT"
@@ -1083,9 +1023,35 @@ assert_usage_error() {
   [[ "$output" == *"repository manifest contains unsupported table: [groups.default]"* ]]
 }
 
-@test "register preserves named groups and their selected order" {
+@test "register migrates a legacy structural group to direct members" {
   mkrepo "$TREE/a"
-  mkrepo "$TREE/b"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit.toml"
+
+  cd "$TREE"
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = a ]
+
+  run "$MGIT" register
+  [ "$status" -eq 0 ]
+  grep -Fx '[members."a"]' "$TREE/.mgit.toml"
+  ! grep -Fq 'schema =' "$TREE/.mgit.toml"
+  ! grep -Fq '[groups.' "$TREE/.mgit.toml"
+
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = a ]
+}
+
+@test "register refuses to discard legacy alternative groups" {
+  mkrepo "$TREE/a"
   printf '%s\n' \
     'schema = 1' \
     'kind = "workspace"' \
@@ -1095,79 +1061,18 @@ assert_usage_error() {
     'kind = "repository"' \
     'type = "standard"' \
     '' \
-    '[groups.focus.members."b"]' \
-    'kind = "repository"' \
-    '' \
     '[groups.focus.members."a"]' \
     'kind = "repository"' > "$TREE/.mgit.toml"
 
   cd "$TREE"
-  run "$MGIT" register
-  [ "$status" -eq 0 ]
-  grep -Fx 'default = "focus"' "$TREE/.mgit.toml"
-  grep -Fx '[groups.focus.members."a"]' "$TREE/.mgit.toml"
-  grep -Fx '[groups.focus.members."b"]' "$TREE/.mgit.toml"
-
   run "$MGIT"
   [ "$status" -eq 0 ]
-  [ "$output" = $'a\nb' ]
-
-  run "$MGIT" --group default
-  [ "$status" -eq 0 ]
-  [ "$output" = $'a\nb' ]
-}
-
-@test "group commands manage alternative workspace groups" {
-  mkrepo "$TREE/a"
-  mkrepo "$TREE/b"
-  cd "$TREE"
-  "$MGIT" register >/dev/null
-
-  run "$MGIT" group create engineering
-  [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering]' "$TREE/.mgit.toml"
-
-  run "$MGIT" register
-  [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering]' "$TREE/.mgit.toml"
-
-  run "$MGIT" group create engineering
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"group already exists"* ]]
-
-  run "$MGIT" group add engineering b
-  [ "$status" -eq 0 ]
-  run "$MGIT" group add engineering a
-  [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering.members."a"]' "$TREE/.mgit.toml"
-  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit.toml"
-
-  run "$MGIT" --group engineering
-  [ "$status" -eq 0 ]
-  [ "$output" = $'a\nb' ]
-
+  [ "$output" = a ]
   before=$(cat "$TREE/.mgit.toml")
-  run "$MGIT" group add engineering a
+  run "$MGIT" register
   [ "$status" -eq 1 ]
-  [[ "$output" == *"member already belongs"* ]]
+  [[ "$output" == *"remove alternative groups before migrating"* ]]
   [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
-
-  run "$MGIT" group add engineering absent
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"not a direct default-group member"* ]]
-  [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
-
-  run "$MGIT" group add default a
-  [ "$status" -eq 2 ]
-
-  run "$MGIT" group remove engineering a
-  [ "$status" -eq 0 ]
-  grep -Fx '[groups.engineering.members."b"]' "$TREE/.mgit.toml"
-  ! grep -Fq '[groups.engineering.members."a"]' "$TREE/.mgit.toml"
-
-  run "$MGIT" group delete engineering
-  [ "$status" -eq 0 ]
-  ! grep -Fq '[groups.engineering.members.' "$TREE/.mgit.toml"
 }
 
 @test "workspace selection rejects malformed, duplicate, and unsafe paths" {
@@ -1200,27 +1105,29 @@ assert_usage_error() {
   [[ "$output" == *"duplicate member path"* ]]
 }
 
-@test "workspace selection rejects invalid groups and unsafe workspace cycles" {
+@test "workspace selection rejects mixed formats and unsafe workspace cycles" {
   mkrepo "$TREE/a"
   mkdir "$TREE/child"
   ln -s .. "$TREE/child/loop"
   printf '%s\n' \
-    'schema = 1' \
     'kind = "workspace"' \
-    'default = "default"' \
-    '[groups.default.members."child"]' \
+    '[members."child"]' \
     'kind = "workspace"' > "$TREE/.mgit.toml"
   printf '%s\n' \
-    'schema = 1' \
     'kind = "workspace"' \
-    'default = "default"' \
-    '[groups.default.members."loop"]' \
+    '[members."loop"]' \
     'kind = "workspace"' > "$TREE/child/.mgit.toml"
 
   cd "$TREE"
-  run "$MGIT" --group absent
+  printf '\n[groups.default]\n' >> "$TREE/.mgit.toml"
+  run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unknown workspace group"* ]]
+  [[ "$output" == *"unversioned workspace requires direct members and no groups"* ]]
+
+  printf '%s\n' \
+    'kind = "workspace"' \
+    '[members."child"]' \
+    'kind = "workspace"' > "$TREE/.mgit.toml"
 
   run "$MGIT"
   [ "$status" -eq 1 ]
@@ -1253,11 +1160,11 @@ assert_usage_error() {
   run "$MGIT" register
 
   [ "$status" -eq 0 ]
-  grep -Fx '[groups.default.members."repoA"]' "$TREE/.mgit.toml"
+  grep -Fx '[members."repoA"]' "$TREE/.mgit.toml"
   grep -Fx 'type = "nested"' "$TREE/.mgit.toml"
-  grep -Fx '[groups.default.members."repoB"]' "$TREE/.mgit.toml"
+  grep -Fx '[members."repoB"]' "$TREE/.mgit.toml"
   grep -Fx 'type = "standard"' "$TREE/.mgit.toml"
-  ! grep -Fx '[groups.default.members."main"]' "$TREE/.mgit.toml"
+  ! grep -Fx '[members."main"]' "$TREE/.mgit.toml"
 }
 
 @test "workspace members are read" {

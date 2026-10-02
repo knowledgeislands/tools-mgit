@@ -19,4 +19,4 @@ Each area may end with an unnumbered `## Gaps` section. A gap is a potential or 
 | File                  | Prefix      | Covers                                                       |
 | --------------------- | ----------- | ------------------------------------------------------------ |
 | distribution.md       | `MGIT-DIST` | Public routes and installer version selection                 |
-| workspace-dispatch.md | `MGIT-WS`   | Repository discovery, selection, groups, and command fan-out |
+| workspace-dispatch.md | `MGIT-WS`   | Repository discovery, selection, and command fan-out |

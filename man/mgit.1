@@ -1,4 +1,4 @@
-.TH MGIT 1 "2026-09-26" "Knowledge Islands" "User Commands"
+.TH MGIT 1 "2026-10-02" "Knowledge Islands" "User Commands"
 .SH NAME
 \&
 .PP
@@ -31,21 +31,9 @@ manifests for the current tree.
 .sp
 .TP
 .B mgit repair
-Clone missing repositories declared by structural default groups in the current
+Clone missing repositories declared by direct members in the current
 .I .mgit.toml
 manifest.
-.TP
-.B mgit group create <name>
-Create an empty named alternative workspace group.
-.TP
-.B mgit group delete <name>
-Delete a named alternative workspace group.
-.TP
-.B mgit group add <name> <member>
-Add a default-group member to an alternative group.
-.TP
-.B mgit group remove <name> <member>
-Remove a member from an alternative group.
 .SS Repository management
 \&
 .TP
@@ -86,7 +74,6 @@ With no command it prints the repository paths that would be used.
 The reserved command tree consists of
 .BR register ,
 .BR repair ,
-.BR group ,
 .BR sync ,
 .BR structure ,
 .BR worktree ,
@@ -107,8 +94,8 @@ When the current directory contains a
 .I .mgit.toml
 manifest,
 .B mgit
-uses its selected group, recursively expanding child workspace members through
-each child's configured default group.
+uses the workspace's direct members, recursively expanding each child workspace.
+Existing schema-1 manifests still select their configured default group.
 The manifest is only valid in a non-Git container directory.
 .PP
 A repository leaf may contain
@@ -197,14 +184,6 @@ workspace selection and discover repositories by walking the tree.
 Repository-kind symlink metadata still expands the discovered set.
 .sp
 .TP
-.BR \-g , " \-\-group" " \fINAME\fR"
-Select group
-.I NAME
-from the workspace in the current directory instead of that workspace's
-configured default.
-Child workspaces use their own configured defaults.
-.sp
-.TP
 .BR \-a , " \-\-agora" " \fINAME\fR"
 Select the local roots resolved by
 .B ki
@@ -215,8 +194,6 @@ only when this selector is present. This selector cannot be combined with
 .BR \-P ,
 .BR \-L ,
 .BR \-I ,
-or
-.BR \-g ,
 and it is unavailable to MGit management commands except
 .BR register .
 .sp
@@ -298,9 +275,7 @@ in every non-Git container directory, listing child workspaces and repositories.
 It writes a
 .I .mgit.toml
 only in a repository that owns cross-repository symlinks.
-The command does not descend into repositories and replaces generated
-structural default-group records.
-Existing non-default groups are preserved.
+The command does not descend into repositories and refreshes direct members.
 .B mgit register add
 and
 .B mgit register rm
@@ -323,10 +298,9 @@ refresh all saved locations, resolving Agora roots through
 Source resolution failure stops registration before writing. Ordinary commands
 use generated repository entries without invoking
 .BR ki .
-The structural default selection combines local and additional members without
-duplicates. Alternative groups and
+The selected set combines local and additional members without duplicates.
 .B mgit repair
-do not include additional locations automatically.
+uses only direct members and does not clone additional locations automatically.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
@@ -335,36 +309,11 @@ removed.
 .TP
 .B mgit repair
 uses the workspace manifest in the current directory to clone every missing
-repository in structural default groups with a source URL.
+repository among the direct members with a source URL.
 It creates standard, nested, and bare repositories in their declared forms.
-It recursively follows child workspaces through their structural default groups.
+It recursively follows child workspaces through their direct members.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
-.TP
-.B mgit group create <name>
-creates an empty named alternative group in the current workspace manifest.
-.I NAME
-contains only letters, digits, hyphens, or underscores.
-The command refuses to replace an existing group.
-.TP
-.B mgit group delete <name>
-removes a named alternative group from the current workspace manifest.
-The structural
-.B default
-group cannot be deleted.
-.TP
-.B mgit group add <name> <member>
-adds a direct member of the structural
-.B default
-group to an alternative group.
-The member is recorded with its repository or workspace kind and cannot be
-added twice.
-.TP
-.B mgit group remove <name> <member>
-removes a member from an alternative group.
-The group remains available when it has no members; use
-.B mgit group delete
-to remove it completely.
 .SS Repository management
 \&
 .TP
@@ -430,9 +379,7 @@ to discard dirty changes in that linked checkout.
 and
 .B mgit completion zsh
 print shell completion definitions to standard output.
-They complete the command hierarchy, command-local flags, and, where a current
-workspace manifest is available, default-group members and alternative group
-names for group management.
+They complete the command hierarchy and command-local flags.
 .PP
 For Bash, source the definition from the shell configuration:
 .PP
@@ -461,38 +408,31 @@ autoload -Uz compinit && compinit
 .PP
 A
 .I .mgit.toml
-manifest uses schema 1 and path-keyed member maps in named groups.
+manifest uses an explicit workspace kind and path-keyed direct members.
 The complete generated shape is:
 .PP
 .nf
-schema = 1
 kind = "workspace"
-default = "default"
+locations = ["local"]
 
-[groups.default.members."platform"]
+[members."platform"]
 kind = "repository"
 type = "standard"
 source = "git@github.com:acme/platform.git"
 
-[groups.default.members."workspace"]
+[members."workspace"]
 kind = "repository"
 type = "nested"
 
-[groups.default.members."archive.git"]
+[members."archive.git"]
 kind = "repository"
 type = "bare"
 
-[groups.default.members."group"]
+[members."group"]
 kind = "workspace"
-
-[groups.ci.members."platform"]
-kind = "repository"
 .fi
 .PP
-The structural
-.B default
-group is required.
-Its repository members require
+Repository members require
 .BR type ,
 which is one of
 .BR standard ,
@@ -501,14 +441,9 @@ or
 .BR bare .
 The optional
 .B source
-field is a clone URL and applies to default-group repository members.
-Workspace members use only
-.B kind ;
-their paths are map keys.
-Non-default group repository members also use only
-.B kind ;
-they select already-present repositories and do not declare structure or
-clone sources.
+field is a clone URL. Workspace members use only
+.BR kind .
+Member paths are safe relative map keys below the manifest directory.
 .PP
 The
 .B locations
@@ -522,23 +457,14 @@ When absent, it defaults to
 Empty
 .B [registered.members."PATH"]
 tables hold generated repository roots as paths relative to the manifest
-directory; these paths may reach outside the workspace. Group member paths
-remain confined below the manifest directory. Older
+directory; these paths may reach outside the workspace. Older
 .B agora
 snapshots are migrated when registration runs.
 .PP
-Use
-.B mgit group create engineering
-followed by
-.B mgit group add engineering tools-mgit
-to create an alternative group without editing TOML directly, then select it
-with
-.BR "mgit --group engineering" .
-.PP
-Member paths are safe relative map keys below the manifest directory.
-The current workspace uses its configured default group, or a group named with
-.BR \-g / \-\-group .
-Child workspaces use their own configured defaults.
+Existing schema-1 manifests with grouped members remain readable.
+Registration migrates one containing only the structural default group to
+direct members. A manifest with alternative groups must have those tables
+removed deliberately before registration; mgit refuses to discard them.
 .SS Repository kind
 \&
 .PP
@@ -550,7 +476,6 @@ table maps a symlink the current repository owns to its target in another
 repository:
 .PP
 .nf
-schema = 1
 kind = "repository"
 
 [symlinks]
@@ -637,6 +562,6 @@ covers command fan-out and selectors,
 .I repository-sets.md
 covers
 .I .mgit.toml
-manifests and groups, and
+manifests and registration, and
 .I worktrees.md
 covers the standard and nested repository structures.

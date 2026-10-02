@@ -6,21 +6,21 @@ This as-built area specifies how [mgit specifications](index.md) represent repos
 
 ### MGIT-WS-001 — Direct workspace selection
 
-When current directory contains a workspace-kind `.mgit.toml` manifest and manifest use is enabled, mgit MUST select its configured default group or group named by `--group`.
+When current directory contains a workspace-kind `.mgit.toml` manifest and manifest use is enabled, mgit MUST select its declared direct members. It MUST continue to read existing schema-1 manifests using their configured default group.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `register preserves named groups and their selected order`.
+_Verify:_ `bats tests/mgit.bats` — `register migrates a legacy structural group to direct members`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
 ### MGIT-WS-002 — Recursive workspace expansion
 
-When a selected workspace member is another workspace, mgit MUST recursively use child workspace's configured default group rather than propagating parent's `--group` selection.
+When a selected workspace member is another workspace, mgit MUST recursively use that child's direct members. Existing schema-1 child workspaces use their configured default group.
 
 _Conformance:_ conforming
 
-_Verify:_ `bin/mgit` — `select_workspace`; `bats tests/mgit.bats` — `register writes schema-1 workspaces in physical postorder`.
+_Verify:_ `bin/mgit` — `select_workspace`; `bats tests/mgit.bats` — `register writes unversioned group-free workspaces in physical postorder`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -30,7 +30,7 @@ mgit MUST reject malformed, duplicate, unsafe, missing, or cyclic workspace memb
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `workspace selection rejects malformed, duplicate, and unsafe paths`; `workspace selection rejects invalid groups and unsafe workspace cycles`.
+_Verify:_ `bats tests/mgit.bats` — `workspace selection rejects malformed, duplicate, and unsafe paths`; `workspace selection rejects mixed formats and unsafe workspace cycles`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -64,27 +64,11 @@ _Verify:_ `bats tests/mgit.bats` — `--agora selects only NUL-delimited roots f
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
-## Named groups and narrowing
+## Repository narrowing
 
-### MGIT-WS-007 — Alternative group membership
+### MGIT-WS-007 — ~~Alternative group membership~~ (deprecated)
 
-mgit MUST permit an alternative named group to contain only direct structural-default workspace members and MUST preserve existing alternative groups when `register` refreshes structural default group.
-
-_Conformance:_ conforming
-
-_Verify:_ `bats tests/mgit.bats` — `group commands manage alternative workspace groups`; `register preserves named groups and their selected order`.
-
-_Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
-
-### MGIT-WS-008 — Named-group management
-
-mgit MUST create, delete, add, and remove named alternative groups atomically, MUST refuse to alter structural `default` group through those operations, and MUST leave manifest unchanged when an operation fails validation.
-
-_Conformance:_ conforming
-
-_Verify:_ `bats tests/mgit.bats` — `group commands manage alternative workspace groups`; `group commands reject incomplete and surplus arguments`.
-
-_Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
+### MGIT-WS-008 — ~~Named-group management~~ (deprecated)
 
 ### MGIT-WS-009 — Filter composition
 
@@ -152,11 +136,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-015 — Discriminated configuration
 
-Every canonical `.mgit.toml` document MUST declare `schema = 1` and exactly one supported top-level kind, `workspace` or `repository`, and mgit MUST reject fields or tables belonging to other kind.
+New `.mgit.toml` documents MUST omit a schema field and declare exactly one supported top-level kind, `workspace` or `repository`. Workspace members MUST use one direct `members` map. mgit MUST also read existing `schema = 1` grouped workspace and repository documents and MUST reject mixed document shapes and fields or tables belonging to the other kind.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed document kinds`.
+_Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed document kinds`; `register migrates a legacy structural group to direct members`; `register refuses to discard legacy alternative groups`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
