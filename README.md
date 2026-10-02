@@ -52,6 +52,8 @@ mgit -B npm test
 
 Use `mgit register` to write an unversioned `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 
+Use `mgit register --dry-run` to preview manifest changes or `mgit repair --dry-run` to preview clones of missing workspace repositories. Inapplicable global selectors fail with a usage error before a management command runs.
+
 When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 
 ```sh
