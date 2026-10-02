@@ -228,10 +228,11 @@ The filter narrows normal commands, the repository listing, and the
 .B structure
 and
 .B worktree
-set commands; it does not affect
+set commands.
 .B register
-or
-.BR repair .
+and
+.B repair
+reject this option rather than ignoring it.
 .sp
 .TP
 .BR \-W , " \-\-all-worktrees"
@@ -247,11 +248,11 @@ to inspect physical paths.
 Without this option, a standard repository uses its root checkout and a nested
 repository uses its required
 .I main/
-checkout. This option does not change
+checkout.
 .B structure
-or
+and
 .B worktree
-management commands.
+management commands reject this option.
 .sp
 .TP
 .BR \-h , " \-\-help"
@@ -260,6 +261,20 @@ Print contextual help for the requested command and exit.
 .TP
 .BR \-V , " \-\-version"
 Print the version and exit.
+Global discovery selectors apply to listing, ordinary commands,
+.BR sync ,
+.BR structure ,
+and
+.BR worktree .
+Only ordinary command pass-through accepts
+.BR \-B .
+.B register
+accepts
+.B \-a
+as a saved-location shorthand;
+.B repair
+accepts no global selector. Inapplicable selectors produce a usage error
+before a management command runs. Help and version remain available.
 .SH COMMAND GROUPS
 \&
 .PP

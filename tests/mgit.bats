@@ -325,6 +325,47 @@ assert_usage_error() {
   assert_usage_error sync extra --help
 }
 
+@test "inapplicable global selectors fail before management commands change state" {
+  mkrepo "$TREE/repo"
+  cd "$TREE"
+  for option in -P -L -B -I -W; do
+    assert_usage_error "$option" register
+    assert_usage_error "$option" repair
+  done
+  assert_usage_error -f repo register
+  assert_usage_error -f repo repair
+  assert_usage_error --estate register
+  assert_usage_error --estate repair
+  assert_usage_error -a focus repair
+  [ ! -e "$TREE/.mgit.toml" ]
+  [ ! -e "$TREE/repo/.mgit.toml" ]
+}
+
+@test "command-specific selectors reject ignored combinations" {
+  mkrepo "$TREE/repo"
+  cd "$TREE"
+  assert_usage_error -B
+  assert_usage_error -B sync
+  assert_usage_error -B structure nested
+  assert_usage_error -B worktree list
+  assert_usage_error -W structure nested
+  assert_usage_error -W worktree list
+  assert_usage_error -a focus structure nested
+  assert_usage_error -a focus worktree list
+  assert_usage_error -f repo completion bash
+  [ -d "$TREE/repo/.git" ]
+  [ ! -e "$TREE/repo/.bare" ]
+}
+
+@test "help and version remain available with selectors" {
+  run "$MGIT" -B --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == mgit\ * ]]
+  run "$MGIT" -W help structure
+  [ "$status" -eq 0 ]
+  [[ "$output" == Usage:\ mgit\ structure* ]]
+}
+
 @test "standalone reserved-command help exits 0" {
   for command in register repair sync structure worktree completion; do
     run "$MGIT" "$command" --help

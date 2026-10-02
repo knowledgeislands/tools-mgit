@@ -70,6 +70,7 @@ Commands:
   help [command]          display help for a command
 
 Run 'mgit help <command>' for detailed help on a command.
+Global selectors that do not apply to a command cause a usage error.
 EOF
 }
 
@@ -294,8 +295,8 @@ _mgit() {
     '--physical[do not follow symlinked container directories]'
     '-L[follow symlinked container directories]'
     '--follow-symlinks[follow symlinked container directories]'
-    '-B[run command without git prefix]'
-    '--bare[run command without git prefix]'
+    '-B[run an ordinary command without git prefix]'
+    '--bare[run an ordinary command without git prefix]'
     '-I[ignore workspace selection from .mgit.toml]'
     '--ignore[ignore workspace selection from .mgit.toml]'
     '-a[select roots resolved by ki for a named Agora]:Agora name:'
@@ -303,8 +304,8 @@ _mgit() {
     '--estate[select every root in the registered KI estate]'
     '-f[limit the repo set to paths matching a glob]:glob pattern:'
     '--filter[limit the repo set to paths matching a glob]:glob pattern:'
-    '-W[include every active linked worktree]'
-    '--all-worktrees[include every active linked worktree]'
+    '-W[include linked worktrees for listing, ordinary commands, and sync]'
+    '--all-worktrees[include linked worktrees for listing, ordinary commands, and sync]'
     '-h[show help]'
     '--help[show help]'
     '-V[show version]'
@@ -2780,6 +2781,35 @@ if [ "${1:-}" = help ]; then
   help_command "$@"
   exit $?
 fi
+
+reject_selector_for() {
+  local command="$1" option="$2"
+  usage_error "$option cannot be used with $command"
+}
+case "${1:-}" in
+  register|repair|completion)
+    command_name="${1:-}"
+    [ "$discovery_option" = false ] || { reject_selector_for "$command_name" 'discovery traversal options'; exit $?; }
+    [ "$read_config" = true ] || { reject_selector_for "$command_name" --ignore; exit $?; }
+    [ ${#filters[@]} -eq 0 ] || { reject_selector_for "$command_name" --filter; exit $?; }
+    [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
+    [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
+    if [ "$command_name" != register ] || [ "$ki_selector" = --estate ]; then
+      [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
+    fi
+    ;;
+  sync|structure|worktree)
+    command_name="${1:-}"
+    [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
+    if [ "$command_name" != sync ]; then
+      [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
+      [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
+    fi
+    ;;
+  '')
+    [ "$bare" = false ] || { reject_selector_for listing --bare; exit $?; }
+    ;;
+esac
 
 if [ "${1:-}" = "completion" ]; then
   shift

@@ -191,3 +191,13 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair dry-run previews missing clone targets without creating them`.
 
 _Evidence:_ The named Bats cases cover preview output, unchanged state, and default execution.
+
+### MGIT-WS-022 — Global selector applicability
+
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, Agora or estate, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only Agora as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `inapplicable global selectors fail before management commands change state`; `command-specific selectors reject ignored combinations`; `help and version remain available with selectors`.
+
+_Evidence:_ The selector matrix covers status, namespace, and no-side-effect behavior for the command families.

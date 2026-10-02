@@ -54,7 +54,9 @@ mgit -f 'mcp-*' status
 mgit -f 'mcp-*' -B bun run build
 ```
 
-Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. It does not change what `register` or `repair` reads.
+Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. `register` and `repair` reject `--filter` instead of silently ignoring it.
+
+Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bare` applies only to ordinary command pass-through. `register` accepts global `--agora` as a saved-location shorthand; `repair` accepts no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
 `mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair --dry-run` previews missing repository clones. The management commands run automatically without `--dry-run`.
 

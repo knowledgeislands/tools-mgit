@@ -4,12 +4,12 @@ area: CLI
 title: Clarify selector applicability
 theme: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 4f4f6e5597a2ef5ec9aa8bec6cdb98b1b1bf6989
 created_at: 2026-09-28T09:26:16Z
-updated_at: 2026-10-02T11:09:21Z
+updated_at: 2026-10-02T11:27:11Z
 ---
 
 ## Goal
@@ -30,9 +30,9 @@ The global parser accepts combinations whose selectors are ignored by reserved c
 
 ## Steps
 
-- [ ] Define applicability for each global selector across listing, ordinary dispatch, `register`, `repair`, `sync`, `structure`, and `worktree`.
-- [ ] Reject selectors ignored by the selected command with a namespaced usage error before discovery or mutation; preserve meaningful combinations and help/version behavior.
-- [ ] Test invalid combinations and no-side-effect behavior, then align help, completion guidance, manual, and user guides.
+- [x] Define applicability for each global selector across listing, ordinary dispatch, `register`, `repair`, `sync`, `structure`, and `worktree`.
+- [x] Reject selectors ignored by the selected command with a namespaced usage error before discovery or mutation; preserve meaningful combinations and help/version behavior.
+- [x] Test invalid combinations and no-side-effect behavior, then align help, completion guidance, manual, and user guides.
 
 ## Files touched
 
@@ -63,6 +63,32 @@ Clarify which selectors apply to each command and how inapplicable combinations 
 ### Roadmap
 
 No follow-on roadmap item is expected.
+
+## Review
+
+### Delivered
+
+From baseline `4f4f6e5597a2ef5ec9aa8bec6cdb98b1b1bf6989`, global selectors that have no effect on the selected command fail before repository discovery or management work. Help and version remain available.
+
+### Change Summary
+
+`bin/mgit` validates selector applicability across listing, pass-through, and reserved commands. Bats covers invalid combinations and unchanged state; help, Zsh completion descriptions, manual, running-commands guide, changelog, and workspace-dispatch specification describe the contract.
+
+### Verification
+
+Focused selector Bats cases and the full Bats suite passed. The repository audit, ShellCheck, Bash syntax, mandoc lint, and `git diff --check` passed.
+
+### Outstanding concerns
+
+None.
+
+### Post-change review
+
+`register --agora` remains a saved-location shorthand, while `repair` rejects all global selectors. Ordinary Git and `-B` pass-through retain their selection behavior.
+
+### Mini recap
+
+Selector applicability is explicit and ready for human review; no follow-on work was identified.
 
 ## Discussion
 
