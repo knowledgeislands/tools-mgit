@@ -21,6 +21,8 @@ The `locations` list defaults to `local`, which scans the current workspace and 
 
 Plain `mgit register` refreshes all saved locations. It resolves Agora locations through `ki` and validates repository paths before writing. Ordinary commands use the generated entries without invoking `ki`. The selected set combines local and additional repositories without duplicate dispatch. `mgit repair` uses only direct members; it does not clone repositories from additional locations automatically.
 
+Use `mgit register --dry-run` to preview manifest writes and removals. It also works with `add` and `rm`, and leaves both local manifests and Chezmoi source state untouched. Registration still validates saved locations before the preview.
+
 When Chezmoi is configured, `mgit register` synchronizes generated manifests below Chezmoi target directory into source state. Manifests outside target directory, and manifests generated inside Chezmoi source directory, remain local only.
 
 ## Workspace configuration
@@ -76,3 +78,5 @@ mgit repair
 It clones every missing repository from `source` URL and follows child workspace documents through direct members. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
 
 Repair never replaces existing path. Present repository must match declared type; non-repository path or type mismatch is error. Child workspace directories and workspace-kind `.mgit.toml` documents must already exist.
+
+Use `mgit repair --dry-run` to see missing repository clone targets and sources without creating them. Repair still validates the workspace tree before reporting proposed clones. Both commands execute automatically when `--dry-run` is omitted.

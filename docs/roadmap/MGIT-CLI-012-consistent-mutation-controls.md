@@ -4,12 +4,12 @@ area: CLI
 title: Consistent mutation controls
 theme: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: bf9bc0efaa84700cc4e881ce9abf0b39ab2f18ad
 created_at: 2026-09-28T09:24:23Z
-updated_at: 2026-10-02T11:09:21Z
+updated_at: 2026-10-02T11:23:19Z
 ---
 
 ## Goal
@@ -30,10 +30,10 @@ Keep ordinary Git and `-B` command pass-through under the invoked command's own 
 
 ## Steps
 
-- [ ] Add `register --dry-run` and `repair --dry-run` so each reports proposed file or clone actions without writing or cloning; keep automatic execution as the default.
-- [ ] Preserve preflight failure behavior and avoid Chezmoi writes during a register preview.
-- [ ] Align help, completion, manual, running-commands and repository-set guides, specifications, and changelog.
-- [ ] Test previews leave manifests and repositories untouched, including registration add/rm and missing clone targets.
+- [x] Add `register --dry-run` and `repair --dry-run` so each reports proposed file or clone actions without writing or cloning; keep automatic execution as the default.
+- [x] Preserve preflight failure behavior and avoid Chezmoi writes during a register preview.
+- [x] Align help, completion, manual, running-commands and repository-set guides, specifications, and changelog.
+- [x] Test previews leave manifests and repositories untouched, including registration add/rm and missing clone targets.
 
 ## Files touched
 
@@ -64,6 +64,32 @@ Document `sync -i` and both new preview options where users choose a mutation.
 ### Roadmap
 
 No follow-on roadmap item is expected.
+
+## Review
+
+### Delivered
+
+From baseline `bf9bc0efaa84700cc4e881ce9abf0b39ab2f18ad`, registration and repair accept `--dry-run` and report proposed manifest or clone actions while retaining automatic execution by default.
+
+### Change Summary
+
+`bin/mgit` previews manifest writes and removals or missing repository clones after preflight. Registration previews skip Chezmoi and preserve local files. Help, Bash and Zsh completion, manual, guides, specification, changelog, and Bats cases reflect the controls.
+
+### Verification
+
+Focused preview Bats cases and the full Bats suite passed. The repository audit, ShellCheck, Bash syntax, mandoc lint, and `git diff --check` passed.
+
+### Outstanding concerns
+
+None.
+
+### Post-change review
+
+Preview output names each proposed file or clone destination; regular commands retain existing execution behavior and validation.
+
+### Mini recap
+
+Both management previews are ready for human review; no follow-on work was identified.
 
 ## Discussion
 

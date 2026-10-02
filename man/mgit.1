@@ -307,6 +307,10 @@ use generated repository entries without invoking
 The selected set combines local and additional members without duplicates.
 .B mgit repair
 uses only direct members and does not clone additional locations automatically.
+.B mgit register \-\-dry\-run
+previews manifest writes and removals, including location changes,
+without changing local files or Chezmoi source state. Registration still
+validates locations before the preview.
 .PP
 When Chezmoi is installed and configured, generated manifests below its target
 directory are added to Chezmoi's source state when possible. A Chezmoi failure
@@ -318,6 +322,10 @@ uses the workspace manifest in the current directory to clone every missing
 repository among the direct members with a source URL.
 It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their direct members.
+.B mgit repair \-\-dry\-run
+previews missing repository clones and their sources without creating them.
+Repair still validates the workspace before the preview. Both management
+commands execute automatically when this option is omitted.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
 .SS Repository management

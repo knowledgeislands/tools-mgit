@@ -950,6 +950,51 @@ assert_usage_error() {
   [[ "$output" == *"present "*"standard-repo"* ]]
 }
 
+@test "register dry-run previews add and rm without changing manifests or Chezmoi" {
+  make_fake_chezmoi
+  mkrepo "$TREE/repo"
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  cd "$TREE"
+  run "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would write ./.mgit.toml"* ]]
+  [ ! -e "$TREE/.mgit.toml" ]
+  [ ! -e "$CHEZMOI_LOG" ]
+  "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external" >/dev/null
+  cp "$TREE/.mgit.toml" "$TREE/saved.toml"
+  : > "$CHEZMOI_LOG"
+  run "$MGIT" register rm --repo "$BATS_TEST_TMPDIR/external" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would write ./.mgit.toml"* ]]
+  cmp "$TREE/saved.toml" "$TREE/.mgit.toml"
+  [ ! -s "$CHEZMOI_LOG" ]
+}
+
+@test "register dry-run previews repository manifest removal without deleting it" {
+  mkrepo "$TREE/repo"
+  printf 'kind = "repository"\n' > "$TREE/repo/.mgit.toml"
+  cd "$TREE"
+  run "$MGIT" register --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would remove ./repo/.mgit.toml"* ]]
+  [ -f "$TREE/repo/.mgit.toml" ]
+}
+
+@test "repair dry-run previews missing clone targets without creating them" {
+  make_origin "$TREE/source" "$TREE/origin.git" payload
+  mkdir "$TREE/workspace"
+  printf '%s\n' 'kind = "workspace"' '[members."missing"]' 'kind = "repository"' \
+    'type = "standard"' "source = \"$TREE/origin.git\"" > "$TREE/workspace/.mgit.toml"
+  cd "$TREE/workspace"
+  run "$MGIT" repair --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would clone standard repository"* ]]
+  [ ! -e "$TREE/workspace/missing" ]
+  run "$MGIT" repair
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/workspace/missing/payload" ]
+}
+
 @test "repair refuses a missing member without a clone URL" {
   printf '%s\n' \
     'schema = 1' \

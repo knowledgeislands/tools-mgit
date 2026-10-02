@@ -28,8 +28,8 @@ Separate 0.x release entries are not maintained here.
 
 #### Workspace management
 
-- `mgit register [add|rm] [--agora <name>] [--repo <path>]`
-- `mgit repair`
+- `mgit register [add|rm] [--agora <name>] [--repo <path>] [--dry-run]`
+- `mgit repair [--dry-run]`
 
 #### Repository management
 
@@ -55,6 +55,7 @@ Separate 0.x release entries are not maintained here.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
 - `mgit repair` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
+- `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair --dry-run` previews missing clones. Both retain automatic execution by default.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.

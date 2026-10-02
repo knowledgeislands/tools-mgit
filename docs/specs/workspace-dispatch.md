@@ -181,3 +181,13 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `captured command output has no color and sync uses checkout labels`.
 
 _Evidence:_ The named Bats case covers standard, nested, and external worktree output in a captured stream.
+
+### MGIT-WS-021 — Management previews
+
+`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair --dry-run` MUST report missing clone targets without creating them. Both commands MUST retain preflight validation and MUST execute automatically when the option is omitted.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair dry-run previews missing clone targets without creating them`.
+
+_Evidence:_ The named Bats cases cover preview output, unchanged state, and default execution.
