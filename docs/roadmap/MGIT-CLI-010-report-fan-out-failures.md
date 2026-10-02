@@ -4,12 +4,12 @@ area: CLI
 title: Report fan-out failures
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: f87f17297e5bdd0730de5cc604336de8366b536c
 created_at: 2026-09-28T09:21:04Z
-updated_at: 2026-10-02T11:12:47Z
+updated_at: 2026-10-02T20:44:47Z
 ---
 
 ## Goal
@@ -89,6 +89,10 @@ The result matches the goal without changing selection or execution order. The a
 ### Mini recap
 
 Fan-out failure reporting is delivered and verified; no follow-on work was identified.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 

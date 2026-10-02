@@ -4,12 +4,12 @@ area: CLI
 title: Consistent command output
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: f6c3cc47553b2d900210d012ddb0e69a8700c1e2
 created_at: 2026-09-28T09:22:45Z
-updated_at: 2026-10-02T11:16:55Z
+updated_at: 2026-10-02T20:44:47Z
 ---
 
 ## Goal
@@ -89,6 +89,10 @@ The change is limited to presentation. Captured output stays readable without es
 ### Mini recap
 
 Checkout labels and color behavior are aligned and verified; no follow-on work was identified.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 

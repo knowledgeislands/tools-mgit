@@ -4,12 +4,12 @@ area: CLI
 title: Consistent mutation controls
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: bf9bc0efaa84700cc4e881ce9abf0b39ab2f18ad
 created_at: 2026-09-28T09:24:23Z
-updated_at: 2026-10-02T11:23:19Z
+updated_at: 2026-10-02T20:44:47Z
 ---
 
 ## Goal
@@ -90,6 +90,10 @@ Preview output names each proposed file or clone destination; regular commands r
 ### Mini recap
 
 Both management previews are ready for human review; no follow-on work was identified.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 

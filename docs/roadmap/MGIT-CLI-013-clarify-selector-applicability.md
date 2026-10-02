@@ -4,12 +4,12 @@ area: CLI
 title: Clarify selector applicability
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 4f4f6e5597a2ef5ec9aa8bec6cdb98b1b1bf6989
 created_at: 2026-09-28T09:26:16Z
-updated_at: 2026-10-02T11:27:11Z
+updated_at: 2026-10-02T20:44:47Z
 ---
 
 ## Goal
@@ -89,6 +89,10 @@ None.
 ### Mini recap
 
 Selector applicability is explicit and ready for human review; no follow-on work was identified.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 

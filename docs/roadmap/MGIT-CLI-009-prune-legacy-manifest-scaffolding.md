@@ -4,12 +4,12 @@ area: CLI
 title: Prune manifest scaffolding
 theme: cli
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 780bc9272bd6e2de9961c6cc4342cc9e64391c7a
 created_at: 2026-09-27T18:59:44Z
-updated_at: 2026-10-02T11:08:12Z
+updated_at: 2026-10-02T20:44:47Z
 ---
 
 ## Goal
@@ -91,6 +91,10 @@ New manifests are simpler, while legacy grouped manifests retain a read path. Re
 ### Mini recap
 
 Group management and schema fields are removed from new mGit output, the compatible KI reader is in place, and both tools pass their gates. No external manifest was rewritten; release preparation remains local.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 
