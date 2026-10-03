@@ -2,6 +2,8 @@
 
 Use this guide only after the candidate satisfies the [definition of done](definition-of-done.md) and publication is explicitly authorised.
 
+The `ki-repo-tools` release-readiness checklist owns common release checks; this guide supplies MGIt's exact version, installer, and downstream procedure.
+
 ## Prepare the release
 
 1. Set `MGIT_VERSION` in `bin/mgit` to the intended semantic version without a `v` prefix.

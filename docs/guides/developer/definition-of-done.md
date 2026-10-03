@@ -2,6 +2,8 @@
 
 Use this checklist before presenting an `mgit` change for review. Release publication has additional requirements in [Release mgit](releasing.md).
 
+The `ki-repo-tools` change-readiness checklist owns cross-tool documentation, verification, and authority questions; the checks below apply them to MGIt's Bash and Git boundaries.
+
 ## Confirm the change
 
 - `bin/mgit` remains a standalone Bash 3.2-compatible executable with no runtime dependency beyond Bash and Git.
