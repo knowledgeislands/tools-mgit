@@ -21,6 +21,7 @@ jobs:
           KI_MAN_INSTALL_DIR: ${{ runner.temp }}/ki/man/man1
           KI_DATA_HOME: ${{ runner.temp }}/ki/data
           KI_CONFIG_HOME: ${{ runner.temp }}/ki/config
+          KI_MCP_SOURCE: ${{ runner.temp }}/ki/config/mcp-servers.yaml
           KI_CACHE_HOME: ${{ runner.temp }}/ki/cache
           XDG_STATE_HOME: ${{ runner.temp }}/ki/state
           KI_STATE_HOME: ${{ runner.temp }}/ki/state/ki
@@ -28,6 +29,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.agents" "$HOME/.claude"
           printf '{}\n' > "$HOME/.claude/settings.json"
+          mkdir -p "$(dirname "$KI_MCP_SOURCE")"
+          printf 'mcpServers: []\n' > "$KI_MCP_SOURCE"
           git clone --quiet --depth 1 --branch main https://github.com/knowledgeislands/tools-ki.git "$RUNNER_TEMP/tools-ki-source"
           printf 'KI source commit: %s\n' "$(git -C "$RUNNER_TEMP/tools-ki-source" rev-parse HEAD)"
           (cd "$RUNNER_TEMP/tools-ki-source" && bun install --frozen-lockfile)
@@ -50,6 +53,7 @@ jobs:
             printf 'KI_MAN_INSTALL_DIR=%s\n' "$KI_MAN_INSTALL_DIR"
             printf 'KI_DATA_HOME=%s\n' "$KI_DATA_HOME"
             printf 'KI_CONFIG_HOME=%s\n' "$KI_CONFIG_HOME"
+            printf 'KI_MCP_SOURCE=%s\n' "$KI_MCP_SOURCE"
             printf 'KI_CACHE_HOME=%s\n' "$KI_CACHE_HOME"
             printf 'XDG_STATE_HOME=%s\n' "$XDG_STATE_HOME"
             printf 'KI_STATE_HOME=%s\n' "$KI_STATE_HOME"
