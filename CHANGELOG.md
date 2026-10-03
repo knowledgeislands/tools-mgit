@@ -29,6 +29,7 @@ Separate 0.x release entries are not maintained here.
 #### Workspace management
 
 - `mgit register [add|rm] [--agora <name>] [--repo <path>] [--dry-run]`
+- `mgit config repair [--apply]`
 - `mgit repair [--dry-run]`
 
 #### Repository management
@@ -50,6 +51,7 @@ Separate 0.x release entries are not maintained here.
 
 - Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
 - Unversioned `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
+- `mgit config repair` previews a validated legacy-schema diff and requires `--apply` to write it; alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, Agora, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.

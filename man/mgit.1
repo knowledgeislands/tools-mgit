@@ -30,6 +30,12 @@ Generate
 manifests for the current tree.
 .sp
 .TP
+.B mgit config repair [\-\-apply]
+Preview or explicitly repair a recognised legacy schema field in the current
+.I .mgit.toml
+manifest.
+.sp
+.TP
 .B mgit repair
 Clone missing repositories declared by direct members in the current
 .I .mgit.toml
@@ -273,7 +279,9 @@ accepts
 .B \-a
 as a saved-location shorthand;
 .B repair
-accepts no global selector. Inapplicable selectors produce a usage error
+and
+.B config repair
+accept no global selector. Inapplicable selectors produce a usage error
 before a management command runs. Help and version remain available.
 .SH COMMAND GROUPS
 \&
@@ -494,6 +502,12 @@ Existing schema-1 manifests with grouped members remain readable.
 Registration migrates one containing only the structural default group to
 direct members. A manifest with alternative groups must have those tables
 removed deliberately before registration; mgit refuses to discard them.
+.B mgit config repair
+previews the exact diff without writing or refreshing membership.
+.B mgit config repair \-\-apply
+revalidates and writes only a recognised repository manifest or a workspace
+with a sole structural default group. Unknown shapes and alternative groups
+are refused. This does not update Chezmoi source state.
 .SS Repository kind
 \&
 .PP

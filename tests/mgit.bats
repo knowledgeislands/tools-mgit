@@ -230,9 +230,11 @@ make_fake_ki() {
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
   [[ "$output" == *"repair"* ]]
+  [[ "$output" == *"config"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"add rm --agora -a --repo --dry-run --help -h"* ]]
+  [[ "$output" == *"--apply"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]
@@ -244,6 +246,7 @@ make_fake_ki() {
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"add or remove an Agora location"* ]]
   [[ "$output" == *"add or remove a repository location"* ]]
+  [[ "$output" == *"write a validated config repair"* ]]
   [[ "$output" == *"sync:update clean tracking branches"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
@@ -367,7 +370,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair sync structure worktree completion; do
+  for command in register config repair sync structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
@@ -1177,6 +1180,75 @@ assert_usage_error() {
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = a ]
+}
+
+@test "config repair previews and explicitly converts only a structural default workspace" {
+  mkrepo "$TREE/a"
+  printf '%s\n' \
+    '# Preserve this note' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "default"' \
+    '' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' > "$TREE/.mgit.toml"
+  cd "$TREE"
+  before=$(cat .mgit.toml)
+  run "$MGIT" config repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'-schema = 1'* ]]
+  [[ "$output" == *'+[members."a"]'* ]]
+  [[ "$output" == *'preview only'* ]]
+  [ "$(cat .mgit.toml)" = "$before" ]
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = a ]
+  run "$MGIT" config repair --apply
+  [ "$status" -eq 0 ]
+  grep -Fx '# Preserve this note' .mgit.toml
+  grep -Fx '[members."a"]' .mgit.toml
+  ! grep -Fq 'schema =' .mgit.toml
+  ! grep -Fq '[groups.' .mgit.toml
+  run "$MGIT" config repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'already unversioned'* ]]
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = a ]
+}
+
+@test "config repair keeps repository metadata and refuses unknown or alternative shapes" {
+  mkrepo "$TREE/a"
+  printf '%s\n' 'schema = 1' 'kind = "repository"' > "$TREE/a/.mgit.toml"
+  cd "$TREE/a"
+  run "$MGIT" config repair
+  [ "$status" -eq 0 ]
+  grep -Fx 'schema = 1' .mgit.toml
+  run "$MGIT" config repair --apply
+  [ "$status" -eq 0 ]
+  grep -Fx 'kind = "repository"' .mgit.toml
+  ! grep -Fq 'schema =' .mgit.toml
+  printf '%s\n' 'schema = 2' 'kind = "repository"' > .mgit.toml
+  run "$MGIT" config repair --apply
+  [ "$status" -eq 1 ]
+  grep -Fx 'schema = 2' .mgit.toml
+
+  cd "$TREE"
+  printf '%s\n' \
+    'schema = 1' \
+    'kind = "workspace"' \
+    'default = "focus"' \
+    '[groups.default.members."a"]' \
+    'kind = "repository"' \
+    'type = "standard"' \
+    '[groups.focus.members."a"]' \
+    'kind = "repository"' > .mgit.toml
+  before=$(cat .mgit.toml)
+  run "$MGIT" config repair --apply
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'alternative groups need a deliberate manual decision'* ]]
+  [ "$(cat .mgit.toml)" = "$before" ]
 }
 
 @test "register refuses to discard legacy alternative groups" {

@@ -52,6 +52,8 @@ The `locations` array is the durable search list; empty `[registered.members."..
 
 Existing `schema = 1` manifests with grouped members remain readable. Registration rewrites a manifest containing only its structural `default` group into the direct-member format. A manifest with alternative groups must have those tables removed deliberately before registration; `mgit` refuses to discard them silently.
 
+For a focused migration, run `mgit config repair` in the directory containing the manifest. It prints the exact proposed diff and changes nothing. `mgit config repair --apply` revalidates and writes only a recognised repository-kind file or a workspace containing just the structural default group. Unknown schema values, mixed shapes and alternative groups are refused. This command does not refresh members, clone repositories or update Chezmoi's source; if Chezmoi owns the file, carry the reviewed change into its source before applying that source again.
+
 ## Repository configuration
 
 A repository document uses the same filename without a schema field and has a distinct top-level kind:
