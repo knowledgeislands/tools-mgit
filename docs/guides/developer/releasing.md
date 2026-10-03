@@ -12,6 +12,8 @@ Use this guide only after the candidate satisfies the [definition of done](defin
 
 ## Publish the release
 
+Confirm GitHub release immutability is enabled for this repository before publishing. It protects only new releases: the existing `v0.14.0` release remains mutable and cannot satisfy an immutable-only receiving workflow. Use a newly verified patch release rather than treating the old archive checksum as proof of release immutability.
+
 Create and push the exact `vX.Y.Z` tag only with explicit publication authority, then create the matching GitHub release:
 
 ```sh
@@ -20,7 +22,7 @@ git push origin vX.Y.Z
 gh release create vX.Y.Z --generate-notes --title "mgit vX.Y.Z"
 ```
 
-Verify the immutable tag through the supported installer before treating publication as complete:
+Verify GitHub reports the newly published release as immutable, then test the exact tag through the supported installer before treating publication as complete:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/vX.Y.Z/install.sh | bash -s -- vX.Y.Z
@@ -34,6 +36,6 @@ Do not move or recreate a published tag. Correct a failed release from `main` an
 
 Hand the published tag to `knowledgeislands/homebrew-tap`. The tap owns `Formula/mgit.rb`, the source checksum, executable and manual installation checks, and formula tests; this repository neither writes nor decides the tap's formula.
 
-After the validated formula reaches the tap's `main` branch, the tap dispatches a verified tool-release event to explicitly enrolled consumers. An existing KI Website entry advances through the website's ordinary pull-request review. This repository stores no shared release-App credentials and does not duplicate tap or website verification.
+After the validated formula reaches the tap's `main` branch, the tap dispatches a verified tool-release event to explicitly enrolled consumers. Confirm the website pull request passes its checks and reaches its intended disposition; the current receiver does not merge automatically. This repository stores no shared release-App credentials and does not duplicate tap or website verification.
 
-A first-time website entry, a maturity change, or a consumer not enrolled in automation remains an explicit receiver-owned handoff. Supply the exact tag, immutable installer URL, and expected `/tooling/mgit/` and `/install/mgit` routes without transferring release authority.
+A first-time website entry, a maturity change, or a consumer not enrolled in automation remains an explicit receiver-owned handoff. Supply the exact tag, immutable installer URL, and expected `/projects/mgit/` and `/install/mgit` routes without transferring release authority.
