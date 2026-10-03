@@ -4,12 +4,12 @@ area: CLI
 title: Repair legacy config schema
 theme: cli
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-03T04:00:16Z
-updated_at: 2026-10-03T04:00:16Z
+updated_at: 2026-10-03T06:49:29Z
 ---
 
 ## Goal
@@ -31,7 +31,7 @@ New writes are unversioned; legacy read and repair behaviour needs a focused aud
 ## Steps
 
 - [ ] Inventory legacy shapes and existing conversion behaviour with fixtures.
-- [ ] Provide an explicit preview and opt-in repair that removes obsolete version metadata only for recognised shapes.
+- [ ] Add `mgit config repair` to preview an exact diff and `mgit config repair --apply` to write only after validating and rechecking the same manifest. Remove the marker from repository-kind files; convert only a workspace's sole structural default group to direct members while preserving other content. Refuse alternative or ambiguous groups.
 - [ ] Test unknown-shape rejection, unchanged ordinary reads and non-interactive behaviour; align help, completion, manual and guide.
 
 ## Files touched
@@ -47,7 +47,7 @@ Run the repository audit and complete MGIt gate, then exercise valid legacy, inv
 
 ## Dependencies / blocks
 
-No external dependency. Decide the narrowest repair invocation during planning; ordinary reads remain side-effect-free.
+No external dependency. `mgit repair` retains its clone meaning; `mgit config repair` is the separate, explicitly previewed config operation. Ordinary reads remain side-effect-free.
 
 ## Documentation impact
 
