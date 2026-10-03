@@ -232,7 +232,7 @@ make_fake_ki() {
   [[ "$output" == *"repair"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"add rm --agora -a --repo --help -h"* ]]
+  [[ "$output" == *"add rm --agora -a --repo --dry-run --help -h"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
   [[ "$output" != *"convert"* ]]

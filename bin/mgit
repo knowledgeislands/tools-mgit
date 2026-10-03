@@ -1207,10 +1207,10 @@ parse_workspace() {
       return 1
     }
   else
-    [ "$legacy_groups" = false ] && [ "$seen_default" = false ] && [ "$direct_members" = true ] || {
+    if [ "$legacy_groups" != false ] || [ "$seen_default" != false ] || [ "$direct_members" != true ]; then
       printf 'mgit: %s: unversioned workspace requires direct members and no groups\n' "$file" >&2
       return 1
-    }
+    fi
     workspace_default=default
   fi
 }
