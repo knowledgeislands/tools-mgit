@@ -4,12 +4,12 @@ area: CLI
 title: Repair legacy config schema
 theme: cli
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 33886541b9036e5714ff32a01d4a2f11fd1b6a88
 created_at: 2026-10-03T04:00:16Z
-updated_at: 2026-10-03T06:56:28Z
+updated_at: 2026-10-03T07:30:08Z
 ---
 
 ## Goal
@@ -92,6 +92,10 @@ The repair path stays within the approved known-shape boundary and does not broa
 ### Mini recap
 
 MGIt can now preview and explicitly repair known legacy configuration while rejecting ambiguous shapes. All local gates passed; the user guidance and specification carry the durable contract, with no separate decision record needed.
+
+## Done
+
+Accepted 2026-10-03 by Kris Brown on the review packet above.
 
 ## Discussion
 
