@@ -1264,7 +1264,10 @@ config_repair_command() {
     esac
     shift
   done
-  [ -f "$file" ] && [ ! -L "$file" ] || { printf 'mgit config repair: regular %s required\n' "$file" >&2; return 1; }
+  if [ ! -f "$file" ] || [ -L "$file" ]; then
+    printf 'mgit config repair: regular %s required\n' "$file" >&2
+    return 1
+  fi
   kind=$(manifest_kind "$file") || return 1
   if [ "$kind" = workspace ]; then
     parse_workspace "$file" || return 1
