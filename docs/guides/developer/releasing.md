@@ -1,22 +1,18 @@
 # Release mgit
 
-Use this guide only after the candidate satisfies the [definition of done](definition-of-done.md) and publication is explicitly authorised.
+Use this guide after completing the [definition of done](definition-of-done.md).
 
-The `ki-repo-tools` release-readiness checklist owns common release checks; this guide supplies MGIt's exact version, installer, and downstream procedure.
+Apply the `ki-repo-tools` release-readiness checklist for shared candidate, changelog, documentation, immutability and downstream requirements, and `ki-git` for commit and publication authority. This guide supplies MGIT's version source, publication commands and installation verification.
 
 ## Prepare the release
 
 1. Set `MGIT_VERSION` in `bin/mgit` to the intended semantic version without a `v` prefix.
-2. Before 1.0, update the consolidated Pre-1.0 command and feature baseline in `CHANGELOG.md`; tags and releases retain the exact 0.x snapshots. From `v1.0.0` onward, add a dated release entry.
-3. Confirm that help, the README, user guides, `man/mgit.1`, completion, the installer, version tests, and the executable report the same candidate surface and version.
-4. Run the complete verification gate from the [developer guide](README.md) on a clean checkout.
-5. Commit the release candidate before creating any tag.
+2. Update the candidate version assertions in `tests/mgit.bats` and run the complete gate from the [definition of done](definition-of-done.md).
+3. Prepare the reviewed release commit on `main` before creating its tag.
 
 ## Publish the release
 
-Confirm GitHub release immutability is enabled for this repository before publishing. It protects only new releases: the existing `v0.14.0` release remains mutable and cannot satisfy an immutable-only receiving workflow. Use a newly verified patch release rather than treating the old archive checksum as proof of release immutability.
-
-Create and push the exact `vX.Y.Z` tag only with explicit publication authority, then create the matching GitHub release:
+Publish the candidate with the following tag and GitHub release commands:
 
 ```sh
 git tag vX.Y.Z
@@ -24,20 +20,19 @@ git push origin vX.Y.Z
 gh release create vX.Y.Z --generate-notes --title "mgit vX.Y.Z"
 ```
 
-Verify GitHub reports the newly published release as immutable, then test the exact tag through the supported installer before treating publication as complete:
+Verify the exact published tag through the installer in disposable executable and manual destinations. Resolve both installed artifacts by their absolute paths:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/vX.Y.Z/install.sh | bash -s -- vX.Y.Z
-mgit --version
-man mgit
+mgit_release_check=$(mktemp -d)
+curl -fsSL https://raw.githubusercontent.com/knowledgeislands/tools-mgit/vX.Y.Z/install.sh |
+  MGIT_INSTALL_DIR="$mgit_release_check/bin" \
+  MGIT_MAN_INSTALL_DIR="$mgit_release_check/man/man1" bash -s -- vX.Y.Z
+"$mgit_release_check/bin/mgit" --version
+man "$mgit_release_check/man/man1/mgit.1"
 ```
 
-Do not move or recreate a published tag. Correct a failed release from `main` and publish the next patch version.
+For a failed release, correct the source on `main`, update `MGIT_VERSION` and the version tests for the next patch, then repeat this procedure under the shared release-recovery policy.
 
 ## Complete downstream distribution
 
-Hand the published tag to `knowledgeislands/homebrew-tap`. The tap owns `Formula/mgit.rb`, the source checksum, executable and manual installation checks, and formula tests; this repository neither writes nor decides the tap's formula.
-
-After the validated formula reaches the tap's `main` branch, the tap dispatches a verified tool-release event to explicitly enrolled consumers. Confirm the website pull request passes its checks and reaches its intended disposition; the current receiver does not merge automatically. This repository stores no shared release-App credentials and does not duplicate tap or website verification.
-
-A first-time website entry, a maturity change, or a consumer not enrolled in automation remains an explicit receiver-owned handoff. Supply the exact tag, immutable installer URL, and expected `/projects/mgit/` and `/install/mgit` routes without transferring release authority.
+The downstream handoff identifies `knowledgeislands/homebrew-tap` and `Formula/mgit.rb`, the exact released tag, `https://raw.githubusercontent.com/knowledgeislands/tools-mgit/vX.Y.Z/install.sh`, and the `/projects/mgit/` and `/install/mgit` website routes. Follow the shared checklist through the actual formula and consumer outcome.
