@@ -30,16 +30,20 @@ Generate
 manifests for the current tree.
 .sp
 .TP
-.B mgit config repair [\-\-apply]
-Preview or explicitly repair a recognised legacy schema field in the current
+.B mgit repair [\-\-apply]
+Preview a recognised legacy schema repair and missing repository clones.
+Apply both only with
+.BR \-\-apply .
+Existing repository paths are never replaced.
+The selection comes from the current
 .I .mgit.toml
 manifest.
-.sp
 .TP
-.B mgit repair
-Clone missing repositories declared by direct members in the current
-.I .mgit.toml
-manifest.
+.B mgit doctor
+Evaluate Git availability and the current manifest without mutation.
+.TP
+.B mgit diag [\-\-full]
+Print share-safe environment facts; full output includes the current path.
 .SS Repository management
 \&
 .TP
@@ -279,8 +283,6 @@ accepts
 .B \-a
 as a saved-location shorthand;
 .B repair
-and
-.B config repair
 accept no global selector. Inapplicable selectors produce a usage error
 before a management command runs. Help and version remain available.
 .SH COMMAND GROUPS
@@ -341,14 +343,16 @@ emits a warning but does not prevent a local manifest from being generated or
 removed.
 .TP
 .B mgit repair
-uses the workspace manifest in the current directory to clone every missing
+uses the workspace manifest in the current directory to preview every missing
 repository among the direct members with a source URL.
-It creates standard, nested, and bare repositories in their declared forms.
+On apply it creates standard, nested, and bare repositories in their declared
+forms.
 It recursively follows child workspaces through their direct members.
-.B mgit repair \-\-dry\-run
-previews missing repository clones and their sources without creating them.
-Repair still validates the workspace before the preview. Both management
-commands execute automatically when this option is omitted.
+.B mgit repair \-\-apply
+performs the validated config repair and missing repository clones.
+Repair validates the workspace before the preview; without
+.B \-\-apply
+it does not change files.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
 .SS Repository management
@@ -502,9 +506,9 @@ Existing schema-1 manifests with grouped members remain readable.
 Registration migrates one containing only the structural default group to
 direct members. A manifest with alternative groups must have those tables
 removed deliberately before registration; mgit refuses to discard them.
-.B mgit config repair
+.B mgit repair
 previews the exact diff without writing or refreshing membership.
-.B mgit config repair \-\-apply
+.B mgit repair \-\-apply
 revalidates and writes only a recognised repository manifest or a workspace
 with a sole structural default group. Unknown shapes and alternative groups
 are refused. This does not update Chezmoi source state.

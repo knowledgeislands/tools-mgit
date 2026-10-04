@@ -136,11 +136,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-015 — Discriminated configuration
 
-New `.mgit.toml` documents MUST omit a schema field and declare exactly one supported top-level kind, `workspace` or `repository`. Workspace members MUST use one direct `members` map. mgit MUST also read existing `schema = 1` grouped workspace and repository documents and MUST reject mixed document shapes and fields or tables belonging to the other kind. `config repair` MUST preview the exact change without writing; `--apply` MUST revalidate and write only a known repository shape or a workspace with only the structural default group. Alternative groups MUST be refused.
+New `.mgit.toml` documents MUST omit a schema field and declare exactly one supported top-level kind, `workspace` or `repository`. Workspace members MUST use one direct `members` map. mgit MUST also read existing `schema = 1` grouped workspace and repository documents and MUST reject mixed document shapes and fields or tables belonging to the other kind. `repair` MUST preview the exact config change and missing clones without writing; `--apply` MUST revalidate and write only a known repository shape or a workspace with only the structural default group, then clone missing declared repositories. Alternative groups MUST be refused.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed document kinds`; `register migrates a legacy structural group to direct members`; `register refuses to discard legacy alternative groups`; both `config repair` tests.
+_Verify:_ `bats tests/mgit.bats` — `discriminated manifests reject mixed document kinds`; `register migrates a legacy structural group to direct members`; `register refuses to discard legacy alternative groups`; both config-repair tests under `repair`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -184,11 +184,11 @@ _Evidence:_ The named Bats case covers standard, nested, and external worktree o
 
 ### MGIT-WS-021 — Management previews
 
-`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair --dry-run` MUST report missing clone targets without creating them. Both commands MUST retain preflight validation and MUST execute automatically when the option is omitted.
+`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair` MUST preview recognised config repairs and missing clone targets without changing them. Both commands MUST retain preflight validation; `repair` may mutate the selected workspace only with `--apply`.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair dry-run previews missing clone targets without creating them`.
+_Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair previews missing clone targets without creating them`.
 
 _Evidence:_ The named Bats cases cover preview output, unchanged state, and default execution.
 

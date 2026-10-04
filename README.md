@@ -46,15 +46,18 @@ mgit status
 mgit sync
 mgit sync -i
 mgit -B npm test
+mgit doctor
+mgit diag
+mgit help repair
 ```
 
 `mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows progress before each pull and push, names repositories that changed or need attention, and rolls repositories already current into one count. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
 
 Use `mgit register` to write an unversioned `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 
-Use `mgit register --dry-run` to preview manifest changes or `mgit repair --dry-run` to preview clones of missing workspace repositories. Inapplicable global selectors fail with a usage error before a management command runs.
+Use `mgit register --dry-run` to preview manifest changes. `mgit repair` previews recognised configuration repair and missing repository clones by default; `mgit repair --apply` performs them after validation. Inapplicable global selectors fail with a usage error before a management command runs.
 
-Existing `schema = 1` manifests remain readable. Run `mgit config repair` in the manifest directory to preview removal of the obsolete marker, then `mgit config repair --apply` to make the validated change. This does not run the clone-oriented `mgit repair` command or refresh registered locations. Alternative groups need a manual decision and are refused.
+Existing `schema = 1` manifests remain readable. `mgit repair` can remove the recognised obsolete marker as part of its explicit apply path; alternative groups need a manual decision and are refused. `mgit doctor` evaluates Git and the current manifest without writes; `mgit diag` prints share-safe facts, and `--full` includes the current path.
 
 When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 

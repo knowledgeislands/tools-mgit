@@ -14,6 +14,8 @@ Separate 0.x release entries are not maintained here.
 - `mgit --help`
 - `mgit --version`
 - `mgit help [command]`
+- `mgit diag [--full]`
+- `mgit doctor`
 
 #### Repository-set selection
 
@@ -29,8 +31,7 @@ Separate 0.x release entries are not maintained here.
 #### Workspace management
 
 - `mgit register [add|rm] [--agora <name>] [--repo <path>] [--dry-run]`
-- `mgit config repair [--apply]`
-- `mgit repair [--dry-run]`
+- `mgit repair [--apply]`
 
 #### Repository management
 
@@ -51,13 +52,14 @@ Separate 0.x release entries are not maintained here.
 
 - Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
 - Unversioned `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
-- `mgit config repair` previews a validated legacy-schema diff and requires `--apply` to write it; alternative group selections are never discarded automatically.
+- `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, Agora, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
-- `mgit repair` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
-- `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair --dry-run` previews missing clones. Both retain automatic execution by default.
+- `mgit repair --apply` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
+- `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair` previews config changes and missing clones by default.
+- `mgit doctor` evaluates Git and manifest readiness without mutation; `mgit diag` reports share-safe facts unless `--full` is requested.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.

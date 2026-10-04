@@ -62,8 +62,9 @@ Options:
 
 Commands:
   register                generate workspace manifests and symlink metadata
-  config repair           preview or remove recognised legacy config schema
-  repair                  clone missing workspace repositories
+  repair                  preview config repairs and missing repository clones
+  doctor                  evaluate local prerequisites and configuration
+  diag                    print share-safe diagnostic facts
   sync                    update clean tracking branches across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
@@ -94,27 +95,26 @@ Options:
 EOF
 }
 
-config_usage() {
+repair_usage() {
   cat <<'EOF'
-Usage: mgit config repair [--apply]
+Usage: mgit repair [--apply]
 
-Preview the exact change to the current .mgit.toml by default.
---apply writes the validated repair only for a recognised legacy shape.
-It does not clone repositories or refresh registered locations.
+Preview recognised configuration repairs and missing workspace repositories.
+--apply writes the validated config repair and clones missing repositories.
+Existing repository paths are never replaced.
+
+Options:
+      --apply    perform the previewed repairs
+  -h, --help  display help for command
 EOF
 }
 
-repair_usage() {
-  cat <<'EOF'
-Usage: mgit repair [options]
+doctor_usage() {
+  printf 'Usage: mgit doctor\nEvaluate Git and the current manifest without changing anything.\n'
+}
 
-Clone missing repositories declared by members in current
-workspace-kind .mgit.toml. Existing paths are never replaced.
-
-Options:
-      --dry-run  preview missing repository clones without changing files
-  -h, --help  display help for command
-EOF
+diag_usage() {
+  printf 'Usage: mgit diag [--full]\nPrint share-safe environment facts; --full includes the current path.\n'
 }
 
 structure_usage() {
@@ -219,7 +219,7 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register config repair sync structure worktree completion help'
+  commands='register repair doctor diag sync structure worktree completion help'
   global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -a --agora --estate -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
@@ -251,15 +251,14 @@ _mgit() {
         COMPREPLY=( $(compgen -W '--agora -a --repo --dry-run --help -h' -- "$cur") )
       fi
       ;;
-    config)
-      if (( COMP_CWORD == command_index + 1 )); then
-        COMPREPLY=( $(compgen -W 'repair --help -h' -- "$cur") )
-      else
-        COMPREPLY=( $(compgen -W '--apply --help -h' -- "$cur") )
-      fi
-      ;;
     repair)
-      COMPREPLY=( $(compgen -W '--dry-run --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W '--apply --help -h' -- "$cur") )
+      ;;
+    diag)
+      COMPREPLY=( $(compgen -W '--full --help -h' -- "$cur") )
+      ;;
+    doctor)
+      COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
       ;;
     sync)
       COMPREPLY=( $(compgen -W '--interactive -i --help -h' -- "$cur") )
@@ -301,8 +300,9 @@ _mgit() {
   typeset -A opt_args
   global_commands=(
     'register:generate workspace manifests and repository symlink metadata'
-    'config:preview or repair legacy manifest schema'
-    'repair:clone missing repositories declared by workspace defaults'
+    'repair:preview config repairs and missing repository clones'
+    'doctor:evaluate local prerequisites and configuration'
+    'diag:print share-safe environment facts'
     'sync:update clean tracking branches across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
@@ -338,8 +338,9 @@ _mgit() {
   )
   case $words[2] in
     register) _arguments -s '1:action:(add rm)' '*--agora[add or remove an Agora location]:Agora name:' '*-a[add or remove an Agora location]:Agora name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
-    config) _arguments -s '1:action:(repair)' '--apply[write a validated config repair]' '-h[display help for command]' '--help[display help for command]' ;;
-    repair) _arguments '--dry-run[preview missing repository clones]' '-h[display help for command]' '--help[display help for command]' ;;
+    repair) _arguments '--apply[perform validated repairs]' '-h[display help for command]' '--help[display help for command]' ;;
+    doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
+    diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
     sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-h[display help for command]' '--help[display help for command]' ;;
     structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
@@ -1252,27 +1253,16 @@ config_repair_render() {
 }
 
 config_repair_command() {
-  local apply=false file="./$MGIT_MANIFEST" kind line cleaned seen_schema=false before after temporary code
-  case "${1:-}" in -h|--help) config_usage; return 0 ;; esac
-  [ "${1:-}" = repair ] || { usage_error_for config_usage "config: expected repair"; return; }
-  shift
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --apply) [ "$apply" = false ] || { usage_error_for config_usage 'config repair: repeated --apply'; return; }; apply=true ;;
-      -h|--help) config_usage; return 0 ;;
-      *) usage_error_for config_usage "config repair: unexpected argument: $1"; return ;;
-    esac
-    shift
-  done
+  local apply="$1" file="./$MGIT_MANIFEST" kind line cleaned seen_schema=false before after temporary code
   if [ ! -f "$file" ] || [ -L "$file" ]; then
-    printf 'mgit config repair: regular %s required\n' "$file" >&2
+    printf 'mgit repair: regular %s required\n' "$file" >&2
     return 1
   fi
   kind=$(manifest_kind "$file") || return 1
   if [ "$kind" = workspace ]; then
     parse_workspace "$file" || return 1
     if [ "$workspace_default" != default ] || [ "${#workspace_groups[@]}" -ne 1 ]; then
-      printf 'mgit config repair: alternative groups need a deliberate manual decision: %s\n' "$file" >&2
+      printf 'mgit repair: alternative groups need a deliberate manual decision: %s\n' "$file" >&2
       return 1
     fi
   else
@@ -1282,12 +1272,12 @@ config_repair_command() {
     cleaned=$(trim "$(toml_without_comment "$line")")
     if [[ "$cleaned" =~ ^schema[[:space:]]*= ]]; then seen_schema=true; break; fi
   done < "$file"
-  [ "$seen_schema" = true ] || { printf 'mgit config repair: already unversioned: %s\n' "$file"; return 0; }
+  [ "$seen_schema" = true ] || { printf 'mgit repair: already unversioned: %s\n' "$file"; return 0; }
   before=$(git hash-object -- "$file") || return 1
   git diff --no-index -- "$file" <(config_repair_render "$file" "$kind")
   code=$?
-  [ "$code" -eq 1 ] || { [ "$code" -eq 0 ] && printf 'mgit config repair: no change\n'; return "$code"; }
-  [ "$apply" = true ] || { printf 'mgit config repair: preview only; rerun with --apply to write\n'; return 0; }
+  [ "$code" -eq 1 ] || { [ "$code" -eq 0 ] && printf 'mgit repair: no change\n'; return "$code"; }
+  [ "$apply" = true ] || { printf 'mgit repair: preview only; rerun with --apply to write\n'; return 0; }
   temporary=$(mktemp "${file}.repair.XXXXXX") || return 1
   if ! cp -p "$file" "$temporary" || ! config_repair_render "$file" "$kind" > "$temporary"; then
     rm -f -- "$temporary"
@@ -1300,12 +1290,12 @@ config_repair_command() {
   fi
   after=$(git hash-object -- "$file") || { rm -f -- "$temporary"; return 1; }
   if [ "$before" != "$after" ] || [ ! -f "$file" ] || [ -L "$file" ]; then
-    printf 'mgit config repair: manifest changed during repair; retry the preview\n' >&2
+    printf 'mgit repair: manifest changed during repair; retry the preview\n' >&2
     rm -f -- "$temporary"
     return 1
   fi
   mv -- "$temporary" "$file" || { rm -f -- "$temporary"; return 1; }
-  printf 'mgit config repair: updated %s\n' "$file"
+  printf 'mgit repair: updated %s\n' "$file"
 }
 
 write_locations() {
@@ -1329,8 +1319,9 @@ help_command() {
   case "$command" in
     '') usage ;;
     register) [ $# -eq 1 ] || { usage_error_for register_usage "help register: unexpected argument: $subcommand"; return; }; register_usage ;;
-    config) [ $# -eq 1 ] || { usage_error_for config_usage "help config: unexpected argument: $subcommand"; return; }; config_usage ;;
     repair) [ $# -eq 1 ] || { usage_error_for repair_usage "help repair: unexpected argument: $subcommand"; return; }; repair_usage ;;
+    doctor) [ $# -eq 1 ] || { usage_error "help doctor: unexpected argument: $subcommand"; return; }; doctor_usage ;;
+    diag) [ $# -eq 1 ] || { usage_error "help diag: unexpected argument: $subcommand"; return; }; diag_usage ;;
     sync) [ $# -eq 1 ] || { usage_error_for sync_usage "help sync: unexpected argument: $subcommand"; return; }; sync_usage ;;
     completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
     structure)
@@ -1973,15 +1964,14 @@ repair_tree() {
 }
 
 repair_command() {
-  local help=false
-  repair_dry_run=false
+  local help=false apply=false kind
+  repair_dry_run=true
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run) repair_dry_run=true ;;
+      --apply) [ "$apply" = false ] || { usage_error_for repair_usage 'repair: repeated --apply'; return; }; apply=true ;;
       -h|--help) help=true ;;
       *) usage_error_for repair_usage "repair: unexpected argument: $1"; return ;;
     esac
-    # shellcheck disable=SC2317  # reachable once repair grows an option that does not return
     shift
   done
   [ "$help" = false ] || { repair_usage; return 0; }
@@ -1989,12 +1979,79 @@ repair_command() {
     printf 'mgit repair: no %s workspace manifest in %s\n' "$MGIT_MANIFEST" "$(pwd)" >&2
     return 1
   }
-  [ "$(manifest_kind "./$MGIT_MANIFEST")" = workspace ] || return 1
-  repair_preflight_workspaces=()
-  repair_preflight_repositories=()
-  repair_preflight "." || return 1
-  repair_seen=()
-  repair_tree "."
+  kind=$(manifest_kind "./$MGIT_MANIFEST") || return 1
+  if [ "$kind" = workspace ]; then
+    repair_preflight_workspaces=()
+    repair_preflight_repositories=()
+    repair_preflight "." || return 1
+  fi
+  if [ "$apply" = true ]; then
+    config_repair_command true || return 1
+    repair_dry_run=false
+  else
+    config_repair_command false || return 1
+  fi
+  if [ "$kind" = workspace ]; then
+    repair_seen=()
+    repair_tree "."
+  fi
+}
+
+doctor_command() {
+  local kind help=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help=true ;;
+      *) usage_error "doctor: unexpected argument: $1"; return ;;
+    esac
+    shift
+  done
+  [ "$help" = false ] || { doctor_usage; return 0; }
+  if ! command -v git >/dev/null 2>&1; then
+    printf 'mgit doctor: git unavailable\n' >&2
+    return 1
+  fi
+  printf 'mgit doctor: git available\n'
+  if [ ! -e "./$MGIT_MANIFEST" ] && [ ! -L "./$MGIT_MANIFEST" ]; then
+    printf 'mgit doctor: no manifest; filesystem discovery available\n'
+    return 0
+  fi
+  [ -f "./$MGIT_MANIFEST" ] && [ ! -L "./$MGIT_MANIFEST" ] || {
+    printf 'mgit doctor: manifest must be a regular file\n' >&2
+    return 1
+  }
+  kind=$(manifest_kind "./$MGIT_MANIFEST") || return 1
+  if [ "$kind" = workspace ]; then
+    parse_workspace "./$MGIT_MANIFEST" || return 1
+  else
+    parse_mgit . >/dev/null || return 1
+  fi
+  printf 'mgit doctor: %s manifest valid\n' "$kind"
+}
+
+diag_command() {
+  local full=false help=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --full) [ "$full" = false ] || { usage_error 'diag: repeated --full'; return; }; full=true ;;
+      -h|--help) help=true ;;
+      *) usage_error "diag: unexpected argument: $1"; return ;;
+    esac
+    shift
+  done
+  [ "$help" = false ] || { diag_usage; return 0; }
+  printf 'mgit diag: version=%s\n' "$MGIT_VERSION"
+  if command -v git >/dev/null 2>&1; then
+    printf 'mgit diag: git=available\n'
+  else
+    printf 'mgit diag: git=unavailable\n'
+  fi
+  if [ -e "./$MGIT_MANIFEST" ]; then
+    printf 'mgit diag: manifest=present\n'
+  else
+    printf 'mgit diag: manifest=absent\n'
+  fi
+  [ "$full" = false ] || printf 'mgit diag: directory=%s\n' "$(pwd)"
 }
 
 worktree_paths=()
@@ -2881,7 +2938,7 @@ reject_selector_for() {
   usage_error "$option cannot be used with $command"
 }
 case "${1:-}" in
-  register|config|repair|completion)
+  register|repair|doctor|diag|completion)
     command_name="${1:-}"
     [ "$discovery_option" = false ] || { reject_selector_for "$command_name" 'discovery traversal options'; exit $?; }
     [ "$read_config" = true ] || { reject_selector_for "$command_name" --ignore; exit $?; }
@@ -2919,8 +2976,19 @@ if [ "${1:-}" = "repair" ]; then
 fi
 
 if [ "${1:-}" = "config" ]; then
+  usage_error "command 'config' removed; use mgit repair"
+  exit $?
+fi
+
+if [ "${1:-}" = "doctor" ]; then
   shift
-  config_repair_command "$@"
+  doctor_command "$@"
+  exit $?
+fi
+
+if [ "${1:-}" = "diag" ]; then
+  shift
+  diag_command "$@"
   exit $?
 fi
 

@@ -8,6 +8,7 @@ The `ki-repo-tools` change-readiness checklist owns cross-tool documentation, ve
 
 - `bin/mgit` remains a standalone Bash 3.2-compatible executable with no runtime dependency beyond Bash and Git.
 - Changed command behaviour is covered in `tests/mgit.bats`, including invalid syntax and relevant failure paths.
+- Repair previews leave manifests and repositories unchanged; apply failures preserve the manifest when preflight rejects a declared member. Diagnostics are read-only and default output excludes local paths.
 - `mgit help`, command help, the README, user guides, `man/mgit.1`, completion output, and the active changelog baseline remain aligned where affected.
 - `.mgit.toml` behaviour preserves the documented schema, repository/workspace distinction, and exact repository-selection boundary.
 - Removed behaviour leaves no obsolete alias, documentation, completion branch, or unreachable code.

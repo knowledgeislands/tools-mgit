@@ -147,6 +147,53 @@ make_fake_ki() {
   [[ "$output" == "mgit 0.14.0" ]]
 }
 
+@test "diag redacts the working path unless full output is requested" {
+  cd "$TREE"
+  run "$MGIT" diag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'mgit diag: manifest=absent'* ]]
+  [[ "$output" != *"$TREE"* ]]
+
+  run "$MGIT" diag --full
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"directory=$TREE"* ]]
+}
+
+@test "doctor evaluates the manifest without writing and config repair is retired" {
+  cd "$TREE"
+  run "$MGIT" doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'filesystem discovery available'* ]]
+
+  mkrepo "$TREE/a"
+  printf '%s\n' 'kind = "workspace"' '[members."a"]' 'kind = "repository"' \
+    'type = "standard"' > .mgit.toml
+  before=$(cat .mgit.toml)
+  run "$MGIT" doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'workspace manifest valid'* ]]
+  [ "$(cat .mgit.toml)" = "$before" ]
+
+  mv .mgit.toml manifest.toml
+  ln -s absent.toml .mgit.toml
+  run "$MGIT" doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'manifest must be a regular file'* ]]
+  rm .mgit.toml
+  mv manifest.toml .mgit.toml
+
+  run "$MGIT" config repair
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"command 'config' removed"* ]]
+
+  run "$MGIT" doctor --help extra
+  [ "$status" -eq 2 ]
+  run "$MGIT" diag --help extra
+  [ "$status" -eq 2 ]
+  run "$MGIT" diag --full --full
+  [ "$status" -eq 2 ]
+}
+
 @test "installer installs the manual and tolerates older releases without one" {
   local fake_bin="$BATS_TEST_TMPDIR/fake-bin"
   local install_bin="$BATS_TEST_TMPDIR/bin"
@@ -230,7 +277,8 @@ make_fake_ki() {
   [[ "$output" == *"complete -F _mgit mgit"* ]]
   [[ "$output" == *"structure"* ]]
   [[ "$output" == *"repair"* ]]
-  [[ "$output" == *"config"* ]]
+  [[ "$output" == *"doctor"* ]]
+  [[ "$output" == *"diag"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"add rm --agora -a --repo --dry-run --help -h"* ]]
@@ -246,7 +294,7 @@ make_fake_ki() {
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"add or remove an Agora location"* ]]
   [[ "$output" == *"add or remove a repository location"* ]]
-  [[ "$output" == *"write a validated config repair"* ]]
+  [[ "$output" == *"perform validated repairs"* ]]
   [[ "$output" == *"sync:update clean tracking branches"* ]]
   [[ "$output" == *"compdef _mgit mgit"* ]]
   [[ "$output" != *'_mgit "$@"'* ]]
@@ -370,7 +418,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register config repair sync structure worktree completion; do
+  for command in register repair doctor diag sync structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
@@ -979,7 +1027,7 @@ assert_usage_error() {
     "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit.toml"
 
   cd "$TREE/workspace"
-  run "$MGIT" repair
+  run "$MGIT" repair --apply
 
   [ "$status" -eq 0 ]
   [ "$(cat "$TREE/workspace/standard-repo/payload")" = standard ]
@@ -1024,17 +1072,17 @@ assert_usage_error() {
   [ -f "$TREE/repo/.mgit.toml" ]
 }
 
-@test "repair dry-run previews missing clone targets without creating them" {
+@test "repair previews missing clone targets without creating them" {
   make_origin "$TREE/source" "$TREE/origin.git" payload
   mkdir "$TREE/workspace"
   printf '%s\n' 'kind = "workspace"' '[members."missing"]' 'kind = "repository"' \
     'type = "standard"' "source = \"$TREE/origin.git\"" > "$TREE/workspace/.mgit.toml"
   cd "$TREE/workspace"
-  run "$MGIT" repair --dry-run
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   [[ "$output" == *"would clone standard repository"* ]]
   [ ! -e "$TREE/workspace/missing" ]
-  run "$MGIT" repair
+  run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   [ -f "$TREE/workspace/missing/payload" ]
 }
@@ -1056,6 +1104,11 @@ assert_usage_error() {
   [ "$status" -eq 1 ]
   [ ! -e "$TREE/missing-repo" ]
   [[ "$output" == *"no clone URL"* ]]
+
+  run "$MGIT" repair --apply
+  [ "$status" -eq 1 ]
+  grep -Fx 'schema = 1' .mgit.toml
+  [ ! -e "$TREE/missing-repo" ]
 
   touch "$TREE/missing-repo"
   run "$MGIT" repair
@@ -1182,7 +1235,7 @@ assert_usage_error() {
   [ "$output" = a ]
 }
 
-@test "config repair previews and explicitly converts only a structural default workspace" {
+@test "repair previews and explicitly converts only a structural default workspace" {
   mkrepo "$TREE/a"
   printf '%s\n' \
     '# Preserve this note' \
@@ -1195,7 +1248,7 @@ assert_usage_error() {
     'type = "standard"' > "$TREE/.mgit.toml"
   cd "$TREE"
   before=$(cat .mgit.toml)
-  run "$MGIT" config repair
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   [[ "$output" == *'-schema = 1'* ]]
   [[ "$output" == *'+[members."a"]'* ]]
@@ -1204,13 +1257,13 @@ assert_usage_error() {
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = a ]
-  run "$MGIT" config repair --apply
+  run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   grep -Fx '# Preserve this note' .mgit.toml
   grep -Fx '[members."a"]' .mgit.toml
   ! grep -Fq 'schema =' .mgit.toml
   ! grep -Fq '[groups.' .mgit.toml
-  run "$MGIT" config repair
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   [[ "$output" == *'already unversioned'* ]]
   run "$MGIT"
@@ -1218,19 +1271,19 @@ assert_usage_error() {
   [ "$output" = a ]
 }
 
-@test "config repair keeps repository metadata and refuses unknown or alternative shapes" {
+@test "repair keeps repository metadata and refuses unknown or alternative shapes" {
   mkrepo "$TREE/a"
   printf '%s\n' 'schema = 1' 'kind = "repository"' > "$TREE/a/.mgit.toml"
   cd "$TREE/a"
-  run "$MGIT" config repair
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   grep -Fx 'schema = 1' .mgit.toml
-  run "$MGIT" config repair --apply
+  run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   grep -Fx 'kind = "repository"' .mgit.toml
   ! grep -Fq 'schema =' .mgit.toml
   printf '%s\n' 'schema = 2' 'kind = "repository"' > .mgit.toml
-  run "$MGIT" config repair --apply
+  run "$MGIT" repair --apply
   [ "$status" -eq 1 ]
   grep -Fx 'schema = 2' .mgit.toml
 
@@ -1245,7 +1298,7 @@ assert_usage_error() {
     '[groups.focus.members."a"]' \
     'kind = "repository"' > .mgit.toml
   before=$(cat .mgit.toml)
-  run "$MGIT" config repair --apply
+  run "$MGIT" repair --apply
   [ "$status" -eq 1 ]
   [[ "$output" == *'alternative groups need a deliberate manual decision'* ]]
   [ "$(cat .mgit.toml)" = "$before" ]
