@@ -36,3 +36,5 @@ For a failed release, correct the source on `main`, update `MGIT_VERSION` and th
 ## Complete downstream distribution
 
 The downstream handoff identifies `knowledgeislands/homebrew-tap` and `Formula/mgit.rb`, the exact released tag, `https://raw.githubusercontent.com/knowledgeislands/tools-mgit/vX.Y.Z/install.sh`, and the `/projects/mgit/` and `/install/mgit` website routes. Follow the shared checklist through the actual formula and consumer outcome.
+
+Publishing the GitHub release triggers the `Notify Homebrew tap` workflow, which sends a `tool-release-published` dispatch to `knowledgeislands/homebrew-tap` through the `ki-tools-release-bot` GitHub App; the tap then opens the exact formula pull request and squash-merges it automatically once its required checks pass. The job is skipped until the `KI_TOOLS_RELEASE_BOT_APP_ID` variable and `KI_TOOLS_RELEASE_BOT_PRIVATE_KEY` secret are available to this repository at organisation or repository level (not as `release`-environment secrets); the tap's daily scheduled intake still picks up a published immutable release without the dispatch.
