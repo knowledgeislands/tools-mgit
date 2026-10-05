@@ -38,15 +38,17 @@ jobs:
           export PATH="$KI_CLI_INSTALL_DIR:$PATH"
           test "$(command -v ki)" = "$KI_CLI_INSTALL_DIR/ki"
           ki --version
-          ki manage diag | grep -F 'Installation: local'
-          ki manage diag | grep -F "Executable: $RUNNER_TEMP/tools-ki-source/src/main.ts"
+          ki diag | grep -F 'Installation: local'
+          ki diag --full | grep -F "Executable: $RUNNER_TEMP/tools-ki-source/src/main.ts"
           ki bootstrap
           ki registry add --repo .
           ki repo repair --repo .
           project_key=${GITHUB_WORKSPACE//\//-}
           mkdir -p "$HOME/.claude/projects/$project_key/memory"
           touch "$HOME/.claude/projects/$project_key/memory/MEMORY.md"
-          ki manage diag | grep -F 'Status: valid'
+          diag=$(ki diag)
+          grep -F 'Configuration: valid' <<<"$diag"
+          grep -F 'Registry: valid' <<<"$diag"
           ki harness list | grep -F 'knowledgeislands/ki-agentic-harness'
           {
             printf 'KI_CLI_INSTALL_DIR=%s\n' "$KI_CLI_INSTALL_DIR"
