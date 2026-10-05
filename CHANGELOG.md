@@ -73,5 +73,5 @@ Separate 0.x release entries are not maintained here.
 - `install.sh`
 - `mgit(1)`
 - `brew install knowledgeislands/tap/mgit`
-- Stable website routes at `/tooling/mgit/` and `/install/mgit`, with exact positional `vX.Y.Z` installer pinning and `MGIT_VERSION` retained as an alias.
+- Stable website routes at `/projects/mgit/` and `/install/mgit`, with exact positional `vX.Y.Z` installer pinning and `MGIT_VERSION` retained as an alias.
 - Bash and Zsh completion definitions

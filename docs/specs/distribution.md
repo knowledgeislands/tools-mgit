@@ -6,7 +6,7 @@ This area specifies how people obtain the published command and select a release
 
 ### MGIT-DIST-001 — Website tool routes
 
-Public installation documentation MUST use `https://knowledgeislands.info/tooling/mgit/` for the human-facing product page and `https://knowledgeislands.info/install/mgit` for the machine-facing installer.
+Public installation documentation MUST use `https://knowledgeislands.info/projects/mgit/` for the human-facing product page and `https://knowledgeislands.info/install/mgit` for the machine-facing installer.
 
 _Conformance:_ conforming
 
@@ -22,7 +22,7 @@ The installer MUST accept one optional positional version in exact `vX.Y.Z` form
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `installer installs manual and tolerates older releases without one`; `installer rejects malformed versions and extra arguments`.
+_Verify:_ `bats tests/mgit.bats` — `installer installs the manual and tolerates older releases without one`; `installer rejects malformed versions and extra arguments`.
 
 _Evidence:_ The named Bats checks exercise a valid positional version, malformed positional and environment values, and surplus arguments.
 
@@ -32,6 +32,6 @@ A positional version MUST take precedence over `MGIT_VERSION`, while an invocati
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `installer installs manual and tolerates older releases without one`.
+_Verify:_ `bats tests/mgit.bats` — `installer installs the manual and tolerates older releases without one`.
 
 _Evidence:_ The installer test supplies conflicting positional and environment versions and observes the positional version; source inspection covers the no-input latest-release branch.

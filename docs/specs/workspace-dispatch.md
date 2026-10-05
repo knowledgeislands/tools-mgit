@@ -40,7 +40,7 @@ When no current-directory workspace-kind manifest is present, or with `--ignore`
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `bare mgit lists discovered repos`; `--ignore bypasses workspace selection for discovery`.
+_Verify:_ `bats tests/mgit.bats` — `bare mgit lists the discovered repos`; `--ignore bypasses workspace selection for discovery`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -60,7 +60,7 @@ With `--agora`, mgit MUST use only absolute, unique repository roots returned by
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--agora selects only NUL-delimited roots from ki`; `--agora preserves its exact roots instead of following symlink metadata`; `--agora stops before command when ki cannot resolve roots`.
+_Verify:_ `bats tests/mgit.bats` — `--agora selects only NUL-delimited roots from ki`; `--agora preserves its exact roots instead of following symlink metadata`; `--agora stops before a command when ki cannot resolve roots`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -76,7 +76,7 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter limits repo set by glob`; `--filter applies to bare commands and requires a pattern`.
+_Verify:_ `bats tests/mgit.bats` — `--filter limits the repo set by glob`; `--filter applies to bare commands and requires a pattern`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 

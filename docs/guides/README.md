@@ -7,8 +7,8 @@ These guides explain how to use, develop, and release `mgit`. Every practical do
 
 ## What lives elsewhere
 
-A guide answers how. The neighbouring documentation roots answer the other questions, and a guide links to them rather than restating them:
+A guide answers how. The neighbouring documentation roots answer the other questions; guides name their concerns without depending on documents outside this collection:
 
-- [Specifications](../specs/index.md) answer what. Each `MGIT-WS` or `MGIT-DIST` requirement states one current behaviour with its verification hook. Where a guide and a specification disagree, the specification is authoritative and the guide is corrected.
-- [Roadmap items](../roadmap) answer when, covering behaviour that is planned rather than delivered.
+- Specifications answer what. Each `MGIT-WS` or `MGIT-DIST` requirement states one current behaviour with its verification hook. Where a guide and a specification disagree, the specification is authoritative and the guide is corrected.
+- Roadmap items answer when, covering behaviour that is planned rather than delivered.
 - The `mgit(1)` manual and `mgit help <command>` are the complete command reference. These guides explain the sequences and the choices between them; they do not repeat every option.

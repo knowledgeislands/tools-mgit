@@ -18,7 +18,7 @@ On any system with Bash and Git, install the current release with:
 curl -fsSL https://knowledgeislands.info/install/mgit | bash
 ```
 
-The website route redirects to the installer from the release currently recommended on the [mgit tool page](https://knowledgeislands.info/tooling/mgit/). Pin an exact release with:
+The website route redirects to the installer from the release currently recommended on the [mgit tool page](https://knowledgeislands.info/projects/mgit/). Pin an exact release with:
 
 ```sh
 curl -fsSL https://knowledgeislands.info/install/mgit | bash -s -- vX.Y.Z

@@ -34,7 +34,7 @@ On any system with Bash and Git, use the release installer:
 curl -fsSL https://knowledgeislands.info/install/mgit | bash
 ```
 
-Pass an exact release with `bash -s -- vX.Y.Z`; omitting it installs the latest release. The installer writes to `~/.local/bin` by default. See the [mgit tool page](https://knowledgeislands.info/tooling/mgit/) and [installation guide](docs/guides/user/installation.md) for alternate directories, shell completion, local development links, and installation checks.
+Pass an exact release with `bash -s -- vX.Y.Z`; omitting it installs the latest release. The installer writes to `~/.local/bin` by default. See the [mgit tool page](https://knowledgeislands.info/projects/mgit/) and [installation guide](docs/guides/user/installation.md) for alternate directories, shell completion, local development links, and installation checks.
 
 ## Usage
 

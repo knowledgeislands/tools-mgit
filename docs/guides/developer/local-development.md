@@ -47,9 +47,4 @@ Use `man -l man/mgit.1` to inspect the checked-out manual regardless of your `MA
 
 ## Verify before sharing changes
 
-```sh
-ki repo audit --repo .
-shellcheck bin/mgit install.sh
-bats tests/
-mandoc -T lint man/mgit.1
-```
+Run the complete verification gate in the [definition of done](definition-of-done.md). Keep that guide as the single command list so local development and release preparation exercise the same checks.

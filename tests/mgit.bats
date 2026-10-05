@@ -144,7 +144,7 @@ make_fake_ki() {
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.14.0" ]]
+  [[ "$output" == "mgit 0.15.0" ]]
 }
 
 @test "diag redacts the working path unless full output is requested" {
@@ -341,7 +341,7 @@ make_fake_ki() {
   cmp "$BATS_TEST_DIRNAME/../man/mgit.1" "$install_man/mgit.1"
   run "$install_bin/mgit" --version
   [ "$status" -eq 0 ]
-  [ "$output" = "mgit 0.14.0" ]
+  [ "$output" = "mgit 0.15.0" ]
 }
 
 @test "completion prints bash and zsh setup" {
