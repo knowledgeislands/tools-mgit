@@ -41,9 +41,16 @@ manifest.
 .TP
 .B mgit doctor
 Evaluate Git availability and the current manifest without mutation.
+Show execution context, check scope, verdict and pass/warn/fail/skipped counts.
+An absent optional manifest is healthy; package updates and repository
+synchronization are not checked.
 .TP
 .B mgit diag [\-\-full]
-Print share-safe environment facts; full output includes the current path.
+Print tool/version, installation mode, host platform/architecture, executing
+Bash runtime and configuration state. Local paths and configuration error
+details require full output. Installation is local for a linked or directly
+invoked checkout, release for an installed package with receipt evidence, or
+unknown when provenance cannot be established.
 .SS Repository management
 \&
 .TP

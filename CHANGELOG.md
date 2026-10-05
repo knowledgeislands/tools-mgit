@@ -59,7 +59,8 @@ Separate 0.x release entries are not maintained here.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
 - `mgit repair --apply` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
 - `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair` previews config changes and missing clones by default.
-- `mgit doctor` evaluates Git and manifest readiness without mutation; `mgit diag` reports share-safe facts unless `--full` is requested.
+- `mgit doctor` evaluates Git and manifest readiness without mutation, reports its check scope, verdict and pass/warn/fail/skipped counts, and does not assess package updates or repository synchronization. An absent optional manifest is healthy.
+- `doctor` and `diag` share tool/version, proven local/release/unknown installation mode, host platform/architecture, executing Bash runtime and configuration-state context. `diag` keeps paths and configuration errors behind explicit `--full` output.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.

@@ -110,11 +110,11 @@ EOF
 }
 
 doctor_usage() {
-  printf 'Usage: mgit doctor\nEvaluate Git and the current manifest without changing anything.\n'
+  printf 'Usage: mgit doctor\nReport environment context and evaluate Git and the current manifest without changing anything.\nPackage updates and repository synchronization are not checked.\n'
 }
 
 diag_usage() {
-  printf 'Usage: mgit diag [--full]\nPrint share-safe environment facts; --full includes the current path.\n'
+  printf 'Usage: mgit diag [--full]\nPrint tool, installation, platform, runtime and configuration facts.\nLocal paths and configuration error details are omitted unless --full is given.\n'
 }
 
 structure_usage() {
@@ -1997,8 +1997,81 @@ repair_command() {
   fi
 }
 
+diagnostic_context() {
+  local path="${BASH_SOURCE[0]}" target parent count=0
+  diagnostic_executable=unknown
+  diagnostic_installation=unknown
+  while [ -L "$path" ] && [ "$count" -lt 40 ]; do
+    target=$(readlink "$path") || break
+    case "$target" in
+      /*) path="$target" ;;
+      *) path="$(dirname "$path")/$target" ;;
+    esac
+    count=$((count + 1))
+  done
+  if [ -f "$path" ] && [ ! -L "$path" ]; then
+    parent=$(cd "$(dirname "$path")" && pwd -P) || parent=""
+    if [ -n "$parent" ]; then
+      diagnostic_executable="$parent/$(basename "$path")"
+      if [ "$(basename "$parent")" = bin ] && [ "$(basename "$path")" = mgit ]; then
+        if [ -e "$parent/../.git" ] && [ -f "$parent/../tests/mgit.bats" ]; then
+          diagnostic_installation=local
+        elif [ -f "$parent/../INSTALL_RECEIPT.json" ]; then
+          diagnostic_installation=release
+        fi
+      fi
+    fi
+  fi
+  diagnostic_platform=$(uname -s 2>/dev/null) || diagnostic_platform=unknown
+  diagnostic_architecture=$(uname -m 2>/dev/null) || diagnostic_architecture=unknown
+  case "$diagnostic_platform" in
+    Darwin|darwin) diagnostic_platform=macos ;;
+    Linux) diagnostic_platform=linux ;;
+    Windows|win32|MINGW*|MSYS*) diagnostic_platform=windows ;;
+  esac
+  case "$diagnostic_architecture" in
+    x64|AMD64|amd64) diagnostic_architecture=x86_64 ;;
+    aarch64) diagnostic_architecture=arm64 ;;
+  esac
+  diagnostic_configuration=absent
+  diagnostic_issue=""
+  diagnostic_kind=""
+  if [ -e "./$MGIT_MANIFEST" ] || [ -L "./$MGIT_MANIFEST" ]; then
+    diagnostic_configuration=invalid
+    if [ ! -f "./$MGIT_MANIFEST" ] || [ -L "./$MGIT_MANIFEST" ]; then
+      diagnostic_issue='manifest must be a regular file'
+    else
+      diagnostic_kind=$(manifest_kind "./$MGIT_MANIFEST" 2>/dev/null) || diagnostic_kind=""
+      if [ "$diagnostic_kind" = workspace ]; then
+        if diagnostic_issue=$(parse_workspace "./$MGIT_MANIFEST" 2>&1 >/dev/null); then
+          diagnostic_configuration=valid
+        fi
+      elif [ "$diagnostic_kind" = repository ]; then
+        if diagnostic_issue=$(parse_mgit . 2>&1 >/dev/null); then
+          diagnostic_configuration=valid
+        fi
+      else
+        diagnostic_issue=$(manifest_kind "./$MGIT_MANIFEST" 2>&1 >/dev/null)
+      fi
+    fi
+  fi
+  # Parser errors may echo configuration values. Even --full exposes only
+  # the error category, never a rejected value or an entire source line.
+  diagnostic_issue="${diagnostic_issue#"mgit: ./$MGIT_MANIFEST: "}"
+  diagnostic_issue="${diagnostic_issue%%:*}"
+  case "$diagnostic_issue" in
+    'expected repository kind, found '*) diagnostic_issue='expected repository kind' ;;
+    'expected workspace kind, found '*) diagnostic_issue='expected workspace kind' ;;
+  esac
+}
+
+print_diagnostic_context() {
+  printf 'Tool: mgit\nVersion: %s\nInstallation: %s\nPlatform: %s\nArchitecture: %s\nRuntime: bash %s\nConfiguration: %s\n' \
+    "$MGIT_VERSION" "$diagnostic_installation" "$diagnostic_platform" "$diagnostic_architecture" "${BASH_VERSION%%(*}" "$diagnostic_configuration"
+}
+
 doctor_command() {
-  local kind help=false
+  local help=false pass=0 fail=0
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
@@ -2007,26 +2080,33 @@ doctor_command() {
     shift
   done
   [ "$help" = false ] || { doctor_usage; return 0; }
+  diagnostic_context
+  print_diagnostic_context
+  printf 'Scope: Git availability and current manifest validity (read-only)\nNot checked: package updates and repository synchronization\n'
   if ! command -v git >/dev/null 2>&1; then
-    printf 'mgit doctor: git unavailable\n' >&2
-    return 1
-  fi
-  printf 'mgit doctor: git available\n'
-  if [ ! -e "./$MGIT_MANIFEST" ] && [ ! -L "./$MGIT_MANIFEST" ]; then
-    printf 'mgit doctor: no manifest; filesystem discovery available\n'
-    return 0
-  fi
-  [ -f "./$MGIT_MANIFEST" ] && [ ! -L "./$MGIT_MANIFEST" ] || {
-    printf 'mgit doctor: manifest must be a regular file\n' >&2
-    return 1
-  }
-  kind=$(manifest_kind "./$MGIT_MANIFEST") || return 1
-  if [ "$kind" = workspace ]; then
-    parse_workspace "./$MGIT_MANIFEST" || return 1
+    printf 'fail git: Git unavailable; install Git and retry.\n'
+    fail=$((fail + 1))
   else
-    parse_mgit . >/dev/null || return 1
+    printf 'pass git: Git available\n'
+    pass=$((pass + 1))
   fi
-  printf 'mgit doctor: %s manifest valid\n' "$kind"
+  case "$diagnostic_configuration" in
+    absent)
+      printf 'pass configuration: no manifest; filesystem discovery available\n'
+      pass=$((pass + 1)) ;;
+    valid)
+      printf 'pass configuration: %s manifest valid\n' "$diagnostic_kind"
+      pass=$((pass + 1)) ;;
+    invalid)
+      printf 'fail configuration: correct .mgit.toml; run mgit diag --full for error details.\n'
+      fail=$((fail + 1)) ;;
+  esac
+  printf 'Checks: pass=%s warn=0 fail=%s skipped=0\n' "$pass" "$fail"
+  if [ "$fail" -gt 0 ]; then
+    printf 'Verdict: unhealthy\n'
+    return 1
+  fi
+  printf 'Verdict: healthy\n'
 }
 
 diag_command() {
@@ -2040,18 +2120,22 @@ diag_command() {
     shift
   done
   [ "$help" = false ] || { diag_usage; return 0; }
-  printf 'mgit diag: version=%s\n' "$MGIT_VERSION"
+  diagnostic_context
+  print_diagnostic_context
   if command -v git >/dev/null 2>&1; then
     printf 'mgit diag: git=available\n'
   else
     printf 'mgit diag: git=unavailable\n'
   fi
-  if [ -e "./$MGIT_MANIFEST" ]; then
+  if [ -e "./$MGIT_MANIFEST" ] || [ -L "./$MGIT_MANIFEST" ]; then
     printf 'mgit diag: manifest=present\n'
   else
     printf 'mgit diag: manifest=absent\n'
   fi
-  [ "$full" = false ] || printf 'mgit diag: directory=%s\n' "$(pwd)"
+  if [ "$full" = true ]; then
+    printf 'mgit diag: executable=%s\nmgit diag: directory=%s\nmgit diag: configuration-path=%s/%s\n' "$diagnostic_executable" "$(pwd)" "$(pwd)" "$MGIT_MANIFEST"
+    [ -z "$diagnostic_issue" ] || printf 'mgit diag: detail=%s\n' "$diagnostic_issue"
+  fi
 }
 
 worktree_paths=()

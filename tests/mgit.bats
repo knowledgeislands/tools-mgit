@@ -152,11 +152,76 @@ make_fake_ki() {
   run "$MGIT" diag
   [ "$status" -eq 0 ]
   [[ "$output" == *'mgit diag: manifest=absent'* ]]
+  for label in Tool Version Installation Platform Architecture Runtime Configuration; do
+    [[ "$output" == *"$label:"* ]] || false
+  done
+  [[ "$output" == *'Installation: local'* ]]
+  [[ "$output" == *'Runtime: bash '* ]]
+  [[ "$output" == *'Configuration: absent'* ]]
   [[ "$output" != *"$TREE"* ]]
+  [[ "$output" != *"$BATS_TEST_DIRNAME"* ]]
 
   run "$MGIT" diag --full
   [ "$status" -eq 0 ]
   [[ "$output" == *"directory=$TREE"* ]]
+  [[ "$output" == *'configuration-path='* ]]
+  [[ "$output" == *'executable='* ]]
+}
+
+@test "diag resolves linked checkouts and does not guess copied executable provenance" {
+  cd "$TREE"
+  ln -s "$MGIT" linked-mgit
+  ln -s linked-mgit second-link
+  run "$TREE/second-link" diag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Installation: local'* ]]
+
+  mkdir -p "$TREE/copied/bin"
+  cp "$MGIT" "$TREE/copied/bin/mgit"
+  run "$TREE/copied/bin/mgit" diag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Installation: unknown'* ]]
+  printf '%s\n' '{}' > "$TREE/copied/INSTALL_RECEIPT.json"
+  run "$TREE/copied/bin/mgit" diag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Installation: release'* ]]
+}
+
+@test "diagnostics redact invalid configuration content and doctor counts failures" {
+  cd "$TREE"
+  printf '%s\n' 'kind = "private-secret-invalid-kind"' > .mgit.toml
+  before=$(cat .mgit.toml)
+  run "$MGIT" doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Configuration: invalid'* ]]
+  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]]
+  [[ "$output" == *'Verdict: unhealthy'* ]]
+  [[ "$output" == *'mgit diag --full'* ]]
+  [[ "$output" != *'private-secret-invalid-kind'* ]]
+  [[ "$output" != *"$TREE"* ]]
+  [ "$(cat .mgit.toml)" = "$before" ]
+  run "$MGIT" diag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Configuration: invalid'* ]]
+  [[ "$output" != *'private-secret-invalid-kind'* ]]
+  run "$MGIT" diag --full
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'detail=unsupported manifest kind'* ]]
+  [[ "$output" != *'private-secret-invalid-kind'* ]]
+}
+
+@test "doctor reports a missing Git prerequisite without claiming dependent checks failed" {
+  cd "$TREE"
+  local fixture_bin="$TREE/no-git-bin" utility
+  mkdir -p "$fixture_bin"
+  for utility in bash basename dirname readlink uname; do
+    ln -s "$(command -v "$utility")" "$fixture_bin/$utility"
+  done
+  run env PATH="$fixture_bin" /bin/bash "$MGIT" doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'fail git: Git unavailable; install Git and retry.'* ]]
+  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]]
+  [[ "$output" == *'Configuration: absent'* ]]
 }
 
 @test "doctor evaluates the manifest without writing and config repair is retired" {
@@ -164,6 +229,9 @@ make_fake_ki() {
   run "$MGIT" doctor
   [ "$status" -eq 0 ]
   [[ "$output" == *'filesystem discovery available'* ]]
+  [[ "$output" == *'Checks: pass=2 warn=0 fail=0 skipped=0'* ]]
+  [[ "$output" == *'Verdict: healthy'* ]]
+  [[ "$output" == *'Not checked: package updates'* ]]
 
   mkrepo "$TREE/a"
   printf '%s\n' 'kind = "workspace"' '[members."a"]' 'kind = "repository"' \
@@ -178,7 +246,12 @@ make_fake_ki() {
   ln -s absent.toml .mgit.toml
   run "$MGIT" doctor
   [ "$status" -eq 1 ]
+  [[ "$output" == *'Configuration: invalid'* ]]
+  [[ "$output" == *'correct .mgit.toml'* ]]
+  run "$MGIT" diag --full
+  [ "$status" -eq 0 ]
   [[ "$output" == *'manifest must be a regular file'* ]]
+  [[ "$output" == *'mgit diag: manifest=present'* ]]
   rm .mgit.toml
   mv manifest.toml .mgit.toml
 

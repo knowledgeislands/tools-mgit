@@ -19,6 +19,14 @@ mgit -B bun install
 mgit -B bun run build
 ```
 
+## Diagnose the current environment
+
+Run `mgit diag` for share-safe tool/version, installation mode, host platform and architecture, executing Bash runtime, and configuration state. Both `diag` and `doctor` show this context. `local` identifies a direct or linked development checkout; `release` requires installed-package receipt evidence. An arbitrary copied executable remains `unknown` rather than guessing from its version. Host names include `macos`, `linux`, and `windows`; AMD64/x64 is reported as `x86_64` and AArch64 as `arm64`.
+
+`mgit diag --full` adds the resolved executable, current directory, manifest path and configuration error details for private troubleshooting. Review fuller output before sharing it. Ordinary diagnostics omit paths and rejected configuration values.
+
+Run `mgit doctor` to evaluate two read-only check units: Git availability and current manifest validity. It reports the check scope, pass/warn/fail/skipped counts and a healthy or unhealthy verdict; failures include a next action and exit with status 1. An absent optional manifest passes because filesystem discovery remains available. These checks do not synchronize repositories, assess package upgrades, or change configuration. Use `mgit diag --full` when an invalid manifest needs error detail, and `mgit repair` to preview a recognised repair before explicitly applying it.
+
 ## Include linked worktrees
 
 Standard repositories use their root checkout by default; nested repositories use their required `main/` checkout. Pass `-W` or `--all-worktrees` to include every active linked worktree as well:
