@@ -8,14 +8,16 @@ on:
 permissions:
   contents: read
 
+env:
+  KI_VERSION: v0.6.1
+
 jobs:
   governance:
     name: KI governance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - name: Link latest KI from main
+      - name: Install released KI
         env:
           KI_CLI_INSTALL_DIR: ${{ runner.temp }}/ki/bin
           KI_MAN_INSTALL_DIR: ${{ runner.temp }}/ki/man/man1
@@ -31,15 +33,12 @@ jobs:
           printf '{}\n' > "$HOME/.claude/settings.json"
           mkdir -p "$(dirname "$KI_MCP_SOURCE")"
           printf 'mcpServers: []\n' > "$KI_MCP_SOURCE"
-          git clone --quiet --depth 1 --branch main https://github.com/knowledgeislands/tools-ki.git "$RUNNER_TEMP/tools-ki-source"
-          printf 'KI source commit: %s\n' "$(git -C "$RUNNER_TEMP/tools-ki-source" rev-parse HEAD)"
-          (cd "$RUNNER_TEMP/tools-ki-source" && bun install --frozen-lockfile)
-          bash "$RUNNER_TEMP/tools-ki-source/install.sh" --link
+          curl --fail -sSL --proto '=https' -o "$RUNNER_TEMP/install.sh" \
+            "https://raw.githubusercontent.com/knowledgeislands/tools-ki/$KI_VERSION/install.sh"
+          bash "$RUNNER_TEMP/install.sh" "$KI_VERSION"
           export PATH="$KI_CLI_INSTALL_DIR:$PATH"
           test "$(command -v ki)" = "$KI_CLI_INSTALL_DIR/ki"
-          ki --version
-          ki diag | grep -F 'Installation: local'
-          ki diag --full | grep -F "Executable: $RUNNER_TEMP/tools-ki-source/src/main.ts"
+          test "v$(ki --version)" = "$KI_VERSION"
           ki bootstrap
           ki registry add --repo .
           ki repo repair --repo .
