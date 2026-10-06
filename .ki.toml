@@ -15,6 +15,7 @@ repo_type = "project"
 primary_shape = "ki-repo-tools"
 repository = "https://github.com/knowledgeislands/tools-mgit"
 title = "mgit"
+capital = "https://github.com/knowledgeislands/ki-arcadia-principal"
 description = "Run commands across many Git repositories at once."
 repo_code = "MGIT"
 supported_runtimes = ["claude-code", "claude-desktop", "chatgpt-codex"]
@@ -73,15 +74,3 @@ auto_memory = "disabled"
 # -----------------------------------------------------------------------------
 
 [skills.ki-trades]
-
-[skills.ki-trades.routes."knowledgeislands/homebrew-tap"]
-export = ["work"]
-
-[skills.ki-trades.routes."knowledgeislands/ki-agentic-harness"]
-export = ["work", "knowledge"]
-import = ["work", "knowledge"]
-standing.export.knowledge = ["shared-capability-maintenance"]
-
-[skills.ki-trades.routes."knowledgeislands/tools-ki"]
-export = ["work", "knowledge"]
-import = ["work", "knowledge"]
