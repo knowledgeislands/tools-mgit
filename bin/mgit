@@ -484,6 +484,17 @@ repo_type() {
   fi
 }
 
+# Explicit territory roots may be linked checkouts. Local discovery and
+# registration keep primary units and expand their worktrees only on request.
+is_linked_checkout() {
+  local root="$1" common gitdir
+  [ -f "$root/.git" ] || return 1
+  is_nested_repo "$root" && return 1
+  capture_path git_common_dir "$root" || return 1; common="$captured_path"
+  capture_path git_dir "$root" || return 1; gitdir="$captured_path"
+  [ "$gitdir" != "$common" ]
+}
+
 active_worktree_paths() {
   local root="$1" path="" state="" line
   while IFS= read -r -d '' line; do
@@ -1655,6 +1666,7 @@ register_preflight_tree() {
     [ -d "$child" ] || continue
     child="${child%/}"
     [ -L "$child" ] && continue
+    is_linked_checkout "$child" && continue
     kind=$(repo_type "$child")
     if [ "$kind" != unknown ]; then
       source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
@@ -1684,6 +1696,7 @@ register_tree() {
     [ -d "$child" ] || continue          # no subdirs (glob didn't match)
     child="${child%/}"
     [ -L "$child" ] && continue
+    is_linked_checkout "$child" && continue
     child_kind=$(repo_type "$child")
     if [ "$child_kind" != unknown ]; then
       register_tree "$child"
@@ -3225,6 +3238,7 @@ else
   while IFS= read -r r; do
     [ -z "$r" ] && continue
     [ "$(repo_type "$r")" != unknown ] || continue
+    is_linked_checkout "$r" && continue
     nested=false
     for parent in "${repos[@]+"${repos[@]}"}"; do
       case "$r" in

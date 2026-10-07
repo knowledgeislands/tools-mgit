@@ -1529,6 +1529,7 @@ assert_usage_error() {
 
   cd "$TREE"
   "$MGIT" register >/dev/null
+  ! grep -F '[members."repoB-branch-c"]' "$TREE/.mgit.toml"
   run "$MGIT"
 
   [ "$status" -eq 0 ]
