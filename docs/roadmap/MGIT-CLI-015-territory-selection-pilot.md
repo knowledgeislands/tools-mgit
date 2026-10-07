@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 5b93e761112e47162bfa4e2946b66e6511c96644
 created_at: 2026-10-07T21:17:07Z
-updated_at: 2026-10-07T22:06:43Z
+updated_at: 2026-10-07T22:29:21Z
 ---
 
 # Territory selection pilot
@@ -30,7 +30,7 @@ One caller pilot only: no Project, speculative queue, legacy aliases, filter glo
 
 ## Current state
 
-The clean main baseline uses Agora flags and saved locations, a buffered legacy producer and glob filters. Existing distribution is the Bash installer, manual and Homebrew tap. Only Bash 3.2 and Git are baseline runtime dependencies.
+The approved rollout is published through fast-forward task-owned source integration. [KI v0.9.0](https://github.com/knowledgeislands/tools-ki/releases/tag/v0.9.0) and [mgit v0.16.0](https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.16.0) are immutable and exact-tag installations pass. KI has signed archive/checksum verification, successful clean Linux installation and fresh local bootstrap of the pinned territory harness; mgit has absolute executable and manual proof. Installed callers agree for `-t ki -f tools-` and `--estate -f mcp-`, preserving membership and the ki/KIS identities. The automatic [KI formula handoff](https://github.com/knowledgeislands/homebrew-tap/pull/27) and [mgit formula handoff](https://github.com/knowledgeislands/homebrew-tap/pull/29) merged with required checks passing; both exact Homebrew upgrades and user versions are verified. Frozen design evidence, trade routing and Techne Programme Hold remain unchanged. All four records retain awaiting-review status; no acceptance or pruning occurred.
 
 ## Steps
 
@@ -82,7 +82,7 @@ The approved mgit caller pilot from immutable Ready baseline `5b93e761112e47162b
 - `tests/mgit.bats`, `tests/territory-producer.bats` and `tests/territory-protocol.bats`: migrated selector/completion/filter fixtures, a strict protocol double, actual committed producer integration and hostile-stream failure tests. Git mutations occur only in isolated disposable repositories.
 - README, changelog, manual, workspace-dispatch specification, running-commands and repository-sets guides and definition of done: public grammar, prefix semantics, current refresh/offline behaviour and explicit previewable user migration without deleting state.
 - `docs/roadmap/_ISSUES.md` reserves CLI-015 in its standalone commit. The repository's declared MGIT prefix determines this record's identifier. No Project or additional queue items were created.
-- `MGIT_VERSION` remains `0.15.0` because this unit forbids remote collision checks; publication prepares final release metadata separately. Distribution remains the existing installer/manual/Homebrew routes.
+- The pilot initially retained `MGIT_VERSION` at `0.15.0`; the coordinator then verified the available next minor and published the final `0.16.0` candidate. Distribution remains the existing installer/manual/Homebrew routes.
 
 ### Verification
 
@@ -97,11 +97,11 @@ The source CI continuation found a task-caused local-discovery regression: recog
 
 The coordinator fast-forwarded the task-owned reservation, Ready and delivery history into a candidate descending from fetched published main. MGIT_VERSION and its two assertions now prepare 0.16.0, with the single consolidated pre-1.0 baseline updated. ShellCheck, Bash syntax, all 89 tests with the exact combined KI producer, manual lint, diff validation and the whole 19-skill registered-context audit pass. The initial inherited audit-state override was removed only from the disposable test process; fixtures and failed-attempt evidence are preserved.
 
+Final publication evidence: [KI v0.9.0](https://github.com/knowledgeislands/tools-ki/releases/tag/v0.9.0) and [mgit v0.16.0](https://github.com/knowledgeislands/tools-mgit/releases/tag/v0.16.0). [Verified source CI](https://github.com/knowledgeislands/tools-mgit/actions/runs/37695908881) passed. The task-caused local linked-worktree discovery correction passed the repeated source CI and all 89 local Bats tests, including the real committed KI producer. The immutable exact-tag installer produced a byte-identical executable and manual from its canonical source archive; both were verified by absolute path. Both automatic Homebrew formula handoffs merged with passing required checks, exact versions were upgraded, and read-only installed caller parity passed for both approved scopes. Immutable baseline records and original delivery packets remain unchanged.
+
 ### Outstanding concerns
 
-No failed or unchecked mandatory delivery gates remain. This record awaits owner review; integration, final version metadata, publication and Arcadia/harness retirement belong to the coordinator's separate authority. Saved locations containing historic Agora grammar require the documented explicit migration before refreshing.
-
-Immutable publication, installation and tap verification remain outstanding while the KI clean-install harness pin authority addition is resolved. No acceptance or pruning is inferred.
+Human acceptance remains outstanding. No mandatory rollout gate is failing or unchecked. Work remains awaiting review; no record was accepted or pruned. Foreign primary-checkout changes and historical user state are preserved. Saved locations containing historic Agora grammar still require the documented explicit migration before refreshing; no historical state was deleted or silently migrated.
 
 ### Post-change review
 
