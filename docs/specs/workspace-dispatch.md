@@ -54,13 +54,13 @@ _Verify:_ `bats tests/mgit.bats` — `--physical and --follow-symlinks control c
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
-### MGIT-WS-006 — Agora repository set
+### MGIT-WS-006 — Territory repository set
 
-With `--agora`, mgit MUST use only absolute, unique repository roots returned by `ki agora roots --null`, MUST NOT follow repository symlink metadata, and MUST stop before command dispatch when resolution fails.
+With `-t/--territory HANDLE` or `--estate`, mgit MUST call `ki territory roots --null --territory HANDLE` or `ki territory roots --null --estate`, passing every repeated `--filter PREFIX` to KI. It MUST buffer the entire stream, require successful producer completion and complete NUL framing, validate absolute existing unique Git roots, and stop before dispatch on any error. It MUST NOT follow repository symlink metadata. Missing registration metadata, ambiguous identities or handles, selected missing roots and zero matches MUST fail; excluded unavailable registered roots MUST NOT block an otherwise valid selection.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--agora selects only NUL-delimited roots from ki`; `--agora preserves its exact roots instead of following symlink metadata`; `--agora stops before a command when ki cannot resolve roots`.
+_Verify:_ `bats tests/mgit.bats` — `--territory selects only NUL-delimited roots from ki`; `--territory preserves its exact roots instead of following symlink metadata`; `--territory stops before a command when ki cannot resolve roots`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -72,11 +72,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-009 — Filter composition
 
-`--filter` MUST narrow final selected repository set by one or more glob patterns after selection and metadata expansion without changing how unfiltered set is discovered or expanded.
+`-f/--filter` MUST accept nonempty literal case-sensitive directory-basename prefixes, repeatable with OR semantics. Default discovery and offline snapshots MUST use the same basename predicate locally, before worktree expansion. Explicit KI scopes MUST pass filters to the producer before physical-root validation. Empty prefixes and zero matches MUST fail before dispatch; no glob option or alias exists.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter limits the repo set by glob`; `--filter applies to bare commands and requires a pattern`.
+_Verify:_ `bats tests/mgit.bats` — `--filter limits the repo set by literal basename prefixes`; `--filter applies to bare commands and requires a pattern`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -94,7 +94,7 @@ _Evidence:_ The named Bats check implements this requirement and passes in the r
 
 ### MGIT-WS-011 — Metadata closure
 
-Outside Agora selection, mgit MUST add repositories reached through repository-kind `.mgit.toml` cross-repository symlink metadata, transitively and without duplicate dispatch targets.
+Outside explicit KI selection, mgit MUST add repositories reached through repository-kind `.mgit.toml` cross-repository symlink metadata, transitively and without duplicate dispatch targets.
 
 _Conformance:_ conforming
 
@@ -194,10 +194,20 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, Agora or estate, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only Agora as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory or estate, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 
 _Verify:_ `bats tests/mgit.bats` — `inapplicable global selectors fail before management commands change state`; `command-specific selectors reject ignored combinations`; `help and version remain available with selectors`.
 
 _Evidence:_ The selector matrix covers status, namespace, and no-side-effect behavior for the command families.
+
+### MGIT-WS-023 — Saved territory snapshots and hard cut-over
+
+Saved `territory:HANDLE` locations MUST resolve current membership only during explicit `register` add, rm or refresh. Ordinary generated snapshots MUST remain offline without automatic refresh. Failed producer resolution or validation MUST leave the manifest byte-identical. Old Agora flags, `agora:` locations, `agora` fields and Agora member tables MUST fail with actionable, explicit migration guidance, including old schema-1 Agora snapshots; no aliases or historical-name reinterpretation are permitted. Migration guidance MUST preview the replacement membership and preserve user state. Territory, estate and explicit repository scopes MUST be exclusive outside register's saved-location editing grammar.
+
+_Conformance:_ conforming
+
+_Verify:_ `MGIT_KI_PRODUCER=/absolute/path/to/committed/ki bats tests/territory-producer.bats tests/territory-protocol.bats`.
+
+_Evidence:_ Real executable fixtures separate registry keys, the Capital key, handle and directory basenames, and prove literal filters, failure atomicity, spaces/newlines, worktree expansion, saved refresh and offline operations.

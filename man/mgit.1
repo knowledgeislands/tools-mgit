@@ -137,12 +137,12 @@ The
 option ignores workspace manifests and always uses discovery instead.
 .PP
 With
-.BR \-a / \-\-agora
+.BR \-t / \-\-territory
 or
 .BR \-\-estate ,
 .B mgit
 invokes
-.B ki agora roots --null
+.B ki territory roots --null --territory HANDLE
 once and uses the returned local repository roots as its exact set.
 This optional mode does not read KI configuration itself and requires
 .B ki
@@ -210,10 +210,10 @@ workspace selection and discover repositories by walking the tree.
 Repository-kind symlink metadata still expands the discovered set.
 .sp
 .TP
-.BR \-a , " \-\-agora" " \fINAME\fR"
+.BR \-t , " \-\-territory" " \fINAME\fR"
 Select the local roots resolved by
 .B ki
-for the named Agora.
+for the territory handle.
 MGit uses the resolver's NUL-delimited output. Ordinary commands invoke
 .B ki
 only when this selector is present. This selector cannot be combined with
@@ -225,34 +225,25 @@ and it is unavailable to MGit management commands except
 .sp
 .TP
 .B \-\-estate
-Select every local root in the registered KI estate. This is exactly equivalent
-to
-.BR "\-\-agora estate" .
-It has the same selection restrictions as
-.BR \-\-agora ,
-but cannot be used with
-.BR register ,
-and the two selectors cannot be combined.
+Select every local root in the registered KI estate. It calls
+.B ki territory roots --null --estate
+and cannot be combined with
+.BR \-\-territory .
+It has the same restrictions but is unavailable to
+.BR register .
 .sp
 .TP
-.BR \-f , " \-\-filter" " \fIGLOB\fR"
-Limit the repository set to repositories whose path, relative to the current
-directory, matches the shell glob
-.IR GLOB .
-A bare pattern also matches a repository's last path component, so
-.B mgit \-f 'mcp\-*'
-selects the mcp repositories wherever they sit in the tree.
-The option is repeatable; a repository matching any pattern is kept.
-Workspace selection occurs before filtering.
-The filter narrows normal commands, the repository listing, and the
-.B structure
-and
-.B worktree
-set commands.
-.B register
-and
-.B repair
-reject this option rather than ignoring it.
+.BR \-f , " \-\-filter" " \fIPREFIX\fR"
+Select logical repository directory basenames beginning with the nonempty
+literal, case-sensitive
+.IR PREFIX .
+The option is repeatable with OR semantics; glob characters are literal.
+Filters apply before linked-worktree expansion and never match checkout names.
+Explicit KI scopes pass filters to the producer before physical-root checks;
+excluded unavailable registered roots do not block selection.
+Default discovery and saved snapshots apply the same predicate locally without
+KI.
+Empty prefixes and zero matches fail before dispatch.
 .sp
 .TP
 .BR \-W , " \-\-all-worktrees"
@@ -322,19 +313,19 @@ and
 .B mgit register rm
 change saved search locations and refresh generated entries in one invocation.
 Both accept repeated and combined
-.B \-\-agora
+.B \-\-territory
 .I NAME
 and
 .B \-\-repo
 .I PATH
 options.
-.B mgit register \-\-agora
+.B mgit register \-\-territory
 .I NAME
 is an add shorthand. Adding a repository path requires an existing Git
 repository; removal accepts a saved relative path even after it disappears.
 Later runs of
 .B mgit register
-refresh all saved locations, resolving Agora roots through
+refresh all saved locations, resolving territory roots through
 .BR ki .
 Source resolution failure stops registration before writing. Ordinary commands
 use generated repository entries without invoking
@@ -500,7 +491,7 @@ The
 .B locations
 array stores search source strings such as
 .BR local ,
-.BR agora:personal ,
+.BR territory:short ,
 and
 .BR repo:../shared-tools .
 When absent, it defaults to
@@ -508,9 +499,9 @@ When absent, it defaults to
 Empty
 .B [registered.members."PATH"]
 tables hold generated repository roots as paths relative to the manifest
-directory; these paths may reach outside the workspace. Older
-.B agora
-snapshots are migrated when registration runs.
+directory; these paths may reach outside the workspace. Old Agora locations,
+fields and member tables, including schema-1 Agora
+snapshots, are rejected without automatic migration or aliases.
 .PP
 Existing schema-1 manifests with grouped members remain readable.
 Registration migrates one containing only the structural default group to
@@ -623,3 +614,29 @@ covers
 manifests and registration, and
 .I worktrees.md
 covers the standard and nested repository structures.
+
+.SH TERRITORY MIGRATION
+\&
+.PP
+Old
+.B \-a/\-\-agora
+selectors and
+.B agora:
+locations are retired.
+Back up the manifest and any managed source, explicitly replace saved locations
+with verified
+.B territory:HANDLE
+values in a reviewed copy, and remove the old agora field and member tables.
+Preserve local members and user settings.
+Run
+.B mgit register \-\-dry\-run
+and inspect the proposed membership before explicitly refreshing with
+.BR "mgit register" .
+Resolution or output validation failure leaves the manifest unchanged.
+Ordinary generated snapshots remain offline and never silently refresh.
+Use a literal prefix such as
+.B tools\-
+in place of a historic glob such as tools\-*.
+The roots endpoint is buffered completely; partial output, malformed NUL
+framing,
+duplicates, missing roots or registrations and ambiguous handles stop dispatch.

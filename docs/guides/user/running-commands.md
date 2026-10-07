@@ -48,44 +48,41 @@ Repositories that pulled or pushed commits are named. Repositories that were alr
 The existing selectors and filters narrow the same way as ordinary commands:
 
 ```sh
-mgit --filter 'tools-*' sync
-mgit --filter 'tools-*' sync
-mgit --agora kis sync
+mgit --filter 'tools-' sync
+mgit --filter 'tools-' sync
+mgit --territory ki sync
 ```
 
 ## Limit the set
 
-Use `-f` or `--filter` to select repository paths with a shell glob. A bare pattern also matches the final path component, and repeated filters are combined as a union.
+Use `-f` or `--filter` with a nonempty literal directory-basename prefix. Matching is case-sensitive; repeated prefixes are combined with OR. Characters such as `*` and `[` are literal, not glob syntax. A prefix never matches a parent directory or a linked-worktree name. Zero matches fail before dispatch.
 
 ```sh
-mgit -f 'mcp-*' status
-mgit -f 'mcp-*' -B bun run build
+mgit -f 'mcp-' status
+mgit -f 'mcp-' -B bun run build
 ```
 
 Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. `register` and `repair` reject `--filter` instead of silently ignoring it.
 
-Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bare` applies only to ordinary command pass-through. `register` accepts global `--agora` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
+Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bare` applies only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
 `mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` previews recognised config repairs and missing repository clones, and `--apply` performs them explicitly.
 
-## Select an Agora
+## Select a territory
 
-When `ki` is installed, use `--agora` to run an ordinary Git or bare command across the local roots resolved for a named Agora or `estate`:
-
-```sh
-mgit --agora kis status
-mgit --agora estate -B git fetch --all --prune
-```
-
-`--estate` is shorthand for `--agora estate`, which resolves every repository in the registered KI estate:
+When `ki` is installed, use a territory handle or the registered estate:
 
 ```sh
+mgit -t ki -f tools- -f kit- status
+mgit --territory ki sync
 mgit --estate status
 ```
 
-The two selectors carry the same restrictions and cannot be combined with each other.
+MGit calls `ki territory roots --null --territory HANDLE [--filter PREFIX...]` or `ki territory roots --null --estate [--filter PREFIX...]`. Filters go to KI so an excluded unavailable root does not block the selected set. Missing membership registrations, ambiguous identities or handles, selected unavailable roots and zero matches fail; mgit buffers and validates the entire output before executing any selected command. Spaces and newlines travel through NUL transport. Directory prefixes apply before optional linked-worktree expansion.
 
-MGit invokes `ki agora roots --null <name>` once and uses exactly the returned repository roots, including any repositories added by that Agora's `includes` declaration. `ki` deduplicates and orders the roots alphabetically; MGit's selector does not read KI declarations, the local registry, or peer repositories. `--filter` can narrow the resolved set, but neither selector can be combined with discovery or workspace selectors (`--physical`, `--follow-symlinks`, or `--ignore`). `mgit register add --agora <name>` binds an Agora as a saved search location and refreshes its generated entries; plain `mgit register` refreshes them later. Other management commands, including `repair`, do not accept the selectors.
+Territory, estate and explicit repository scopes are mutually exclusive. MGit's native default is its workspace/snapshot selection or discovery. The territory and estate scopes reject discovery traversal options and `--ignore`. `structure` and `worktree` accept local filters but reject territory and estate scopes; `register` accepts territory locations, while estate, filters and other ignored global selectors are rejected.
+
+`mgit register add --territory HANDLE` binds a saved search location and explicitly refreshes membership. Plain `mgit register` refreshes all saved locations later; ordinary snapshot commands never invoke KI or silently refresh. A failed refresh leaves the manifest unchanged. See [saved locations and migration](repository-sets.md#migrate-agora-locations) for the hard cut-over from old Agora syntax.
 
 ## Discovery options
 

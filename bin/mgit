@@ -53,9 +53,9 @@ Options:
   -L, --follow-symlinks   follow symlinked container directories
   -B, --bare              run COMMAND directly instead of as a Git subcommand
   -I, --ignore            ignore workspace manifests and discover repositories
-  -a, --agora <name>      select roots resolved by ki for a named Agora
+  -t, --territory <handle> select roots resolved by ki for a territory handle
       --estate            select every root in the registered KI estate
-  -f, --filter <glob>     limit the repository set; repeatable
+  -f, --filter <prefix>    literal case-sensitive basename prefix; repeatable OR
   -W, --all-worktrees     include every active linked worktree
   -h, --help              display help for command
   -V, --version           print the CLI version
@@ -88,7 +88,7 @@ Add or remove locations and refresh in one command. When Chezmoi manages a
 generated manifest, its source state is updated too.
 
 Options:
-  -a, --agora <name>  add or remove a named Agora location (repeatable)
+  -t, --territory <handle> add or remove a territory location (repeatable)
       --repo <path>   add or remove a Git repository location (repeatable)
       --dry-run       preview manifest writes and removals without changing files
   -h, --help  display help for command
@@ -220,13 +220,13 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair doctor diag sync structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -a --agora --estate -f --filter -W --all-worktrees -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -t --territory --estate -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
       return
       ;;
-    -a|--agora)
+    -t|--territory)
       COMPREPLY=()
       return
       ;;
@@ -234,7 +234,7 @@ _mgit() {
   while (( i < COMP_CWORD )); do
     word="${COMP_WORDS[i]}"
     case "$word" in
-      -a|--agora|-f|--filter) ((i += 2)); continue ;;
+      -t|--territory|-f|--filter) ((i += 2)); continue ;;
       -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
@@ -246,9 +246,9 @@ _mgit() {
   case "$command" in
     register)
       if (( COMP_CWORD == command_index + 1 )); then
-        COMPREPLY=( $(compgen -W 'add rm --agora -a --repo --dry-run --help -h' -- "$cur") )
+        COMPREPLY=( $(compgen -W 'add rm --territory -t --repo --dry-run --help -h' -- "$cur") )
       else
-        COMPREPLY=( $(compgen -W '--agora -a --repo --dry-run --help -h' -- "$cur") )
+        COMPREPLY=( $(compgen -W '--territory -t --repo --dry-run --help -h' -- "$cur") )
       fi
       ;;
     repair)
@@ -318,11 +318,11 @@ _mgit() {
     '--bare[run an ordinary command without git prefix]'
     '-I[ignore workspace selection from .mgit.toml]'
     '--ignore[ignore workspace selection from .mgit.toml]'
-    '-a[select roots resolved by ki for a named Agora]:Agora name:'
-    '--agora[select roots resolved by ki for a named Agora]:Agora name:'
+    '-t[select roots resolved by ki for a named territory]:territory name:'
+    '--territory[select roots resolved by ki for a named territory]:territory name:'
     '--estate[select every root in the registered KI estate]'
-    '-f[limit the repo set to paths matching a glob]:glob pattern:'
-    '--filter[limit the repo set to paths matching a glob]:glob pattern:'
+    '-f[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
+    '--filter[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '-W[include linked worktrees for listing, ordinary commands, and sync]'
     '--all-worktrees[include linked worktrees for listing, ordinary commands, and sync]'
     '-h[show help]'
@@ -337,7 +337,7 @@ _mgit() {
     'remove:remove a worktree'
   )
   case $words[2] in
-    register) _arguments -s '1:action:(add rm)' '*--agora[add or remove an Agora location]:Agora name:' '*-a[add or remove an Agora location]:Agora name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
+    register) _arguments -s '1:action:(add rm)' '*--territory[add or remove a territory location]:territory name:' '*-t[add or remove a territory location]:territory name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
     repair) _arguments '--apply[perform validated repairs]' '-h[display help for command]' '--help[display help for command]' ;;
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
@@ -395,9 +395,23 @@ trim() {
   printf '%s' "$s"
 }
 
-# Canonical absolute path of a directory (resolves symlinks and ..); empty on
-# failure.
-canon_dir() { ( cd "$1" 2>/dev/null && pwd -P ); }
+# Command substitution normally discards trailing newlines in pathnames.
+# A sentinel retains those bytes while preserving the called command's status.
+captured_path=""
+cwd_canon=""
+capture_path() {
+  captured_path=$("$@" && printf '\001') || return 1
+  captured_path=${captured_path%$'\001'}
+}
+
+# Canonical physical path without an extra line terminator.
+canon_dir() { ( cd -P "$1" 2>/dev/null && printf '%s' "$PWD" ); }
+
+# Assign the physical directory path without command-substitution byte loss.
+capture_dir() {
+  capture_path canon_dir "$2" || return 1
+  printf -v "$1" '%s' "$captured_path"
+}
 
 # Resolve $1 (absolute, ~-prefixed, or relative to base dir $2) to an
 # absolute-ish path. May still contain .. components.
@@ -418,7 +432,7 @@ canon_any() {
   local p="$1" d b
   if [ -d "$p" ]; then canon_dir "$p"; return; fi
   d=$(dirname "$p"); b=$(basename "$p")
-  d=$(canon_dir "$d") || return 1
+  capture_dir d "$d" || return 1
   [ -z "$d" ] && return 1
   printf '%s/%s' "$d" "$b"
 }
@@ -443,25 +457,25 @@ is_repo() {
 # live checkout (including main) lives directly below that controller.
 is_nested_repo() {
   local root="$1" bare path
-  root=$(canon_dir "$root") || return 1
-  bare=$(canon_dir "$root/.bare") || return 1
+  capture_dir root "$root" || return 1
+  capture_dir bare "$root/.bare" || return 1
   [ -f "$root/.git" ] && [ -d "$bare" ] && [ -d "$root/main" ] || return 1
   is_bare_repo "$root" || return 1
   is_worktree "$root/main" || return 1
   [ "$(git_common_dir "$root/main")" = "$bare" ] || return 1
-  while IFS= read -r path; do
+  while IFS= read -r -d '' path; do
     [ -z "$path" ] && continue
     case "$path" in
       "$bare"|"$root"/*) ;;
       *) return 1 ;;
     esac
-  done < <(git -C "$root" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+  done < <(active_worktree_paths "$root")
 }
 
 repo_type() {
   if is_nested_repo "$1"; then
     printf 'nested'
-  elif [ -d "$1/.git" ] && is_worktree "$1"; then
+  elif { [ -d "$1/.git" ] || [ -f "$1/.git" ]; } && is_worktree "$1"; then
     printf 'standard'
   elif is_bare_repo "$1"; then
     printf 'bare'
@@ -471,21 +485,21 @@ repo_type() {
 }
 
 active_worktree_paths() {
-  local root="$1" path state
-  path=""; state=""
-  while IFS= read -r line || [ -n "$line" ]; do
+  local root="$1" path="" state="" line
+  while IFS= read -r -d '' line; do
     if [ -z "$line" ]; then
-      [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\n' "$path"
+      [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\0' "$path"
       path=""; state=""
       continue
     fi
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
-      prunable*)    state=prunable ;;
-      bare)         state=bare ;;
+      prunable*) state=prunable ;;
+      bare) state=bare ;;
     esac
-  done < <(git -C "$root" worktree list --porcelain 2>/dev/null)
-  [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\n' "$path"
+  done < <(git -C "$root" worktree list --porcelain -z 2>/dev/null)
+  [ -n "$path" ] && [ "$state" != prunable ] && [ "$state" != bare ] && printf '%s\0' "$path"
+  return 0
 }
 
 # A repository has two useful identities: its checkout (if any) and the common
@@ -514,7 +528,7 @@ git_dir() {
 repo_of() {
   local p="$1" d root
   if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; [ "$d" = "$p" ] && d="."; fi
-  d=$(canon_dir "$d") || return 1
+  capture_dir d "$d" || return 1
   [ -z "$d" ] && return 1
   while :; do
     root=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)
@@ -530,7 +544,7 @@ repo_of() {
 structure_of() {
   local p="$1" d
   if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; [ "$d" = "$p" ] && d="."; fi
-  d=$(canon_dir "$d") || return 1
+  capture_dir d "$d" || return 1
   while :; do
     is_nested_repo "$d" && { printf '%s' "$d"; return 0; }
     [ "$d" = "/" ] && return 1
@@ -542,8 +556,8 @@ structure_of() {
 relpath() {
   local from="${1%/}" to="${2%/}" i j n m min rel="" down=""
   local fa ta IFS=/
-  read -ra fa <<< "${from#/}"
-  read -ra ta <<< "${to#/}"
+  read -r -d '' -a fa < <(printf '%s\0' "${from#/}")
+  read -r -d '' -a ta < <(printf '%s\0' "${to#/}")
   unset IFS
   n=${#fa[@]}; m=${#ta[@]}; min=$n; [ "$m" -lt "$n" ] && min=$m
   i=0
@@ -861,11 +875,16 @@ location_path_safe() {
   esac
 }
 
+legacy_agora_error() {
+  printf 'mgit: %s: Agora syntax is retired; back up the manifest, explicitly replace agora:NAME with territory:HANDLE and remove agora fields/member tables in a reviewed copy; preview mgit register --dry-run before refreshing. No state was migrated.\n' "$1" >&2
+}
+
 workspace_location_valid() {
   case "$1" in
+    agora:*) legacy_agora_error "$MGIT_MANIFEST"; return 1 ;;
     local) return 0 ;;
-    agora:?*)
-      case "${1#agora:}" in *$'\n'*|*$'\r'*|*$'\t'*) return 1 ;; esac
+    territory:?*)
+      case "${1#territory:}" in *$'\n'*|*$'\r'*|*$'\t'*) return 1 ;; esac
       return 0 ;;
     repo:?*) location_path_safe "${1#repo:}" ;;
     *) return 1 ;;
@@ -976,11 +995,10 @@ workspace_sort_members() {
 # shellcheck disable=SC2094 # Parser output is held in globals, not stdout.
 parse_workspace() {
   local file="$1" line key value group kind=""
-  local seen_schema=false seen_kind=false seen_default=false seen_agora=false seen_locations=false
+  local seen_schema=false seen_kind=false seen_default=false seen_locations=false
   local direct_members=false legacy_groups=false
   local in_location_member=false snapshot_source="" i
   workspace_default=""
-  workspace_agora=""
   workspace_locations=()
   workspace_location_paths=()
   workspace_groups=()
@@ -996,7 +1014,10 @@ parse_workspace() {
     line=$(toml_without_comment "$line")
     line=$(trim "$line")
     [ -z "$line" ] && continue
-    if [[ "$line" =~ ^\[(agora|registered)\.members\.(\".*\")\]$ ]]; then
+    case "$line" in
+      agora\ =*|agora=*|\[agora.*) legacy_agora_error "$file"; return 1 ;;
+    esac
+    if [[ "$line" =~ ^\[(registered)\.members\.(\".*\")\]$ ]]; then
       workspace_finish_member "$file" || return 1
       [ -z "$snapshot_source" ] || [ "$snapshot_source" = "${BASH_REMATCH[1]}" ] || {
         printf 'mgit: %s: mixed registered member table styles\n' "$file" >&2
@@ -1140,10 +1161,7 @@ parse_workspace() {
               seen_default=true
               ;;
             agora)
-              [ "$seen_agora" = false ] || { printf 'mgit: %s: duplicate Agora field\n' "$file" >&2; return 1; }
-              workspace_agora=$(toml_string "$value") || return 1
-              [ -n "$workspace_agora" ] || { printf 'mgit: %s: empty Agora name\n' "$file" >&2; return 1; }
-              seen_agora=true
+              legacy_agora_error "$file"; return 1
               ;;
             locations)
               [ "$seen_locations" = false ] || { printf 'mgit: %s: duplicate locations field\n' "$file" >&2; return 1; }
@@ -1201,19 +1219,11 @@ parse_workspace() {
     esac
   done < "$file"
   workspace_finish_member "$file" || return 1
-  [ "$seen_agora" = false ] || [ "$seen_locations" = false ] || {
-    printf 'mgit: %s: legacy Agora and locations fields cannot be combined\n' "$file" >&2
-    return 1
-  }
-  if [ "$seen_locations" = false ]; then
-    workspace_locations=(local)
-    [ "$seen_agora" = false ] || workspace_locations+=("agora:$workspace_agora")
-  fi
+  if [ "$seen_locations" = false ]; then workspace_locations=(local); fi
   workspace_location_known local || { printf 'mgit: %s: locations must include local\n' "$file" >&2; return 1; }
-  case "$snapshot_source" in
-    agora) [ "$seen_agora" = true ] || { printf 'mgit: %s: Agora members require an Agora name\n' "$file" >&2; return 1; } ;;
-    registered) [ "$seen_locations" = true ] || { printf 'mgit: %s: registered members require locations\n' "$file" >&2; return 1; } ;;
-  esac
+  [ "$snapshot_source" != registered ] || [ "$seen_locations" = true ] || {
+    printf 'mgit: %s: registered members require locations\n' "$file" >&2; return 1;
+  }
   workspace_sort_members
   if [ "$seen_kind" != true ] || [ "$kind" != workspace ]; then
     printf 'mgit: %s: missing kind = "workspace"\n' "$file" >&2
@@ -1363,8 +1373,8 @@ chezmoi_init() {
   command -v chezmoi >/dev/null 2>&1 || return 0
   source=$(chezmoi source-path 2>/dev/null) || return 0
   target=$(chezmoi target-path 2>/dev/null) || return 0
-  source=$(canon_dir "$source") || return 0
-  target=$(canon_dir "$target") || return 0
+  capture_dir source "$source" || return 0
+  capture_dir target "$target" || return 0
   [ -n "$source" ] && [ -n "$target" ] || return 0
   chezmoi_source_dir="$source"
   chezmoi_target_dir="$target"
@@ -1418,7 +1428,7 @@ chezmoi_forget_manifest() {
 register_repo() {
   local dir="$1" repoabs sl slabs tabs trepo i
   local found_links=() found_targets=()
-  repoabs=$(canon_dir "$dir") || return 0
+  capture_dir repoabs "$dir" || return 0
   [ -z "$repoabs" ] && return 0
   while IFS= read -r sl; do
     sl="${sl#./}"
@@ -1481,7 +1491,7 @@ reg_is_seen() {
 
 register_repo_preflight() {
   local dir="$1" repoabs sl slabs tabs trepo target
-  repoabs=$(canon_dir "$dir") || return 1
+  capture_dir repoabs "$dir" || return 1
   while IFS= read -r sl; do
     sl="${sl#./}"
     [ -z "$sl" ] && continue
@@ -1544,7 +1554,7 @@ register_snapshot_add() {
 register_prepare_locations() {
   local dir="$1" canonical location root actual spec
   local kept=()
-  canonical=$(canon_dir "$dir") || return 1
+  capture_dir canonical "$dir" || return 1
   if [ "$dir" = . ]; then
     for spec in "${register_change_specs[@]+"${register_change_specs[@]}"}"; do
       if [ "$register_action" = add ]; then
@@ -1567,8 +1577,8 @@ register_prepare_locations() {
     register_location_values+=("$location")
     case "$location" in
       local) ;;
-      agora:*)
-        select_ki_roots "${location#agora:}" 'mgit register' || return 1
+      territory:*)
+        select_ki_roots "${location#territory:}" --territory || return 1
         for root in "${selected_repo_dirs[@]}"; do
           register_snapshot_add "$dir" "$canonical" "$root" || return 1
         done
@@ -1579,7 +1589,7 @@ register_prepare_locations() {
           printf 'mgit register: missing or unsafe repository location: %s\n' "$root" >&2
           return 1
         fi
-        root=$(canon_dir "$root") || return 1
+        capture_dir root "$root" || return 1
         actual=$(repo_type "$root")
         [ "$actual" != unknown ] || {
           printf 'mgit register: location is not a repository: %s\n' "$root" >&2
@@ -1600,7 +1610,7 @@ register_repo_spec() {
     return 1
   fi
   if [ -d "$candidate" ] && [ ! -L "$candidate" ]; then
-    root=$(canon_dir "$candidate") || return 1
+    capture_dir root "$candidate" || return 1
     if [ "$action" = add ]; then
       actual=$(repo_type "$root")
       [ "$actual" != unknown ] || { printf 'mgit register: not a repository: %s\n' "$argument" >&2; return 1; }
@@ -1784,7 +1794,7 @@ repair_preflight_seen() {
 repair_preflight() {
   local base="$1" canonical destination actual i identity
   local groups=() kinds=() paths=() types=() sources=()
-  canonical=$(canon_dir "$base") || {
+  capture_dir canonical "$base" || {
     printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
     return 1
   }
@@ -1832,7 +1842,7 @@ repair_preflight() {
               "$destination" "${types[$i]}" "$actual" >&2
             return 1
           }
-          identity=$(canon_dir "$destination") || return 1
+          capture_dir identity "$destination" || return 1
         elif [ -z "${sources[$i]}" ]; then
           printf 'mgit repair: no clone URL for missing member: %s\n' "$destination" >&2
           return 1
@@ -1882,7 +1892,7 @@ repair_clone() {
 repair_tree() {
   local base="$1" canonical kind member source destination actual failed=false i
   local groups=() kinds=() paths=() types=() sources=()
-  canonical=$(canon_dir "$base") || {
+  capture_dir canonical "$base" || {
     printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
     return 1
   }
@@ -2207,7 +2217,7 @@ collect_worktrees() {
 
 display_worktree_path() {
   local path="$1" canonical
-  canonical=$(canon_dir "$path")
+  capture_dir canonical "$path"
   if [ -n "$canonical" ]; then
     disp "$canonical"
   elif [ "${path#/}" != "$path" ]; then
@@ -2260,7 +2270,7 @@ worktree_status() {
 standard_root_of() {
   local source="$1" path common gitdir
   common=$(git_common_dir "$source") || return 1
-  while IFS= read -r path; do
+  while IFS= read -r -d '' path; do
     [ -n "$path" ] || continue
     gitdir=$(git_dir "$path") || continue
     [ "$gitdir" = "$common" ] && { canon_dir "$path"; return 0; }
@@ -2315,7 +2325,7 @@ worktree_add() {
   # Preflight every structured repository before creating any worktree. This
   # avoids a typo or an already-checked-out branch leaving a partial set.
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
-    root=$(canon_dir "$unit") || continue
+    capture_dir root "$unit" || continue
     kind=$(repo_type "$root")
     case "$kind" in standard|nested) ;; *) continue ;; esac
     count=$((count + 1))
@@ -2334,7 +2344,7 @@ worktree_add() {
   [ "$failed" = false ] || return 1
 
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
-    root=$(canon_dir "$unit") || continue
+    capture_dir root "$unit" || continue
     kind=$(repo_type "$root")
     case "$kind" in standard|nested) ;; *) continue ;; esac
     destination=$(worktree_default_path "$root" "${branch//\//-}") || continue
@@ -2374,7 +2384,7 @@ worktree_remove() {
   }
   collect_worktrees "$source"
   for i in "${!worktree_paths[@]}"; do
-    path=$(canon_dir "${worktree_paths[$i]}")
+    capture_dir path "${worktree_paths[$i]}"
     [ "$path" = "$canonical" ] || continue
     found=true
     break
@@ -2476,7 +2486,7 @@ structure_nested() {
   done
   [ "$help" = false ] || { structure_usage; return 0; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
-    root=$(canon_dir "$unit") || continue
+    capture_dir root "$unit" || continue
     kind=$(repo_type "$root")
     case "$kind" in
       nested) printf 'mgit structure nested: already nested: %s\n' "$root" ;;
@@ -2497,7 +2507,7 @@ structure_nested() {
 validate_standard_structure() {
   local root="$1" paths=() path changes
   [ "$(repo_type "$root")" = nested ] || return 1
-  while IFS= read -r path; do [ -n "$path" ] && paths+=("$path"); done < <(active_worktree_paths "$root")
+  while IFS= read -r -d '' path; do [ -n "$path" ] && paths+=("$path"); done < <(active_worktree_paths "$root")
   if [ ${#paths[@]} -ne 1 ] || [ "$(canon_dir "${paths[0]}")" != "$(canon_dir "$root/main")" ]; then
     printf 'mgit structure standard: skipping repository with non-main worktrees: %s\n' "$root" >&2
     return 1
@@ -2548,7 +2558,7 @@ structure_standard() {
   done
   [ "$help" = false ] || { structure_usage; return 0; }
   for unit in "${repo_units[@]+"${repo_units[@]}"}"; do
-    root=$(canon_dir "$unit") || continue
+    capture_dir root "$unit" || continue
     kind=$(repo_type "$root")
     case "$kind" in
       standard) printf 'mgit structure standard: already standard: %s\n' "$root" ;;
@@ -2818,7 +2828,7 @@ selected_path_seen() {
 select_workspace() {
   local base="$1" requested_group="$2" canonical group destination actual i
   local groups=() kinds=() paths=() location_paths=() path
-  canonical=$(canon_dir "$base") || {
+  capture_dir canonical "$base" || {
     printf 'mgit: cannot read workspace directory: %s\n' "$base" >&2
     return 1
   }
@@ -2858,7 +2868,7 @@ select_workspace() {
           printf 'mgit: unsafe or missing repository path: %s\n' "$destination" >&2
           return 1
         fi
-        destination=$(canon_dir "$destination") || return 1
+        capture_dir destination "$destination" || return 1
         actual=$(repo_type "$destination")
         [ "$actual" != unknown ] || {
           printf 'mgit: workspace member is not a repository: %s\n' "$destination" >&2
@@ -2879,7 +2889,7 @@ select_workspace() {
         printf 'mgit: unsafe or missing registered member: %s\n' "$destination" >&2
         return 1
       fi
-      destination=$(canon_dir "$destination") || return 1
+      capture_dir destination "$destination" || return 1
       actual=$(repo_type "$destination")
       [ "$actual" != unknown ] || {
         printf 'mgit: registered member is not a repository: %s\n' "$destination" >&2
@@ -2890,77 +2900,88 @@ select_workspace() {
   fi
 }
 
-# Resolve one named KI Agora or the registered estate through ki. The NUL stream
+# Resolve one named KI territory or the registered estate through ki. The NUL stream
 # is captured before parsing so a resolver failure cannot leave a partial
 # repository set for a command to run against.
 select_ki_roots() {
-  local name="$1" selector="$2" temporary root canonical actual
+  local name="$1" selector="$2" temporary root canonical actual prefix
+  local producer_args=(territory roots --null)
   local failed=false
   command -v ki >/dev/null 2>&1 || {
     printf 'mgit: %s requires ki on PATH\n' "$selector" >&2
     return 1
   }
   temporary=$(mktemp) || {
-    printf 'mgit: cannot create temporary file for Agora roots\n' >&2
+    printf 'mgit: cannot create temporary file for territory roots\n' >&2
     return 1
   }
-  if ! ki agora roots --null "$name" > "$temporary"; then
+  if [ "$selector" = --estate ]; then
+    producer_args+=(--estate)
+  else
+    producer_args+=(--territory "$name")
+  fi
+  for prefix in "${filters[@]+"${filters[@]}"}"; do producer_args+=(--filter "$prefix"); done
+  if ! ki "${producer_args[@]}" > "$temporary"; then
     rm -f "$temporary"
     return 1
   fi
   selected_repo_dirs=()
+  root=""
   while IFS= read -r -d '' root; do
     [ -n "$root" ] || {
-      printf 'mgit: ki agora roots returned an empty repository path\n' >&2
+      printf 'mgit: ki territory roots returned an empty repository path\n' >&2
       failed=true
       break
     }
     case "$root" in
       /*) ;;
       *)
-        printf 'mgit: ki agora roots returned a non-absolute path: %s\n' "$root" >&2
+        printf 'mgit: ki territory roots returned a non-absolute path: %s\n' "$root" >&2
         failed=true
         break
         ;;
     esac
     if [ ! -d "$root" ] || [ -L "$root" ]; then
-      printf 'mgit: ki agora roots returned an unsafe or missing repository: %s\n' "$root" >&2
+      printf 'mgit: ki territory roots returned an unsafe or missing repository: %s\n' "$root" >&2
       failed=true
       break
     fi
-    canonical=$(canon_dir "$root") || {
+    capture_dir canonical "$root" || {
       failed=true
       break
     }
     actual=$(repo_type "$canonical")
     [ "$actual" != unknown ] || {
-      printf 'mgit: ki agora roots returned a non-repository: %s\n' "$root" >&2
+      printf 'mgit: ki territory roots returned a non-repository: %s\n' "$root" >&2
       failed=true
       break
     }
     selected_path_seen "$canonical" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" && {
-      printf 'mgit: ki agora roots returned a duplicate repository: %s\n' "$root" >&2
+      printf 'mgit: ki territory roots returned a duplicate repository: %s\n' "$root" >&2
       failed=true
       break
     }
     selected_repo_dirs+=("$canonical")
   done < "$temporary"
+  if [ -n "$root" ]; then
+    printf 'mgit: ki territory roots returned incomplete NUL output\n' >&2
+    failed=true
+  fi
   rm -f "$temporary"
   [ "$failed" = false ] || return 1
   [ ${#selected_repo_dirs[@]} -gt 0 ] || {
-    printf 'mgit: ki agora roots returned no repositories: %s\n' "$name" >&2
+    printf 'mgit: ki territory roots returned no repositories: %s\n' "$name" >&2
     return 1
   }
 }
 
-# Glob match of display path $1 against the -f patterns: the whole path, or
-# the pattern against a trailing component (so 'mcp-*' selects the mcp repos
-# wherever they sit in the tree).
+# Match the logical repository directory basename literally before expansion.
 filter_match() {
-  local path="$1" pattern
-  for pattern in "${filters[@]}"; do
-    # shellcheck disable=SC2254  # patterns must stay unquoted to glob
-    case "$path" in $pattern|*/$pattern) return 0 ;; esac
+  local path="${1%/}" prefix
+  [ "$path" != . ] || path="$cwd_canon"
+  path="${path##*/}"
+  for prefix in "${filters[@]}"; do
+    case "$path" in "$prefix"*) return 0 ;; esac
   done
   return 1
 }
@@ -2971,7 +2992,7 @@ bare=false
 all_worktrees=false
 read_config=true
 filters=()
-agora_name=""
+territory_handle=""
 ki_selector=""
 show_help=false
 show_version=false
@@ -2984,16 +3005,24 @@ while [ $# -gt 0 ]; do
     -W|--all-worktrees)   all_worktrees=true ;;
     -I|--ignore)          read_config=false ;;
     -a|--agora)
-      [ $# -ge 2 ] || { usage_error "$1 requires an Agora name"; exit $?; }
-      [ -z "$ki_selector" ] || { usage_error '--agora and --estate cannot be combined or repeated'; exit $?; }
-      ki_selector=--agora
-      agora_name="$2"; shift ;;
+      usage_error 'Agora selectors are retired; use -t/--territory HANDLE (no aliases); preview saved-location migration with register --dry-run'
+      exit $? ;;
+    --repo)
+      usage_error '--repo is only supported by register add/rm; explicit repository scope cannot be combined with territory or estate'
+      exit $? ;;
+    -t|--territory)
+      [ $# -ge 2 ] || { usage_error "$1 requires a territory name"; exit $?; }
+      [ -z "$ki_selector" ] || { usage_error '--territory and --estate cannot be combined or repeated'; exit $?; }
+      ki_selector=--territory
+      [ -n "$2" ] || { usage_error "--territory requires a nonempty handle"; exit $?; }
+      territory_handle="$2"; shift ;;
     --estate)
-      [ -z "$ki_selector" ] || { usage_error '--agora and --estate cannot be combined or repeated'; exit $?; }
+      [ -z "$ki_selector" ] || { usage_error '--territory and --estate cannot be combined or repeated'; exit $?; }
       ki_selector=--estate
-      agora_name=estate ;;
+      territory_handle=estate ;;
     -f|--filter)
-      [ $# -ge 2 ] || { usage_error "$1 requires a glob pattern"; exit $?; }
+      [ $# -ge 2 ] || { usage_error "$1 requires a literal prefix"; exit $?; }
+      [ -n "$2" ] || { usage_error "--filter requires a nonempty literal prefix"; exit $?; }
       filters+=("$2"); shift ;;
     -h|--help)            show_help=true ;;
     -V|--version)         show_version=true ;;
@@ -3053,7 +3082,7 @@ if [ "${1:-}" = "completion" ]; then
 fi
 
 if [ "${1:-}" = "repair" ]; then
-  [ -z "$agora_name" ] || { usage_error "$ki_selector cannot be used with repair"; exit $?; }
+  [ -z "$territory_handle" ] || { usage_error "$ki_selector cannot be used with repair"; exit $?; }
   shift
   if [ "$show_help" = true ]; then repair_command "$@" --help; else repair_command "$@"; fi
   exit $?
@@ -3080,19 +3109,19 @@ fi
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
   [ "$ki_selector" != --estate ] || { usage_error '--estate cannot be used with register'; exit $?; }
-  [ "$ki_selector" != --agora ] || [ -n "$agora_name" ] || { usage_error 'register: Agora name must not be empty'; exit $?; }
+  [ "$ki_selector" != --territory ] || [ -n "$territory_handle" ] || { usage_error 'register: territory name must not be empty'; exit $?; }
   register_action=refresh
   register_dry_run=false
   register_change_specs=()
-  if [ "$ki_selector" = --agora ]; then
+  if [ "$ki_selector" = --territory ]; then
     register_action=add
-    register_change_specs+=("agora:$agora_name")
+    register_change_specs+=("territory:$territory_handle")
   fi
   register_help="$show_help"
   shift
   case "${1:-}" in
     add|rm)
-      [ "$ki_selector" != --agora ] || [ "$1" = add ] || { usage_error_for register_usage 'register: --agora cannot be combined with rm'; exit $?; }
+      [ "$ki_selector" != --territory ] || [ "$1" = add ] || { usage_error_for register_usage 'register: --territory cannot be combined with rm'; exit $?; }
       register_action="$1"
       shift
       ;;
@@ -3101,10 +3130,12 @@ if [ "${1:-}" = "register" ]; then
     case "$1" in
       --dry-run) register_dry_run=true ;;
       -a|--agora)
-        [ $# -ge 2 ] || { usage_error_for register_usage "$1 requires Agora name"; exit $?; }
-        [ -n "$2" ] || { usage_error_for register_usage 'register: Agora name must not be empty'; exit $?; }
+        usage_error_for register_usage 'Agora selectors are retired; use --territory HANDLE and preview with --dry-run'; exit $? ;;
+      -t|--territory)
+        [ $# -ge 2 ] || { usage_error_for register_usage "$1 requires territory name"; exit $?; }
+        [ -n "$2" ] || { usage_error_for register_usage 'register: territory name must not be empty'; exit $?; }
         [ "$register_action" != refresh ] || register_action=add
-        register_change_specs+=("agora:$2")
+        register_change_specs+=("territory:$2")
         shift
         ;;
       --repo)
@@ -3122,7 +3153,7 @@ if [ "${1:-}" = "register" ]; then
   done
   [ "$register_help" = false ] || { register_usage; exit 0; }
   if [ "$register_action" != refresh ] && [ ${#register_change_specs[@]} -eq 0 ]; then
-    usage_error_for register_usage "register $register_action requires --agora or --repo"
+    usage_error_for register_usage "register $register_action requires --territory or --repo"
     exit $?
   fi
   if [ "$register_action" != refresh ] && [ "$(repo_type .)" != unknown ]; then
@@ -3145,11 +3176,11 @@ fi
 repos=()
 cwd_manifest_kind=""
 
-if [ -z "$agora_name" ] && [ "$read_config" = true ] && [ -f "./$MGIT_MANIFEST" ]; then
+if [ -z "$territory_handle" ] && [ "$read_config" = true ] && [ -f "./$MGIT_MANIFEST" ]; then
   cwd_manifest_kind=$(manifest_kind "./$MGIT_MANIFEST") || exit 1
 fi
 
-if [ -n "$agora_name" ]; then
+if [ -n "$territory_handle" ]; then
   [ "$read_config" = true ] || { usage_error "$ki_selector cannot be combined with --ignore"; exit $?; }
   [ "$discovery_option" = false ] || {
     usage_error "$ki_selector cannot be combined with discovery traversal options"
@@ -3165,8 +3196,8 @@ fi
 
 # Base set: a direct cwd workspace selects an ordered group and recursively
 # expands child workspaces. There is deliberately no parent-config traversal.
-if [ -n "$agora_name" ]; then
-  select_ki_roots "$agora_name" "$ki_selector" || exit 1
+if [ -n "$territory_handle" ]; then
+  select_ki_roots "$territory_handle" "$ki_selector" || exit 1
   repos=("${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}")
 elif [ "$read_config" = true ] && [ "$cwd_manifest_kind" = workspace ]; then
   select_workspace "." "" || exit 1
@@ -3217,7 +3248,7 @@ is_seen() {
   return 1
 }
 
-cwd_canon=$(canon_dir ".")
+capture_dir cwd_canon "."
 # Path of canonical dir $1 relative to the cwd (e.g. hnr/kit-hnr, ../other/repo).
 disp() { relpath "$cwd_canon" "$1"; }
 
@@ -3225,17 +3256,17 @@ queue=()  # canonical dirs whose .mgit.toml still needs walking
 
 # Seed from the ordered base set.
 for r in "${repos[@]+"${repos[@]}"}"; do
-  c=$(canon_dir "$r")
+  capture_dir c "$r"
   if [ -z "$c" ]; then
     printf 'mgit: skipping (not a directory): %s\n' "$r" >&2
     continue
   fi
   is_seen "$c" && continue
   seen+=("$c"); queue+=("$c")
-  [ "$(repo_type "$c")" != unknown ] && final+=("$(disp "$c")")
+  [ "$(repo_type "$c")" != unknown ] && { capture_path disp "$c"; final+=("$captured_path"); }
 done
 
-if [ -z "$agora_name" ]; then
+if [ -z "$territory_handle" ]; then
   qi=0
   while [ $qi -lt ${#queue[@]} ]; do
     repo="${queue[$qi]}"; qi=$((qi + 1))
@@ -3251,7 +3282,7 @@ if [ -z "$agora_name" ]; then
             continue
           fi
           is_seen "$add" && continue
-          seen+=("$add"); queue+=("$add"); final+=("$(disp "$add")")  # target is a repo
+          seen+=("$add"); queue+=("$add"); capture_path disp "$add"; final+=("$captured_path")  # target is a repo
           ;;
       esac
     done <<< "$records"
@@ -3260,14 +3291,15 @@ fi
 
 repo_units=("${final[@]+"${final[@]}"}")
 
-# -f narrows the final set only: discovery and manifest walking still cover the
-# whole hierarchy, so filters and symlink transitivity compose predictably.
-if [ ${#filters[@]} -gt 0 ]; then
+# Default selection filters logical repository basenames before checkout expansion.
+# Explicit KI selections have already been filtered by the producer.
+if [ -z "$ki_selector" ] && [ ${#filters[@]} -gt 0 ]; then
   kept=()
   for r in "${repo_units[@]+"${repo_units[@]}"}"; do
     filter_match "$r" && kept+=("$r")
   done
   repo_units=("${kept[@]+"${kept[@]}"}")
+  [ ${#repo_units[@]} -gt 0 ] || { printf 'mgit: filters matched no repositories\n' >&2; exit 1; }
 fi
 
 repos=()
@@ -3276,7 +3308,7 @@ repo_labels=()
 # Keep execution paths separate from labels for runtime-owned worktrees.
 add_checkout() {
   local root="$1" checkout="$2" label branch
-  label=$(disp "$checkout")
+  capture_path disp "$checkout"; label="$captured_path"
   case "$checkout" in
     "$root") ;;
     "$root"/.git/*|"$root"/.bare/*)
@@ -3291,18 +3323,19 @@ add_checkout() {
       label="$(disp "$root") [$branch]"
       ;;
   esac
-  repos+=("$(disp "$checkout")")
+  capture_path disp "$checkout"; repos+=("$captured_path")
   repo_labels+=("$label")
 }
 
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
-  c=$(canon_dir "$r") || continue
+  capture_dir c "$r" || continue
   case "$(repo_type "$c")" in
     standard)
       if [ "$all_worktrees" = true ]; then
-        while IFS= read -r wt; do
+        while IFS= read -r -d '' wt; do
           [ -z "$wt" ] && continue
-          add_checkout "$c" "$(canon_dir "$wt")"
+          capture_path canon_dir "$wt" || exit 1
+          add_checkout "$c" "$captured_path"
         done < <(active_worktree_paths "$c")
       else
         add_checkout "$c" "$c"
@@ -3310,12 +3343,14 @@ for r in "${repo_units[@]+"${repo_units[@]}"}"; do
       ;;
     nested)
       if [ "$all_worktrees" = true ]; then
-        while IFS= read -r wt; do
+        while IFS= read -r -d '' wt; do
           [ -z "$wt" ] && continue
-          add_checkout "$c" "$(canon_dir "$wt")"
+          capture_path canon_dir "$wt" || exit 1
+          add_checkout "$c" "$captured_path"
         done < <(active_worktree_paths "$c")
       else
-        add_checkout "$c" "$(canon_dir "$c/main")"
+        capture_path canon_dir "$c/main" || exit 1
+        add_checkout "$c" "$captured_path"
       fi
       ;;
     bare) add_checkout "$c" "$c" ;;

@@ -17,9 +17,9 @@ The command writes one filename, `.mgit.toml`, with a discriminator for each rol
 
 Registration stops at repository roots, never descends into repository internals, and refreshes each workspace's direct members after scanning its saved locations.
 
-The `locations` list defaults to `local`, which scans the current workspace and descendants. Run `mgit register add --agora personal --repo ../shared-tools` to bind additional search locations, or `mgit register rm --agora personal --repo ../shared-tools` to remove them. Both commands accept repeated, combined `--agora` and `--repo` options and refresh generated entries immediately. `mgit register --agora personal` remains an add shorthand. Adding a `--repo` path requires an existing Git repository; removal also accepts its saved relative path if the repository has disappeared.
+The `locations` list defaults to `local`, which scans the current workspace and descendants. Run `mgit register add --territory short --repo ../shared-tools` to bind additional search locations, or `mgit register rm --territory short --repo ../shared-tools` to remove them. Both commands accept repeated, combined `--territory` and `--repo` options and refresh generated entries immediately. `mgit register --territory short` is an add shorthand. Adding a `--repo` path requires an existing Git repository; removal also accepts its saved relative path if the repository has disappeared.
 
-Plain `mgit register` refreshes all saved locations. It resolves Agora locations through `ki` and validates repository paths before writing. Ordinary commands use the generated entries without invoking `ki`. The selected set combines local and additional repositories without duplicate dispatch. `mgit repair` uses only direct members; it does not clone repositories from additional locations automatically.
+Plain `mgit register` refreshes all saved locations. It resolves territory handles through `ki territory roots --null --territory HANDLE` and validates repository paths before writing. Ordinary commands use the generated entries without invoking `ki`. The selected set combines local and additional repositories without duplicate dispatch. `mgit repair` uses only direct members; it does not clone repositories from additional locations automatically.
 
 Use `mgit register --dry-run` to preview manifest writes and removals. It also works with `add` and `rm`, and leaves both local manifests and Chezmoi source state untouched. Registration still validates saved locations before the preview.
 
@@ -31,7 +31,7 @@ A workspace document uses an explicit workspace kind and path-keyed direct membe
 
 ```toml
 kind = "workspace"
-locations = ["local", "agora:personal", "repo:../shared-tools"]
+locations = ["local", "territory:short", "repo:../shared-tools"]
 
 [registered.members."../chezmoi"]
 
@@ -48,7 +48,7 @@ kind = "workspace"
 
 Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records the URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Member paths must be safe relative paths below the manifest directory.
 
-The `locations` array is the durable search list; empty `[registered.members."../chezmoi"]` tables are generated repository entries. Their relative paths may reach outside the workspace and change only when registration runs. Older manifests without `locations` default to `local`; older `agora` snapshots are migrated on registration. Blank lines and comments are ignored.
+The `locations` array is the durable search list; empty `[registered.members."../chezmoi"]` tables are generated repository entries. Their relative paths may reach outside the workspace and change only when registration runs. Manifests without `locations` default to `local`. Old `agora:` locations, `agora` fields and `[agora.members]` snapshots are rejected, including the old schema-1 Agora form; they are never migrated automatically. Blank lines and comments are ignored.
 
 Existing `schema = 1` manifests with grouped members remain readable. Registration rewrites a manifest containing only its structural `default` group into the direct-member format. A manifest with alternative groups must have those tables removed deliberately before registration; `mgit` refuses to discard them silently.
 
@@ -82,3 +82,14 @@ Add `--apply` to clone every missing repository from its `source` URL and follow
 Repair never replaces existing path. Present repository must match declared type; non-repository path or type mismatch is error. Child workspace directories and workspace-kind `.mgit.toml` documents must already exist.
 
 Repair validates the workspace tree before reporting proposed clones. Without `--apply`, it never creates a repository or changes a manifest.
+
+## Migrate Agora locations
+
+The cut-over removes `-a/--agora`, saved `agora:NAME` locations, the `agora` field and `[agora.members."PATH"]` tables. Existing schema-1 documents that do not contain Agora grammar retain their existing repair path. Old names are not territory aliases and glob filters are not supported.
+
+1. Back up your `.mgit.toml` and its Chezmoi source, if managed. Keep that copy until the migrated selection is reviewed.
+2. Inspect `ki territory roots --null --territory HANDLE` using the intended handle; an old Agora name does not establish the new territorial membership. Replace saved locations explicitly with `territory:HANDLE` in a reviewed copy. For an old Agora snapshot, remove the `agora` field and its `[agora.members."PATH"]` tables in that copy; preserve local members and other user settings. Do not apply a global text replacement or delete user state.
+3. Run `mgit register --dry-run` from the workspace containing your edited copy, and inspect the proposed generated membership. A resolution failure writes nothing. Carry approved edits into the Chezmoi source when applicable.
+4. Once the preview is correct, run `mgit register` explicitly, then `mgit` to review the resulting selection. Ordinary saved-snapshot operations remain offline until another explicit registration refresh.
+
+Replace glob examples such as `-f 'tools-*'` with the literal prefix `-f 'tools-'`. Repeated filters mean OR, matching directory basenames case-sensitively before worktree expansion; an empty prefix or zero matches fails before a command runs.

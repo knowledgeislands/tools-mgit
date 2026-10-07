@@ -31,3 +31,11 @@ mandoc -T utf8 man/mgit.1 | col -b
 ```
 
 Exercise affected commands in disposable repositories with isolated configuration. Do not run mutating Git commands across an unintended live repository set.
+
+## Territory caller proof
+
+For selector changes, run the complete Bats suite with `MGIT_KI_PRODUCER` naming the committed KI pilot executable and `TMPDIR` pointing into the delivery run. `tests/territory-producer.bats` uses only disposable repositories and isolated HOME/XDG directories; `tests/territory-protocol.bats` checks hostile or failed producer streams. The producer proof covers independent registry keys and territory handles, literal repeated filters, missing and ambiguous metadata, spaces/newlines, checkout expansion, old syntax rejection, failed refresh and offline snapshots. Never run mutating commands across a live estate as verification.
+
+```sh
+MGIT_KI_PRODUCER=/absolute/path/to/committed/ki TMPDIR=/absolute/run/fixtures bats tests/
+```

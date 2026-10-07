@@ -6,12 +6,12 @@ kind: deliver
 purpose: capability
 component: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 5b93e761112e47162bfa4e2946b66e6511c96644
 created_at: 2026-10-07T21:17:07Z
-updated_at: 2026-10-07T21:17:07Z
+updated_at: 2026-10-07T21:26:11Z
 ---
 
 # Territory selection pilot
@@ -34,11 +34,11 @@ The clean main baseline uses Agora flags and saved locations, a buffered legacy 
 
 ## Steps
 
-- [ ] Replace Agora selectors with territory/estate scopes and literal nonempty repeatable directory-basename prefixes; reject ignored and conflicting combinations before execution.
-- [ ] Call the actual buffered NUL producer with filters; validate complete roots and failures before dispatch and before worktree expansion.
-- [ ] Cut saved locations over to territory handles, preserving offline snapshots and byte-identical manifests on failed refresh; reject legacy Agora grammar with explicit migration guidance.
-- [ ] Update help, both completions, manual, README, specifications, guides and changelog, retaining version metadata.
-- [ ] Run the complete local gate and combined committed producer/caller proof in isolated disposable configuration and repositories, then commit and prepare review evidence.
+- [x] Replace Agora selectors with territory/estate scopes and literal nonempty repeatable directory-basename prefixes; reject ignored and conflicting combinations before execution.
+- [x] Call the actual buffered NUL producer with filters; validate complete roots and failures before dispatch and before worktree expansion.
+- [x] Cut saved locations over to territory handles, preserving offline snapshots and byte-identical manifests on failed refresh; reject legacy Agora grammar with explicit migration guidance.
+- [x] Update help, both completions, manual, README, specifications, guides and changelog, retaining version metadata.
+- [x] Run the complete local gate and combined committed producer/caller proof in isolated disposable configuration and repositories, then commit and prepare review evidence.
 
 ## Files touched
 
@@ -69,6 +69,41 @@ Explain explicit previewable migration without deleting user state, saved refres
 ### Roadmap
 
 Keep this single bounded record for review; add no queue items.
+
+## Review
+
+### Delivered
+
+The approved mgit caller pilot from immutable Ready baseline `5b93e761112e47162bfa4e2946b66e6511c96644` is complete: territory and estate roots come from the committed KI producer, literal basename prefixes are applied before checkout expansion, and saved territory snapshots refresh explicitly while ordinary operations remain offline. Source delivery and all verification stay in the exclusive run-owned worktree. No publication, acceptance, pruning, registry distribution or other repository edits are included.
+
+### Change Summary
+
+- `bin/mgit`: shared territory/estate grammar, early selector eligibility checks, buffered complete NUL roots with filters passed to KI, strict stream/root validation, literal local basename filtering, newline-safe path capture and worktree enumeration, territory locations and actionable rejection of historic Agora grammar.
+- `tests/mgit.bats`, `tests/territory-producer.bats` and `tests/territory-protocol.bats`: migrated selector/completion/filter fixtures, a strict protocol double, actual committed producer integration and hostile-stream failure tests. Git mutations occur only in isolated disposable repositories.
+- README, changelog, manual, workspace-dispatch specification, running-commands and repository-sets guides and definition of done: public grammar, prefix semantics, current refresh/offline behaviour and explicit previewable user migration without deleting state.
+- `docs/roadmap/_ISSUES.md` reserves CLI-015 in its standalone commit. The repository's declared MGIT prefix determines this record's identifier. No Project or additional queue items were created.
+- `MGIT_VERSION` remains `0.15.0` because this unit forbids remote collision checks; publication prepares final release metadata separately. Distribution remains the existing installer/manual/Homebrew routes.
+
+### Verification
+
+- `shellcheck bin/mgit install.sh`, `/bin/bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1` and `git diff --check`: passed. The manual's rendered UTF-8 page was inspected after the layout update.
+- `TMPDIR=<run>/mgit-fixtures MGIT_KI_PRODUCER=<run>/worktrees/ki/dist/ki bats tests/`: 89 tests passed with zero skips, executing mgit on macOS Bash 3.2.57. The actual producer is the committed KI pilot binary reporting `0.9.0`.
+- The combined executable proof covers distinct Capital and repository registry keys, short handles and physical basenames; repeated, literal, case-sensitive, empty and zero-match filters; spaces and embedded/trailing newlines; excluded and selected unavailable roots; missing registrations; duplicate identities/handles; incompatible or ignored scopes; filtering before worktree expansion; old flags, locations and schema rejection; no dispatch on partial/error/malformed output; byte-identical failed refresh and offline snapshot mutation.
+- Focused installed `~/.local/bin/ki repo audit` gates for ki-work, ki-work-roadmap, ki-authoring, ki-repo-tools, ki-specs and ki-guides passed. Whole `~/.local/bin/ki repo audit --repo <worktree>` passed all 19 skills with run-local `XDG_STATE_HOME` registry mapping and mirrored ignored activation links. No live registry/configuration was changed.
+- The initial ambient worktree audit identified missing ignored activation links and an unregistered delivery path; these are isolation artefacts, distinct from the delivery's authored Markdown/manual corrections. Final isolated audits are clean. The default user registry intentionally still names the primary checkout.
+- Runtime evidence is retained in this delivery run's `mgit.gates.json`, `mgit.audits.json`, gate/audit logs and `mgit.integration.json`; fixtures and logs are outside the repository.
+
+### Outstanding concerns
+
+No failed or unchecked mandatory delivery gates remain. This record awaits owner review; integration, final version metadata, publication and Arcadia/harness retirement belong to the coordinator's separate authority. Saved locations containing historic Agora grammar require the documented explicit migration before refreshing.
+
+### Post-change review
+
+The implementation satisfies the accepted selection boundary without adding dependencies or reading KI configuration directly. Complete producer output is validated before dispatch; selected roots are exact, and checkout expansion follows filtering. Offline snapshots and unrelated Git behaviours retain their native model, supported by the full existing suite. The intentional hard cut-over is the material user-facing change, with rejection tests and previewable guidance. Ready for review, without self-acceptance.
+
+### Mini recap
+
+Delivered one bounded territory caller pilot and committed its review evidence after 89 passing tests and clean required local gates. The accepted ADR remains the durable design source; the specification and migration guide carry product behaviour. No additional learning promotion or backlog is proposed.
 
 ## Discussion
 

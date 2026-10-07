@@ -19,18 +19,18 @@ Separate 0.x release entries are not maintained here.
 
 #### Repository-set selection
 
-- `mgit --filter <glob>`
+- `mgit --filter <prefix>`
 - `mgit --all-worktrees`
 - `mgit --physical`
 - `mgit --follow-symlinks`
 - `mgit --ignore`
-- `mgit --agora <name>`
+- `mgit --territory <handle>`
 - `mgit --estate`
 - `mgit --bare <command>`
 
 #### Workspace management
 
-- `mgit register [add|rm] [--agora <name>] [--repo <path>] [--dry-run]`
+- `mgit register [add|rm] [--territory <handle>] [--repo <path>] [--dry-run]`
 - `mgit repair [--apply]`
 
 #### Repository management
@@ -50,12 +50,12 @@ Separate 0.x release entries are not maintained here.
 
 ### Behaviours
 
-- Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional whole-repository glob filters.
+- Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional literal case-sensitive directory-basename prefix filters.
 - Unversioned `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
 - `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
-- `mgit register` refreshes repository entries from saved local, Agora, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
+- `mgit register` refreshes repository entries from saved local, territory-handle, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
-- Agora and estate selectors use exact repository roots resolved by `ki` without reading KI configuration directly.
+- Territory and estate selectors buffer exact NUL-delimited roots from `ki territory roots --null`, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
 - `mgit repair --apply` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
 - `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair` previews config changes and missing clones by default.
@@ -67,6 +67,7 @@ Separate 0.x release entries are not maintained here.
 - Global selectors that a selected command would ignore fail with a namespaced usage error before management work begins; help and version remain available.
 - Ordinary Git and `-B` fan-out attempt every selected checkout and return status `1` if any child command fails.
 - Command headers and `sync` use checkout labels consistently; ANSI styling appears only on a terminal unless `NO_COLOR` is set.
+- Old Agora flags, saved `agora:` locations and Agora schema are rejected with explicit migration guidance; no aliases, glob filters or automatic state migration remain.
 
 ### Distribution baseline
 

@@ -108,19 +108,43 @@ make_fake_chezmoi() {
 make_fake_ki() {
   local bin="$TREE/fake-ki-bin"
   mkdir -p "$bin"
-  FAKE_KI_AGORA=focus
+  FAKE_KI_TERRITORY=focus
   FAKE_KI_ROOTS=""
-  FAKE_KI_SECOND_AGORA=second
+  FAKE_KI_SECOND_TERRITORY=second
   FAKE_KI_SECOND_ROOTS=""
   FAKE_KI_FAIL=false
-  export FAKE_KI_AGORA FAKE_KI_ROOTS FAKE_KI_SECOND_AGORA FAKE_KI_SECOND_ROOTS FAKE_KI_FAIL
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    '[ "$1" = agora ] && [ "$2" = roots ] && [ "$3" = --null ] || exit 64' \
-    'case "$4" in "$FAKE_KI_AGORA") roots="$FAKE_KI_ROOTS" ;; "$FAKE_KI_SECOND_AGORA") roots="$FAKE_KI_SECOND_ROOTS" ;; *) printf "unknown Agora: %s\\n" "$4" >&2; exit 65 ;; esac' \
-    '[ "$FAKE_KI_FAIL" = false ] || { printf "fake Agora resolution failed\\n" >&2; exit 73; }' \
-    'while IFS= read -r root || [ -n "$root" ]; do printf "%s\\0" "$root"; done <<< "$roots"' \
-    > "$bin/ki"
+  export FAKE_KI_TERRITORY FAKE_KI_ROOTS FAKE_KI_SECOND_TERRITORY FAKE_KI_SECOND_ROOTS FAKE_KI_FAIL
+  cat > "$bin/ki" <<'KI'
+#!/usr/bin/env bash
+# Strict protocol double; the integration gate uses the actual producer.
+[ "$1" = territory ] && [ "$2" = roots ] && [ "$3" = --null ] || exit 64
+shift 3
+case "$1" in
+  --territory) name="$2"; shift 2 ;;
+  --estate) name=estate; shift ;;
+  *) exit 64 ;;
+esac
+case "$name" in
+  "$FAKE_KI_TERRITORY") roots="$FAKE_KI_ROOTS" ;;
+  "$FAKE_KI_SECOND_TERRITORY") roots="$FAKE_KI_SECOND_ROOTS" ;;
+  *) printf 'unknown territory: %s\n' "$name" >&2; exit 65 ;;
+esac
+prefixes=()
+while [ $# -gt 0 ]; do
+  [ "$1" = --filter ] && [ $# -ge 2 ] && [ -n "$2" ] || exit 64
+  prefixes+=("$2"); shift 2
+done
+[ "$FAKE_KI_FAIL" = false ] || { printf 'fake territory resolution failed\n' >&2; exit 73; }
+while IFS= read -r root || [ -n "$root" ]; do
+  [ -n "$root" ] || continue
+  matched=false
+  [ ${#prefixes[@]} -gt 0 ] || matched=true
+  for prefix in "${prefixes[@]}"; do
+    case "${root##*/}" in "$prefix"*) matched=true ;; esac
+  done
+  [ "$matched" = false ] || printf '%s\0' "$root"
+done <<< "$roots"
+KI
   chmod +x "$bin/ki"
   PATH="$bin:$PATH"
 }
@@ -130,14 +154,14 @@ make_fake_ki() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage: mgit"* ]]
   [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
-  [[ "$output" == *"--agora <name>"* ]]
+  [[ "$output" == *"--territory <handle>"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" == *"--estate"* ]]
   [[ "$output" == *"passed through to Git"* ]]
 
   run "$MGIT" help register
   [ "$status" -eq 0 ]
-  [[ "$output" == *"--agora <name>"* ]]
+  [[ "$output" == *"--territory <handle>"* ]]
   [[ "$output" == *"--repo <path>"* ]]
 }
 
@@ -354,7 +378,7 @@ make_fake_ki() {
   [[ "$output" == *"diag"* ]]
   [[ "$output" == *"sync"* ]]
   [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"add rm --agora -a --repo --dry-run --help -h"* ]]
+  [[ "$output" == *"add rm --territory -t --repo --dry-run --help -h"* ]]
   [[ "$output" == *"--apply"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" != *"bootstrap"* ]]
@@ -365,7 +389,7 @@ make_fake_ki() {
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
   [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"add or remove an Agora location"* ]]
+  [[ "$output" == *"add or remove a territory location"* ]]
   [[ "$output" == *"add or remove a repository location"* ]]
   [[ "$output" == *"perform validated repairs"* ]]
   [[ "$output" == *"sync:update clean tracking branches"* ]]
@@ -727,28 +751,28 @@ assert_usage_error() {
   [[ "$output" != *$'\033['* ]]
 }
 
-@test "--agora selects only NUL-delimited roots from ki" {
+@test "--territory selects only NUL-delimited roots from ki" {
   mkrepo "$TREE/first"
   mkrepo "$TREE/with space"
   make_fake_ki
   FAKE_KI_ROOTS="$TREE/first"$'\n'"$TREE/with space"
 
   cd "$TREE"
-  run "$MGIT" --agora focus
+  run "$MGIT" --territory focus
 
   [ "$status" -eq 0 ]
   [ "$output" = $'first\nwith space' ]
 
-  run "$MGIT" --agora focus -f first
+  run "$MGIT" --territory focus -f first
   [ "$status" -eq 0 ]
   [ "$output" = "first" ]
 }
 
-@test "--estate selects the same exact roots as --agora estate" {
+@test "--estate selects the registered estate" {
   mkrepo "$TREE/first"
   mkrepo "$TREE/with space"
   make_fake_ki
-  FAKE_KI_AGORA=estate
+  FAKE_KI_TERRITORY=estate
   FAKE_KI_ROOTS="$TREE/first"$'\n'"$TREE/with space"
 
   cd "$TREE"
@@ -756,15 +780,10 @@ assert_usage_error() {
 
   [ "$status" -eq 0 ]
   [ "$output" = $'first\nwith space' ]
-  local estate_output="$output"
 
-  run "$MGIT" --agora estate
-
-  [ "$status" -eq 0 ]
-  [ "$output" = "$estate_output" ]
 }
 
-@test "--agora preserves its exact roots instead of following symlink metadata" {
+@test "--territory preserves its exact roots instead of following symlink metadata" {
   mkrepo "$TREE/selected"
   mkrepo "$TREE/linked"
   mkdir "$TREE/linked/shared"
@@ -774,33 +793,33 @@ assert_usage_error() {
   FAKE_KI_ROOTS="$TREE/selected"
 
   cd "$TREE"
-  run "$MGIT" --agora focus
+  run "$MGIT" --territory focus
 
   [ "$status" -eq 0 ]
   [ "$output" = "selected" ]
 }
 
-@test "--agora stops before a command when ki cannot resolve roots" {
+@test "--territory stops before a command when ki cannot resolve roots" {
   mkrepo "$TREE/selected"
   make_fake_ki
   FAKE_KI_ROOTS="$TREE/selected"
   FAKE_KI_FAIL=true
 
   cd "$TREE"
-  run "$MGIT" --agora focus status
+  run "$MGIT" --territory focus status
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"fake Agora resolution failed"* ]]
+  [[ "$output" == *"fake territory resolution failed"* ]]
   [[ "$output" != *"git status"* ]]
 }
 
-@test "--agora reports a missing ki command" {
+@test "--territory reports a missing ki command" {
   PATH=/usr/bin:/bin
 
-  run "$MGIT" --agora focus
+  run "$MGIT" --territory focus
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"--agora requires ki on PATH"* ]]
+  [[ "$output" == *"--territory requires ki on PATH"* ]]
 
   run "$MGIT" --estate
 
@@ -808,13 +827,13 @@ assert_usage_error() {
   [[ "$output" == *"--estate requires ki on PATH"* ]]
 }
 
-@test "--agora rejects incompatible selectors and management commands" {
-  assert_usage_error --agora focus --group dev status
-  assert_usage_error --agora focus --ignore status
-  assert_usage_error --agora focus --follow-symlinks status
-  assert_usage_error --agora focus structure standard
-  assert_usage_error --estate --agora focus status
-  assert_usage_error --agora focus --estate status
+@test "--territory rejects incompatible selectors and management commands" {
+  assert_usage_error --territory focus --group dev status
+  assert_usage_error --territory focus --ignore status
+  assert_usage_error --territory focus --follow-symlinks status
+  assert_usage_error --territory focus structure standard
+  assert_usage_error --estate --territory focus status
+  assert_usage_error --territory focus --estate status
   assert_usage_error --estate --estate status
   assert_usage_error --estate --group dev status
   assert_usage_error --estate --ignore status
@@ -823,7 +842,7 @@ assert_usage_error() {
   assert_usage_error --estate structure standard
 }
 
-@test "register binds Agora locations alongside local repositories and refreshes them" {
+@test "register binds territory locations alongside local repositories and refreshes them" {
   mkrepo "$TREE/local"
   mkrepo "$BATS_TEST_TMPDIR/external"
   mkrepo "$BATS_TEST_TMPDIR/replacement"
@@ -831,16 +850,16 @@ assert_usage_error() {
   FAKE_KI_ROOTS="$TREE/local"$'\n'"$BATS_TEST_TMPDIR/external"
 
   cd "$TREE"
-  run "$MGIT" register add --agora focus
+  run "$MGIT" register add --territory focus
   [ "$status" -eq 0 ]
-  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
   grep -Fx '[registered.members."../external"]' "$TREE/.mgit.toml"
 
   FAKE_KI_FAIL=true
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = $'local\n../external' ]
-  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
   before=$(cat "$TREE/.mgit.toml")
   run "$MGIT" register
   [ "$status" -eq 1 ]
@@ -856,15 +875,15 @@ assert_usage_error() {
   [ "$output" = $'local\n../replacement' ]
 }
 
-@test "register can create a workspace containing only Agora members" {
+@test "register can create a workspace containing only territory members" {
   mkrepo "$BATS_TEST_TMPDIR/external"
   make_fake_ki
   FAKE_KI_ROOTS="$BATS_TEST_TMPDIR/external"
 
   cd "$TREE"
-  run "$MGIT" register --agora focus
+  run "$MGIT" register --territory focus
   [ "$status" -eq 0 ]
-  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
   grep -Fx '[members]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
@@ -882,15 +901,15 @@ assert_usage_error() {
   FAKE_KI_SECOND_ROOTS="$BATS_TEST_TMPDIR/second"
 
   cd "$TREE"
-  run "$MGIT" register add --agora focus --repo ../one --agora second --repo ../two
+  run "$MGIT" register add --territory focus --repo ../one --territory second --repo ../two
   [ "$status" -eq 0 ]
-  grep -Fx 'locations = ["local", "agora:focus", "repo:../one", "agora:second", "repo:../two"]' "$TREE/.mgit.toml"
+  grep -Fx 'locations = ["local", "territory:focus", "repo:../one", "territory:second", "repo:../two"]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = $'local\n../first\n../one\n../second\n../two' ]
 
   mv "$BATS_TEST_TMPDIR/two" "$BATS_TEST_TMPDIR/moved"
-  run "$MGIT" register rm --agora focus --repo ../one --agora second --repo ../two
+  run "$MGIT" register rm --territory focus --repo ../one --territory second --repo ../two
   [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local"]' "$TREE/.mgit.toml"
   ! grep -Fq '[registered.members.' "$TREE/.mgit.toml"
@@ -899,7 +918,7 @@ assert_usage_error() {
   [ "$output" = 'local' ]
 }
 
-@test "register can bind an external repository without an Agora" {
+@test "register can bind an external repository without a territory" {
   mkrepo "$BATS_TEST_TMPDIR/external space"
   cd "$TREE"
   run "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external space"
@@ -910,32 +929,19 @@ assert_usage_error() {
   [ "$output" = '../external space' ]
 }
 
-@test "register migrates a legacy Agora snapshot into locations" {
+@test "legacy Agora snapshots are rejected without state changes" {
   mkrepo "$TREE/local"
-  mkrepo "$BATS_TEST_TMPDIR/external"
-  make_fake_ki
-  FAKE_KI_ROOTS="$BATS_TEST_TMPDIR/external"
-  printf '%s\n' \
-    'schema = 1' \
-    'kind = "workspace"' \
-    'default = "default"' \
-    'agora = "focus"' \
-    '[agora.members."../external"]' \
-    '[groups.default.members."local"]' \
-    'kind = "repository"' \
-    'type = "standard"' > "$TREE/.mgit.toml"
-
+  printf '%s\n' 'schema = 1' 'kind = "workspace"' 'default = "default"' \
+    'agora = "focus"' '[agora.members."../external"]' \
+    '[groups.default.members."local"]' 'kind = "repository"' 'type = "standard"' > "$TREE/.mgit.toml"
+  cp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
   cd "$TREE"
   run "$MGIT"
-  [ "$status" -eq 0 ]
-  [ "$output" = $'local\n../external' ]
-  run "$MGIT" register
-  [ "$status" -eq 0 ]
-  grep -Fx 'locations = ["local", "agora:focus"]' "$TREE/.mgit.toml"
-  ! grep -Fq 'agora = ' "$TREE/.mgit.toml"
-  run "$MGIT"
-  [ "$status" -eq 0 ]
-  [ "$output" = $'local\n../external' ]
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Agora syntax is retired'* ]]
+  run "$MGIT" register --dry-run
+  [ "$status" -ne 0 ]
+  cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
 }
 
 @test "register rejects invalid location sources before rewriting the manifest" {
@@ -964,7 +970,7 @@ assert_usage_error() {
 @test "register rejects a stray argument" {
   run "$MGIT" register extra
   [ "$status" -eq 2 ]
-  assert_usage_error register --agora ''
+  assert_usage_error register --territory ''
 }
 
 @test "register writes unversioned group-free workspaces in physical postorder" {
@@ -1664,21 +1670,21 @@ assert_usage_error() {
   [ "$(git -C "$TREE/repoA" status --porcelain)" = "" ]
 }
 
-@test "--filter limits the repo set by glob" {
+@test "--filter limits the repo set by literal basename prefixes" {
   mkrepo "$TREE/mcp-a"
   mkrepo "$TREE/mcp-b"
   mkrepo "$TREE/sub/mcp-c"
   mkrepo "$TREE/tools-d"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-*'
+  run "$MGIT" -f 'mcp-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a"* ]]
   [[ "$output" == *"mcp-b"* ]]
   [[ "$output" == *"sub/mcp-c"* ]]
   [[ "$output" != *"tools-d"* ]]
 
-  run "$MGIT" -f 'mcp-a' -f 'tools-*'
+  run "$MGIT" -f 'mcp-a' -f 'tools-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a"* ]]
   [[ "$output" != *"mcp-b"* ]]
@@ -1690,7 +1696,7 @@ assert_usage_error() {
   mkrepo "$TREE/tools-b"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-*' -B pwd
+  run "$MGIT" -f 'mcp-' -B pwd
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TREE/mcp-a"* ]]
   [[ "$output" != *"tools-b"* ]]
@@ -1706,13 +1712,13 @@ assert_usage_error() {
   mkrepo "$TREE/tools-b"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-*'
+  run "$MGIT" -f 'mcp-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a/main"* ]]
   [[ "$output" != *"mcp-a/featureA"* ]]
   [[ "$output" != *"tools-b"* ]]
 
-  run "$MGIT" -f 'mcp-*' --all-worktrees
+  run "$MGIT" -f 'mcp-' --all-worktrees
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a/main"* ]]
   [[ "$output" == *"mcp-a/featureA"* ]]

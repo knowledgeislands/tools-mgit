@@ -59,12 +59,13 @@ Use `mgit register --dry-run` to preview manifest changes. `mgit repair` preview
 
 Existing `schema = 1` manifests remain readable. `mgit repair` can remove the recognised obsolete marker as part of its explicit apply path; alternative groups need a manual decision and are refused. `mgit doctor` evaluates Git and the current manifest without writes, with a verdict and pass/warn/fail/skipped counts; an absent optional manifest is healthy. Both `doctor` and `diag` identify the tool, version, installation mode, host platform and architecture, executing Bash runtime, and configuration state. `mgit diag` omits local paths and configuration error details unless `--full` is explicit. Health does not assess package updates or repository synchronization.
 
-When `ki` is installed, optional selectors can use a resolved Agora or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
+When `ki` is installed, optional selectors can use a territory handle or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 
 ```sh
-mgit --agora kis status
+mgit --territory ki status
 mgit --estate status
-mgit register add --agora personal --repo ../shared-tools
+mgit register add --territory short --repo ../shared-tools
+mgit -t ki -f tools- -f kit- status
 mgit register rm --repo ../shared-tools
 ```
 
@@ -87,3 +88,7 @@ Pull requests are welcome. Follow the [developer guide](docs/guides/developer/RE
 ## License
 
 [MIT](LICENSE) © 2026 Kris Brown.
+
+Territory and estate selectors are exclusive and use `ki territory roots --null --territory HANDLE` or `--estate`, passing repeated filters to KI before physical-root checks. Filters match nonempty, literal, case-sensitive directory-basename prefixes with OR semantics, before linked-worktree expansion. Default workspace snapshots use the same prefixes offline. Selected missing roots, missing registration metadata, ambiguous identities, zero matches and incomplete producer output stop dispatch.
+
+Old `-a/--agora`, `agora:` locations and Agora snapshot schema are rejected without aliases or automatic migration. Back up the manifest, explicitly replace old locations with verified `territory:HANDLE` locations and review the snapshot changes before running `mgit register --dry-run`; see [saved-location migration](docs/guides/user/repository-sets.md#migrate-agora-locations). No user state is deleted by the cut-over.
