@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 5b93e761112e47162bfa4e2946b66e6511c96644
 created_at: 2026-10-07T21:17:07Z
-updated_at: 2026-10-07T21:26:11Z
+updated_at: 2026-10-07T22:06:43Z
 ---
 
 # Territory selection pilot
@@ -93,9 +93,13 @@ The approved mgit caller pilot from immutable Ready baseline `5b93e761112e47162b
 - The initial ambient worktree audit identified missing ignored activation links and an unregistered delivery path; these are isolation artefacts, distinct from the delivery's authored Markdown/manual corrections. Final isolated audits are clean. The default user registry intentionally still names the primary checkout.
 - Runtime evidence is retained in this delivery run's `mgit.gates.json`, `mgit.audits.json`, gate/audit logs and `mgit.integration.json`; fixtures and logs are outside the repository.
 
+The coordinator fast-forwarded the task-owned reservation, Ready and delivery history into a candidate descending from fetched published main. MGIT_VERSION and its two assertions now prepare 0.16.0, with the single consolidated pre-1.0 baseline updated. ShellCheck, Bash syntax, all 89 tests with the exact combined KI producer, manual lint, diff validation and the whole 19-skill registered-context audit pass. The initial inherited audit-state override was removed only from the disposable test process; fixtures and failed-attempt evidence are preserved.
+
 ### Outstanding concerns
 
 No failed or unchecked mandatory delivery gates remain. This record awaits owner review; integration, final version metadata, publication and Arcadia/harness retirement belong to the coordinator's separate authority. Saved locations containing historic Agora grammar require the documented explicit migration before refreshing.
+
+Immutable publication, installation and tap verification remain outstanding while the KI clean-install harness pin authority addition is resolved. No acceptance or pruning is inferred.
 
 ### Post-change review
 

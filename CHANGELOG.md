@@ -4,7 +4,7 @@ All notable changes to `mgit` are documented here as a consolidated Pre-1.0 base
 
 ## Pre-1.0 baseline
 
-Separate 0.x release entries are not maintained here.
+This baseline describes the `v0.16.0` release. Separate 0.x release entries are not maintained here.
 
 ### Command surface
 
