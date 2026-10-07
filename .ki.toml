@@ -57,8 +57,8 @@ organisation_code = "KIS"
 adapter = "roadmap"
 
 [skills.ki-work-roadmap]
-themes = ["cli"]
-areas.CLI = "cli"
+areas = ["CLI"]
+components = ["cli"]
 
 [skills.ki-tokenomics]
 
