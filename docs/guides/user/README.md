@@ -1,6 +1,6 @@
 # mgit user guide
 
-`mgit` runs Git commands, or an arbitrary command with `-B`, across a set of repositories and their active worktrees.
+Use `mgit` to run Git commands, or an arbitrary command with `-B`, across repositories and their active worktrees. Choose an installation route, define or discover your repository set, and inspect it before running commands.
 
 ## Guides
 

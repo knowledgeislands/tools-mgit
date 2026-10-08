@@ -1,6 +1,6 @@
 # Install and configure mgit
 
-`mgit` requires Bash 3.2 or later and Git. The macOS system Bash is supported.
+Install `mgit` with Homebrew or the installer, make it available in your shell, configure completion, and confirm the installation. You need Bash 3.2 or later and Git; the macOS system Bash is supported.
 
 ## Homebrew
 
