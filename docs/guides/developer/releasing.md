@@ -4,6 +4,10 @@ Use this guide after completing the [definition of done](definition-of-done.md).
 
 Apply the `ki-repo-tools` release-readiness checklist for shared candidate, changelog, documentation, immutability and downstream requirements, and `ki-git` for commit and publication authority. This guide supplies MGIT's version source, publication commands and installation verification.
 
+## When to release
+
+Release timing follows the `ki-repo-tools` [release-on-demand policy](https://github.com/knowledgeislands/ki-agentic-harness/blob/main/skills/repo-structure/ki-repo-tools/references/standards-release-readiness.md#release-on-demand): hold releases by default and do not release after each change, and close delivered work without waiting for a release. The steps below apply only once a release is due under that policy.
+
 ## Prepare the release
 
 1. Set `MGIT_VERSION` in `bin/mgit` to the intended semantic version without a `v` prefix.
