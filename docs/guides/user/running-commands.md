@@ -50,7 +50,7 @@ The existing selectors and filters narrow the same way as ordinary commands:
 ```sh
 mgit --filter 'tools-' sync
 mgit --filter 'tools-' sync
-mgit --territory ki sync
+mgit --territory knowledge-islands sync
 ```
 
 ## Limit the set
@@ -73,8 +73,8 @@ Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) a
 When `ki` is installed, use a territory handle or the registered estate:
 
 ```sh
-mgit -t ki -f tools- -f kit- status
-mgit --territory ki sync
+mgit -t knowledge-islands -f tools- -f kit- status
+mgit --territory knowledge-islands sync
 mgit --estate status
 ```
 

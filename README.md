@@ -62,10 +62,10 @@ Existing `schema = 1` manifests remain readable. `mgit repair` can remove the re
 When `ki` is installed, optional selectors can use a territory handle or every repository in the registered KI estate. A workspace manifest stores `locations`, defaulting to `local`; `mgit register add` and `mgit register rm` change that list and refresh its generated repository entries. A plain `mgit register` refreshes the saved locations later. Ordinary commands read the generated entries without invoking `ki`.
 
 ```sh
-mgit --territory ki status
+mgit --territory knowledge-islands status
 mgit --estate status
 mgit register add --territory short --repo ../shared-tools
-mgit -t ki -f tools- -f kit- status
+mgit -t knowledge-islands -f tools- -f kit- status
 mgit register rm --repo ../shared-tools
 ```
 
