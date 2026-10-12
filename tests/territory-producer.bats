@@ -133,6 +133,40 @@ assert_no_dispatch() {
   assert_no_dispatch -t short -f Capital
 }
 
+write_other_capital() {
+  local path="$1" slug="$2" handle="$3" name="$4" extra="${5:-}"
+  init_repo "$path"
+  write_declaration "$path" "$slug"
+  sed "s@https://github.com/example/capital@https://github.com/example/$slug@g" "$path/.ki.toml" > "$ROOT/$slug.toml"
+  cat "$ROOT/$slug.toml" > "$path/.ki.toml"
+  printf '%s\n' "territory_prefix = \"$handle\"" "territory_name = \"$name\"" \
+    "territory_members = [\"https://github.com/example/$slug\"$extra]" >> "$path/.ki.toml"
+  registry_entry "$slug-registry" "$slug" "$path" >> "$XDG_STATE_HOME/ki/registry.toml"
+}
+
+@test "real producer selects only Capitals for principals, system Capital first then by name" {
+  write_other_capital "$ROOT/Alpha Capital" alpha alpha 'Alpha territory'
+  write_other_capital "$ROOT/Zulu Capital" zulu zulu 'Zulu territory' \
+    ', "https://github.com/knowledgeislands/ki-agentic-harness"'
+  run "$MGIT" --principals
+  [ "$status" -eq 0 ]
+  [ "$output" = $'../Zulu Capital\n../Alpha Capital\n../Capital Space' ] || { printf '%s\n' "$output"; return 1; }
+  run "$MGIT" --principals -f Alpha -f Capital -B git config pilot.principal yes
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$ROOT/Alpha Capital" config --get pilot.principal)" = yes ]
+  [ "$(git -C "$CAPITAL" config --get pilot.principal)" = yes ]
+  ! git -C "$ROOT/Zulu Capital" config --get pilot.principal
+  ! git -C "$MEMBER" config --get pilot.principal
+  assert_no_dispatch --principals -f Tool
+  assert_no_dispatch --principals --estate
+  assert_no_dispatch -t short --principals
+  assert_no_dispatch --principals --repo "$MEMBER"
+  for command in register doctor diag repair completion structure worktree; do
+    run "$MGIT" --principals "$command"
+    [ "$status" -eq 2 ]
+  done
+}
+
 @test "real caller rejects invalid and ignored scopes and old selectors before dispatch" {
   assert_no_dispatch -t short --estate
   assert_no_dispatch --estate -t short

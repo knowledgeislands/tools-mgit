@@ -55,6 +55,7 @@ Options:
   -I, --ignore            ignore workspace manifests and discover repositories
   -t, --territory <handle> select roots resolved by ki for a territory handle
       --estate            select every root in the registered KI estate
+      --principals        select the territory Capitals, in KI's order
   -f, --filter <prefix>    literal case-sensitive basename prefix; repeatable OR
   -W, --all-worktrees     include every active linked worktree
   -h, --help              display help for command
@@ -220,7 +221,7 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair doctor diag sync structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -t --territory --estate -f --filter -W --all-worktrees -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
@@ -235,7 +236,7 @@ _mgit() {
     word="${COMP_WORDS[i]}"
     case "$word" in
       -t|--territory|-f|--filter) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -321,6 +322,7 @@ _mgit() {
     '-t[select roots resolved by ki for a named territory]:territory name:'
     '--territory[select roots resolved by ki for a named territory]:territory name:'
     '--estate[select every root in the registered KI estate]'
+    '--principals[select the territory Capitals in KI order]'
     '-f[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '--filter[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '-W[include linked worktrees for listing, ordinary commands, and sync]'
@@ -2913,9 +2915,10 @@ select_workspace() {
   fi
 }
 
-# Resolve one named KI territory or the registered estate through ki. The NUL stream
-# is captured before parsing so a resolver failure cannot leave a partial
-# repository set for a command to run against.
+# Resolve one named KI territory, the registered estate or the territory
+# Capitals through ki, keeping the producer's order. The NUL stream is captured
+# before parsing so a resolver failure cannot leave a partial repository set
+# for a command to run against.
 select_ki_roots() {
   local name="$1" selector="$2" temporary root canonical actual prefix
   local producer_args=(territory roots --null)
@@ -2928,8 +2931,8 @@ select_ki_roots() {
     printf 'mgit: cannot create temporary file for territory roots\n' >&2
     return 1
   }
-  if [ "$selector" = --estate ]; then
-    producer_args+=(--estate)
+  if [ "$selector" = --estate ] || [ "$selector" = --principals ]; then
+    producer_args+=("$selector")
   else
     producer_args+=(--territory "$name")
   fi
@@ -3021,18 +3024,22 @@ while [ $# -gt 0 ]; do
       usage_error 'Agora selectors are retired; use -t/--territory HANDLE (no aliases); preview saved-location migration with register --dry-run'
       exit $? ;;
     --repo)
-      usage_error '--repo is only supported by register add/rm; explicit repository scope cannot be combined with territory or estate'
+      usage_error '--repo is only supported by register add/rm; explicit repository scope cannot be combined with territory, estate or principals'
       exit $? ;;
     -t|--territory)
       [ $# -ge 2 ] || { usage_error "$1 requires a territory name"; exit $?; }
-      [ -z "$ki_selector" ] || { usage_error '--territory and --estate cannot be combined or repeated'; exit $?; }
+      [ -z "$ki_selector" ] || { usage_error '--territory, --estate and --principals cannot be combined or repeated'; exit $?; }
       ki_selector=--territory
       [ -n "$2" ] || { usage_error "--territory requires a nonempty handle"; exit $?; }
       territory_handle="$2"; shift ;;
     --estate)
-      [ -z "$ki_selector" ] || { usage_error '--territory and --estate cannot be combined or repeated'; exit $?; }
+      [ -z "$ki_selector" ] || { usage_error '--territory, --estate and --principals cannot be combined or repeated'; exit $?; }
       ki_selector=--estate
       territory_handle=estate ;;
+    --principals)
+      [ -z "$ki_selector" ] || { usage_error '--territory, --estate and --principals cannot be combined or repeated'; exit $?; }
+      ki_selector=--principals
+      territory_handle=principals ;;
     -f|--filter)
       [ $# -ge 2 ] || { usage_error "$1 requires a literal prefix"; exit $?; }
       [ -n "$2" ] || { usage_error "--filter requires a nonempty literal prefix"; exit $?; }
@@ -3071,7 +3078,7 @@ case "${1:-}" in
     [ ${#filters[@]} -eq 0 ] || { reject_selector_for "$command_name" --filter; exit $?; }
     [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
     [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
-    if [ "$command_name" != register ] || [ "$ki_selector" = --estate ]; then
+    if [ "$command_name" != register ] || [ "$ki_selector" != --territory ]; then
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
     fi
     ;;
@@ -3121,7 +3128,7 @@ fi
 # `register` is self-contained (it scans the filesystem), so handle it before
 # building the repo set.
 if [ "${1:-}" = "register" ]; then
-  [ "$ki_selector" != --estate ] || { usage_error '--estate cannot be used with register'; exit $?; }
+  [ "$ki_selector" = --territory ] || [ -z "$ki_selector" ] || { usage_error "$ki_selector cannot be used with register"; exit $?; }
   [ "$ki_selector" != --territory ] || [ -n "$territory_handle" ] || { usage_error 'register: territory name must not be empty'; exit $?; }
   register_action=refresh
   register_dry_run=false

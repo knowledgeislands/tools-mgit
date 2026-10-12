@@ -70,17 +70,18 @@ Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) a
 
 ## Select a territory
 
-When `ki` is installed, use a territory handle or the registered estate:
+When `ki` is installed, use a territory handle, the registered estate or the territory Capitals:
 
 ```sh
 mgit -t knowledge-islands -f tools- -f kit- status
 mgit --territory knowledge-islands sync
 mgit --estate status
+mgit --principals -B pwd
 ```
 
-MGit calls `ki territory roots --null --territory HANDLE [--filter PREFIX...]` or `ki territory roots --null --estate [--filter PREFIX...]`. Filters go to KI so an excluded unavailable root does not block the selected set. Missing membership registrations, ambiguous identities or handles, selected unavailable roots and zero matches fail; mgit buffers and validates the entire output before executing any selected command. Spaces and newlines travel through NUL transport. Directory prefixes apply before optional linked-worktree expansion.
+MGit calls `ki territory roots --null --territory HANDLE [--filter PREFIX...]`, `ki territory roots --null --estate [--filter PREFIX...]` or `ki territory roots --null --principals [--filter PREFIX...]`. MGit keeps the producer's order, so `--principals` lists Knowledge Islands Principal first and the other Capitals alphabetically by territory name; mgit does not select or order Capitals itself. Filters go to KI so an excluded unavailable root does not block the selected set. Missing membership registrations, ambiguous identities or handles, selected unavailable roots and zero matches fail; mgit buffers and validates the entire output before executing any selected command. Spaces and newlines travel through NUL transport. Directory prefixes apply before optional linked-worktree expansion.
 
-Territory, estate and explicit repository scopes are mutually exclusive. MGit's native default is its workspace/snapshot selection or discovery. The territory and estate scopes reject discovery traversal options and `--ignore`. `structure` and `worktree` accept local filters but reject territory and estate scopes; `register` accepts territory locations, while estate, filters and other ignored global selectors are rejected.
+Territory, estate, principals and explicit repository scopes are mutually exclusive. MGit's native default is its workspace/snapshot selection or discovery. The territory, estate and principals scopes reject discovery traversal options and `--ignore`. `structure` and `worktree` accept local filters but reject these scopes; `register` accepts territory locations, while estate, principals, filters and other ignored global selectors are rejected.
 
 `mgit register add --territory HANDLE` binds a saved search location and explicitly refreshes membership. Plain `mgit register` refreshes all saved locations later; ordinary snapshot commands never invoke KI or silently refresh. A failed refresh leaves the manifest unchanged. See [saved locations and migration](repository-sets.md#migrate-agora-locations) for the hard cut-over from old Agora syntax.
 

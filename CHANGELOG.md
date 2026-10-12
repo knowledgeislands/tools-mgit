@@ -26,6 +26,7 @@ This baseline describes the `v0.16.0` release. Separate 0.x release entries are 
 - `mgit --ignore`
 - `mgit --territory <handle>`
 - `mgit --estate`
+- `mgit --principals`
 - `mgit --bare <command>`
 
 #### Workspace management
@@ -55,7 +56,7 @@ This baseline describes the `v0.16.0` release. Separate 0.x release entries are 
 - `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, territory-handle, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
-- Territory and estate selectors buffer exact NUL-delimited roots from `ki territory roots --null`, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
+- Territory, estate and principals selectors buffer exact NUL-delimited roots from `ki territory roots --null`, keeping KI's order, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
 - `mgit repair --apply` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
 - `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair` previews config changes and missing clones by default.

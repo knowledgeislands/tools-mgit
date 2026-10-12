@@ -56,11 +56,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-006 — Territory repository set
 
-With `-t/--territory HANDLE` or `--estate`, mgit MUST call `ki territory roots --null --territory HANDLE` or `ki territory roots --null --estate`, passing every repeated `--filter PREFIX` to KI. It MUST buffer the entire stream, require successful producer completion and complete NUL framing, validate absolute existing unique Git roots, and stop before dispatch on any error. It MUST NOT follow repository symlink metadata. Missing registration metadata, ambiguous identities or handles, selected missing roots and zero matches MUST fail; excluded unavailable registered roots MUST NOT block an otherwise valid selection.
+With `-t/--territory HANDLE`, `--estate` or `--principals`, mgit MUST call `ki territory roots --null --territory HANDLE`, `ki territory roots --null --estate` or `ki territory roots --null --principals`, passing every repeated `--filter PREFIX` to KI. It MUST buffer the entire stream, require successful producer completion and complete NUL framing, validate absolute existing unique Git roots, and stop before dispatch on any error. It MUST NOT follow repository symlink metadata. Missing registration metadata, ambiguous identities or handles, selected missing roots and zero matches MUST fail; excluded unavailable registered roots MUST NOT block an otherwise valid selection. mgit MUST preserve the producer's root order and MUST NOT select or reorder territory Capitals itself.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--territory selects only NUL-delimited roots from ki`; `--territory preserves its exact roots instead of following symlink metadata`; `--territory stops before a command when ki cannot resolve roots`.
+_Verify:_ `bats tests/mgit.bats` — `--territory selects only NUL-delimited roots from ki`; `--territory preserves its exact roots instead of following symlink metadata`; `--territory stops before a command when ki cannot resolve roots`; `--principals selects the territory Capitals in the producer's order`; `--principals stops before a command when ki cannot resolve roots`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -194,7 +194,7 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory or estate, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 
@@ -204,7 +204,7 @@ _Evidence:_ The selector matrix covers status, namespace, and no-side-effect beh
 
 ### MGIT-WS-023 — Saved territory snapshots and hard cut-over
 
-Saved `territory:HANDLE` locations MUST resolve current membership only during explicit `register` add, rm or refresh. Ordinary generated snapshots MUST remain offline without automatic refresh. Failed producer resolution or validation MUST leave the manifest byte-identical. Old Agora flags, `agora:` locations, `agora` fields and Agora member tables MUST fail with actionable, explicit migration guidance, including old schema-1 Agora snapshots; no aliases or historical-name reinterpretation are permitted. Migration guidance MUST preview the replacement membership and preserve user state. Territory, estate and explicit repository scopes MUST be exclusive outside register's saved-location editing grammar.
+Saved `territory:HANDLE` locations MUST resolve current membership only during explicit `register` add, rm or refresh. Ordinary generated snapshots MUST remain offline without automatic refresh. Failed producer resolution or validation MUST leave the manifest byte-identical. Old Agora flags, `agora:` locations, `agora` fields and Agora member tables MUST fail with actionable, explicit migration guidance, including old schema-1 Agora snapshots; no aliases or historical-name reinterpretation are permitted. Migration guidance MUST preview the replacement membership and preserve user state. Territory, estate, principals and explicit repository scopes MUST be exclusive outside register's saved-location editing grammar.
 
 _Conformance:_ conforming
 

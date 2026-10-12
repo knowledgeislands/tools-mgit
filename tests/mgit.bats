@@ -122,6 +122,7 @@ shift 3
 case "$1" in
   --territory) name="$2"; shift 2 ;;
   --estate) name=estate; shift ;;
+  --principals) name=principals; shift ;;
   *) exit 64 ;;
 esac
 case "$name" in
@@ -157,6 +158,7 @@ KI
   [[ "$output" == *"--territory <handle>"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"--principals"* ]]
   [[ "$output" == *"passed through to Git"* ]]
 
   run "$MGIT" help register
@@ -377,7 +379,7 @@ KI
   [[ "$output" == *"doctor"* ]]
   [[ "$output" == *"diag"* ]]
   [[ "$output" == *"sync"* ]]
-  [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"--estate --principals"* ]]
   [[ "$output" == *"add rm --territory -t --repo --dry-run --help -h"* ]]
   [[ "$output" == *"--apply"* ]]
   [[ "$output" == *"--all-worktrees"* ]]
@@ -389,6 +391,7 @@ KI
   [[ "$output" == *"#compdef mgit"* ]]
   [[ "$output" == *"standard nested"* ]]
   [[ "$output" == *"--estate"* ]]
+  [[ "$output" == *"--principals[select the territory Capitals in KI order]"* ]]
   [[ "$output" == *"add or remove a territory location"* ]]
   [[ "$output" == *"add or remove a repository location"* ]]
   [[ "$output" == *"perform validated repairs"* ]]
@@ -484,6 +487,11 @@ assert_usage_error() {
   assert_usage_error -f repo repair
   assert_usage_error --estate register
   assert_usage_error --estate repair
+  assert_usage_error --principals register
+  assert_usage_error --principals repair
+  assert_usage_error --principals doctor
+  assert_usage_error --principals diag
+  assert_usage_error --principals completion bash
   assert_usage_error -a focus repair
   [ ! -e "$TREE/.mgit.toml" ]
   [ ! -e "$TREE/repo/.mgit.toml" ]
@@ -783,6 +791,60 @@ assert_usage_error() {
 
 }
 
+@test "--principals selects the territory Capitals in the producer's order" {
+  mkrepo "$TREE/ki-principal"
+  mkrepo "$TREE/er-principal"
+  mkrepo "$TREE/va-principal"
+  make_fake_ki
+  FAKE_KI_TERRITORY=principals
+  FAKE_KI_ROOTS="$TREE/ki-principal"$'\n'"$TREE/er-principal"$'\n'"$TREE/va-principal"
+
+  cd "$TREE"
+  run "$MGIT" --principals
+
+  [ "$status" -eq 0 ]
+  [ "$output" = $'ki-principal\ner-principal\nva-principal' ]
+
+  run "$MGIT" --principals -f va -f ki
+  [ "$status" -eq 0 ]
+  [ "$output" = $'ki-principal\nva-principal' ]
+
+  run "$MGIT" --principals -B pwd
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$TREE/ki-principal"* ]]
+  [[ "$output" == *"$TREE/va-principal"* ]]
+}
+
+@test "--principals composes with sync and all-worktrees like --estate" {
+  mkrepo "$TREE/ki-principal"
+  make_fake_ki
+  FAKE_KI_TERRITORY=principals
+  FAKE_KI_ROOTS="$TREE/ki-principal"
+
+  cd "$TREE"
+  run "$MGIT" --principals -W
+  [ "$status" -eq 0 ]
+  [ "$output" = "ki-principal" ]
+
+  run "$MGIT" --principals sync
+  [[ "$output" != *"cannot be used"* ]]
+}
+
+@test "--principals stops before a command when ki cannot resolve roots" {
+  mkrepo "$TREE/ki-principal"
+  make_fake_ki
+  FAKE_KI_TERRITORY=principals
+  FAKE_KI_ROOTS="$TREE/ki-principal"
+  FAKE_KI_FAIL=true
+
+  cd "$TREE"
+  run "$MGIT" --principals status
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"fake territory resolution failed"* ]]
+  [[ "$output" != *"git status"* ]]
+}
+
 @test "--territory preserves its exact roots instead of following symlink metadata" {
   mkrepo "$TREE/selected"
   mkrepo "$TREE/linked"
@@ -825,6 +887,11 @@ assert_usage_error() {
 
   [ "$status" -eq 1 ]
   [[ "$output" == *"--estate requires ki on PATH"* ]]
+
+  run "$MGIT" --principals
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--principals requires ki on PATH"* ]]
 }
 
 @test "--territory rejects incompatible selectors and management commands" {
@@ -840,6 +907,19 @@ assert_usage_error() {
   assert_usage_error --estate --follow-symlinks status
   assert_usage_error --estate register
   assert_usage_error --estate structure standard
+  assert_usage_error --principals --estate status
+  assert_usage_error --estate --principals status
+  assert_usage_error --principals --territory focus status
+  assert_usage_error --territory focus --principals status
+  assert_usage_error --principals --principals status
+  assert_usage_error --principals --ignore status
+  assert_usage_error --principals --follow-symlinks status
+  assert_usage_error --principals --physical status
+  assert_usage_error --principals --repo . status
+  assert_usage_error --principals register
+  assert_usage_error --principals register add --repo .
+  assert_usage_error --principals structure standard
+  assert_usage_error --principals worktree list
 }
 
 @test "register binds territory locations alongside local repositories and refreshes them" {

@@ -137,9 +137,10 @@ The
 option ignores workspace manifests and always uses discovery instead.
 .PP
 With
-.BR \-t / \-\-territory
+.BR \-t / \-\-territory ,
+.BR \-\-estate
 or
-.BR \-\-estate ,
+.BR \-\-principals ,
 .B mgit
 invokes
 .B ki territory roots --null --territory HANDLE
@@ -231,6 +232,19 @@ and cannot be combined with
 .BR \-\-territory .
 It has the same restrictions but is unavailable to
 .BR register .
+.sp
+.TP
+.B \-\-principals
+Select the territory Capitals. It calls
+.B ki territory roots --null --principals
+and keeps its order: Knowledge Islands Principal first, then the other
+Capitals alphabetically by territory name.
+It cannot be combined with
+.B \-\-territory
+or
+.B \-\-estate
+and has the same restrictions as
+.BR \-\-estate .
 .sp
 .TP
 .BR \-f , " \-\-filter" " \fIPREFIX\fR"
