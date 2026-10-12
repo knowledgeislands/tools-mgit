@@ -5,13 +5,12 @@ title: Principals selector
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 825130706d5297568d068672bd376675fcc51be8
 created_at: 2026-10-12T04:20:00Z
-updated_at: 2026-10-12T04:20:34Z
+updated_at: 2026-10-12T04:30:36Z
 ---
 
 # Principals selector
@@ -102,6 +101,10 @@ The change is additive, reuses the existing buffered validation path and introdu
 ### Mini recap
 
 One selector delivered with tests and documentation; no further backlog proposed.
+
+## Done
+
+Accepted 2026-10-12 by Kris Brown on the review packet above, after trying `--principals` (state-of-play decisions log, Decision 94).
 
 ## Discussion
 
