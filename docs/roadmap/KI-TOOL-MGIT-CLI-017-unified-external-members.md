@@ -6,12 +6,12 @@ kind: deliver
 purpose: capability
 component: cli
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
 baseline_ref: 438722c6a899aaa9b1624a7e122cd844fc250e88
 created_at: 2026-10-16T21:10:00Z
-updated_at: 2026-10-16T21:10:00Z
+updated_at: 2026-10-16T22:05:00Z
 ---
 
 # Unified external members
@@ -35,13 +35,13 @@ Owner request of 16 October 2026: the dotfiles checkout `~/.local/share/chezmoi`
 
 ## Steps
 
-- [ ] Add external member path validation and accept it for direct repository members; parse legacy registered tables into members with a deprecation warning.
-- [ ] Make `register` write location roots as typed, sourced members and drop locally discovered duplicates.
-- [ ] Rework `select_workspace` deduplication by physical path and order local before external members.
-- [ ] Make `repair` validate present external members and report, not clone, missing ones; keep legacy entries out of repair.
-- [ ] Update usage, manual, README, workspace-dispatch specification, repository-sets guide and changelog.
-- [ ] Add Bats cases for path validation, registration, parsing, recursive dispatch, deduplication with and without a navigation symlink, repair and legacy migration.
-- [ ] Run the complete gate and a live read-only listing with the working-tree build.
+- [x] Add external member path validation and accept it for direct repository members; parse legacy registered tables into members with a deprecation warning.
+- [x] Make `register` write location roots as typed, sourced members and drop locally discovered duplicates.
+- [x] Rework `select_workspace` deduplication by physical path and order local before external members.
+- [x] Make `repair` validate present external members and report, not clone, missing ones; keep legacy entries out of repair.
+- [x] Update usage, manual, README, workspace-dispatch specification, repository-sets guide and changelog.
+- [x] Add Bats cases for path validation, registration, parsing, recursive dispatch, deduplication with and without a navigation symlink, repair and legacy migration.
+- [x] Run the complete gate and a live read-only listing with the working-tree build.
 
 ## Files touched
 
@@ -72,6 +72,32 @@ Repository sets shows the unified members form and the migration.
 ### Roadmap
 
 This single record.
+
+## Review
+
+### Delivered
+
+From Ready baseline `438722c`, external repositories are ordinary `[members."../PATH"]` entries with `kind`, `type` and `source`, generated from saved `repo:` and `territory:` locations. Selection deduplicates by physical path across the recursive set; repair validates present external members and never clones a missing one; legacy `[registered.members]` tables stay readable with a once-per-manifest warning and a doctor warning until `mgit register` rewrites them. No version bump, release, tag, acceptance or pruning.
+
+### Change Summary
+
+`bcac3d1` changes `bin/mgit` (path rule, parser scopes, register, selection, repair, doctor, help), adds five Bats cases and updates two, and updates the manual, README, changelog, workspace-dispatch specification and repository-sets guide.
+
+### Verification
+
+`ki repo audit --repo .` passes with the existing HOOK-1 warning; `shellcheck`, `bash -n`, `mandoc -T lint` and `git diff --check` are clean; `bats tests/` passes 98 of 98; the producer proof with `MGIT_KI_PRODUCER` set to the installed `ki` passes 10 of 10. Live, the working-tree build lists the unchanged consumer manifests from `~/workspaces/personal` (7) and `~/workspaces` (54) with healthy doctor verdicts, previews `register add --repo ~/.local/share/chezmoi --dry-run` as 7 local and 1 external member without writes, and a disposable overlay of real repositories dispatches the real dotfiles checkout exactly once from both levels, with and without a navigation symlink and under `--follow-symlinks` discovery.
+
+### Outstanding concerns
+
+A manifest containing external members is rejected as unsafe by v0.17.0 and earlier, so the chezmoi-managed consumer manifest `workspaces/personal/dot_mgit.toml` should gain the dotfiles member only after a release reaches every machine that applies it; it is unchanged. Human acceptance is outstanding.
+
+### Post-change review
+
+One representation now carries the whole repository set; `locations` remains the discovery instruction. Two local members resolving to one repository still fail, as before. Legacy tables are read, never written.
+
+### Mini recap
+
+External membership unified with tests and documentation. A possible follow-up, not captured: let `register add --repo` accept a navigation symlink and store its resolved target.
 
 ## Discussion
 
