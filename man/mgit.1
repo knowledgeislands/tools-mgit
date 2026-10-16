@@ -344,9 +344,11 @@ refresh all saved locations, resolving territory roots through
 Source resolution failure stops registration before writing. Ordinary commands
 use generated repository entries without invoking
 .BR ki .
-The selected set combines local and additional members without duplicates.
+Each location root outside the workspace is written as an ordinary external
+repository member; a root that local discovery already records is not written
+again. A repository reached from several workspaces is dispatched once.
 .B mgit repair
-uses only direct members and does not clone additional locations automatically.
+validates present external members but never clones a missing one.
 .B mgit register \-\-dry\-run
 previews manifest writes and removals, including location changes,
 without changing local files or Chezmoi source state. Registration still
@@ -363,6 +365,9 @@ repository among the direct members with a source URL.
 On apply it creates standard, nested, and bare repositories in their declared
 forms.
 It recursively follows child workspaces through their direct members.
+External members, whose paths begin with
+.BR ../ ,
+are reported when missing and never cloned.
 .B mgit repair \-\-apply
 performs the validated config repair and missing repository clones.
 Repair validates the workspace before the preview; without
@@ -499,7 +504,13 @@ The optional
 .B source
 field is a clone URL. Workspace members use only
 .BR kind .
-Member paths are safe relative map keys below the manifest directory.
+Member paths are safe relative map keys below the manifest directory. A
+repository member may instead be external: one or more leading
+.B ../
+segments followed by a safe relative path, such as
+.BR ../../.local/share/chezmoi .
+External members are generated from saved locations and rewritten by
+registration.
 .PP
 The
 .B locations
@@ -512,8 +523,12 @@ When absent, it defaults to
 .BR local .
 Empty
 .B [registered.members."PATH"]
-tables hold generated repository roots as paths relative to the manifest
-directory; these paths may reach outside the workspace. Old Agora locations,
+tables from earlier releases remain readable for selection with a deprecation
+warning;
+.B mgit register
+rewrites them as typed members, and
+.B mgit doctor
+reports them as a warning. Old Agora locations,
 fields and member tables, including schema-1 Agora
 snapshots, are rejected without automatic migration or aliases.
 .PP

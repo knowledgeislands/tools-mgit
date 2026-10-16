@@ -933,7 +933,9 @@ assert_usage_error() {
   run "$MGIT" register add --territory focus
   [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
-  grep -Fx '[registered.members."../external"]' "$TREE/.mgit.toml"
+  grep -A2 -Fx '[members."../external"]' "$TREE/.mgit.toml" | grep -Fx 'type = "standard"'
+  [ "$(grep -Fxc '[members."local"]' "$TREE/.mgit.toml")" -eq 1 ]
+  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml"
 
   FAKE_KI_FAIL=true
   run "$MGIT"
@@ -964,7 +966,7 @@ assert_usage_error() {
   run "$MGIT" register --territory focus
   [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
-  grep -Fx '[members]' "$TREE/.mgit.toml"
+  grep -Fx '[members."../external"]' "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = '../external' ]
@@ -1007,6 +1009,179 @@ assert_usage_error() {
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = '../external space' ]
+}
+
+# A home-shaped fixture: ~/workspaces/{personal,knowledge-islands} and a
+# dotfiles checkout outside the workspace tree at ~/.local/share/chezmoi.
+make_external_estate() {
+  ESTATE="$BATS_TEST_TMPDIR/home"
+  DOTFILES="$ESTATE/.local/share/chezmoi"
+  mkdir -p "$ESTATE/workspaces/personal" "$ESTATE/workspaces/knowledge-islands"
+  make_origin "$DOTFILES" "$BATS_TEST_TMPDIR/dotfiles.git" dotfiles
+  mkrepo "$ESTATE/workspaces/personal/acquire"
+  mkrepo "$ESTATE/workspaces/knowledge-islands/tools-mgit"
+}
+
+@test "register records an external repository as an ordinary typed member" {
+  make_external_estate
+  cd "$ESTATE/workspaces/personal"
+  run "$MGIT" register add --repo ../../.local/share/chezmoi
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"recorded 1 local and 1 external member(s)"* ]]
+  grep -Fx 'locations = ["local", "repo:../../.local/share/chezmoi"]' .mgit.toml
+  grep -A3 -Fx '[members."../../.local/share/chezmoi"]' .mgit.toml > "$BATS_TEST_TMPDIR/entry"
+  grep -Fx 'kind = "repository"' "$BATS_TEST_TMPDIR/entry"
+  grep -Fx 'type = "standard"' "$BATS_TEST_TMPDIR/entry"
+  grep -Fx "source = \"$BATS_TEST_TMPDIR/dotfiles.git\"" "$BATS_TEST_TMPDIR/entry"
+  ! grep -Fq 'registered' .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'acquire\n../../.local/share/chezmoi' ]
+}
+
+@test "external members dispatch exactly once with or without a navigation symlink" {
+  make_external_estate
+  cd "$ESTATE/workspaces/personal"
+  "$MGIT" register add --repo ../../.local/share/chezmoi >/dev/null
+  # The knowledge-islands workspace binds the same checkout through a second location.
+  cd "$ESTATE/workspaces/knowledge-islands"
+  "$MGIT" register add --repo "$DOTFILES" >/dev/null
+  cd "$ESTATE/workspaces"
+  "$MGIT" register >/dev/null
+  grep -Fx 'locations = ["local", "repo:../../.local/share/chezmoi"]' personal/.mgit.toml
+
+  for link in absent present; do
+    if [ "$link" = present ]; then
+      ln -s ../../.local/share/chezmoi "$ESTATE/workspaces/personal/dotfiles"
+      cd "$ESTATE/workspaces"
+      "$MGIT" register >/dev/null
+      ! grep -Fq 'dotfiles' personal/.mgit.toml
+    fi
+    cd "$ESTATE/workspaces/personal"
+    run "$MGIT" -B pwd -P
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
+    run "$MGIT"
+    [ "$output" = $'acquire\n../../.local/share/chezmoi' ]
+
+    cd "$ESTATE/workspaces"
+    run "$MGIT" -B pwd -P
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
+    run "$MGIT"
+    [ "$output" = $'knowledge-islands/tools-mgit\n../.local/share/chezmoi\npersonal/acquire' ]
+  done
+
+  # Discovery that follows the navigation symlink still yields one repository.
+  cd "$ESTATE/workspaces/personal"
+  run "$MGIT" --ignore --follow-symlinks -B pwd -P
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
+
+  # A location root that local discovery already records is not written twice.
+  cd "$ESTATE/workspaces"
+  "$MGIT" register add --repo knowledge-islands/tools-mgit >/dev/null
+  ! grep -Fq '[members."knowledge-islands/tools-mgit"]' .mgit.toml
+  run "$MGIT"
+  [ "$output" = $'knowledge-islands/tools-mgit\n../.local/share/chezmoi\npersonal/acquire' ]
+}
+
+@test "external member paths must climb out and then name a safe repository path" {
+  mkrepo "$BATS_TEST_TMPDIR/ext"
+  cd "$TREE"
+  for path in '../ext/../ext' '../..' '..' '..//ext' '../ext/' '../ext/.' '.../ext'; do
+    printf '%s\n' 'kind = "workspace"' "[members.\"$path\"]" 'kind = "repository"' \
+      'type = "standard"' > .mgit.toml
+    run "$MGIT"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"unsafe workspace member path"* || "$output" == *"missing repository path"* ]]
+  done
+  printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "workspace"' > .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unsafe workspace member path: ../ext"* ]]
+  printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' > .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"requires type"* ]]
+  printf '%s\n' 'kind = "workspace"' '[members."../missing"]' 'kind = "repository"' \
+    'type = "standard"' > .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unsafe or missing external repository path"* ]]
+  printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' \
+    'type = "standard"' '[members."../ext"]' 'kind = "repository"' 'type = "standard"' > .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"duplicate member path"* ]]
+  printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' \
+    'type = "standard"' > .mgit.toml
+  run "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "$output" = '../ext' ]
+}
+
+@test "repair validates external members but never clones a missing one" {
+  make_origin "$BATS_TEST_TMPDIR/src" "$BATS_TEST_TMPDIR/origin.git" payload
+  mkdir "$TREE/workspace"
+  printf '%s\n' 'kind = "workspace"' \
+    '[members."local"]' 'kind = "repository"' 'type = "standard"' \
+    "source = \"$BATS_TEST_TMPDIR/origin.git\"" \
+    '[members."../external"]' 'kind = "repository"' 'type = "standard"' \
+    "source = \"$BATS_TEST_TMPDIR/origin.git\"" > "$TREE/workspace/.mgit.toml"
+  cd "$TREE/workspace"
+  run "$MGIT" repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would clone standard repository"*"/workspace/local"* ]]
+  [[ "$output" == *"not cloning missing external member: "*"/external"* ]]
+  run "$MGIT" repair --apply
+  [ "$status" -eq 0 ]
+  [ -f "$TREE/workspace/local/payload" ]
+  [ ! -e "$TREE/external" ]
+  [[ "$output" == *"not cloning missing external member"* ]]
+
+  mkbare "$TREE/external"
+  run "$MGIT" repair
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"structure mismatch at "*"/external"* ]]
+  rm -rf "$TREE/external"
+  mkrepo "$TREE/external"
+  run "$MGIT" repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"present "*"/external"* ]]
+}
+
+@test "legacy registered members stay readable with a warning until register rewrites them" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  printf '%s\n' 'kind = "workspace"' 'locations = ["local", "repo:../external"]' \
+    '[registered.members."../external"]' '[registered.members."local"]' \
+    '[members."local"]' 'kind = "repository"' 'type = "standard"' > "$TREE/.mgit.toml"
+  cp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
+  cd "$TREE"
+  "$MGIT" > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  [ "$(cat "$BATS_TEST_TMPDIR/out")" = $'local\n../external' ]
+  [ "$(grep -c 'deprecated' "$BATS_TEST_TMPDIR/err")" -eq 1 ]
+  run "$MGIT" doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'warn configuration: workspace manifest uses deprecated [registered.members]'* ]]
+  [[ "$output" == *'Checks: pass=1 warn=1 fail=0'* ]]
+  run "$MGIT" repair
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"would clone"* ]]
+  [[ "$output" != *"not cloning"* ]]
+
+  run "$MGIT" register --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would write ./.mgit.toml (1 local and 1 external member(s))"* ]]
+  cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
+
+  "$MGIT" register >/dev/null
+  ! grep -Fq 'registered' "$TREE/.mgit.toml"
+  grep -A1 -Fx '[members."../external"]' "$TREE/.mgit.toml" | grep -Fx 'kind = "repository"'
+  "$MGIT" > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  [ "$(cat "$BATS_TEST_TMPDIR/out")" = $'local\n../external' ]
+  [ ! -s "$BATS_TEST_TMPDIR/err" ]
 }
 
 @test "legacy Agora snapshots are rejected without state changes" {

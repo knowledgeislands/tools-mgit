@@ -19,7 +19,7 @@ Registration stops at repository roots, never descends into repository internals
 
 The `locations` list defaults to `local`, which scans the current workspace and descendants. Run `mgit register add --territory short --repo ../shared-tools` to bind additional search locations, or `mgit register rm --territory short --repo ../shared-tools` to remove them. Both commands accept repeated, combined `--territory` and `--repo` options and refresh generated entries immediately. `mgit register --territory short` is an add shorthand. Adding a `--repo` path requires an existing Git repository; removal also accepts its saved relative path if the repository has disappeared.
 
-Plain `mgit register` refreshes all saved locations. It resolves territory handles through `ki territory roots --null --territory HANDLE` and validates repository paths before writing. Ordinary commands use the generated entries without invoking `ki`. The selected set combines local and additional repositories without duplicate dispatch. `mgit repair` uses only direct members; it does not clone repositories from additional locations automatically.
+Plain `mgit register` refreshes all saved locations. It resolves territory handles through `ki territory roots --null --territory HANDLE` and validates repository paths before writing. Each location root outside the workspace becomes an ordinary external member; a root that local discovery already records is not written again. Ordinary commands use the generated members without invoking `ki`. A repository is identified by its physical path, so one reached from several workspaces, or through a navigation symlink, is dispatched once. `mgit repair` validates present external members but never clones a missing one.
 
 Use `mgit register --dry-run` to preview manifest writes and removals. It also works with `add` and `rm`, and leaves both local manifests and Chezmoi source state untouched. Registration still validates saved locations before the preview.
 
@@ -31,11 +31,12 @@ A workspace document uses an explicit workspace kind and path-keyed direct membe
 
 ```toml
 kind = "workspace"
-locations = ["local", "territory:short", "repo:../shared-tools"]
+locations = ["local", "repo:../../.local/share/chezmoi"]
 
-[registered.members."../chezmoi"]
-
-[registered.members."../shared-tools"]
+[members."../../.local/share/chezmoi"]
+kind = "repository"
+type = "standard"
+source = "git@github.com:acme/dotfiles.git"
 
 [members."platform"]
 kind = "repository"
@@ -46,9 +47,11 @@ source = "git@github.com:acme/platform.git"
 kind = "workspace"
 ```
 
-Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records the URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Member paths must be safe relative paths below the manifest directory.
+Repository members require `type`, which is `standard`, `nested`, or `bare`, and may have a `source` clone URL. `mgit register` records the URL from `origin` when available. Workspace members have only `kind`; paths are map keys. Member paths must be safe relative paths below the manifest directory, except that a repository member may be external: one or more leading `../` segments followed by a safe relative path.
 
-The `locations` array is the durable search list; empty `[registered.members."../chezmoi"]` tables are generated repository entries. Their relative paths may reach outside the workspace and change only when registration runs. Manifests without `locations` default to `local`. Old `agora:` locations, `agora` fields and `[agora.members]` snapshots are rejected, including the old schema-1 Agora form; they are never migrated automatically. Blank lines and comments are ignored.
+The `locations` array is the durable search list, and external members are generated from it: `repo:` and `territory:` locations say where to look, and registration records what it found as members. A hand-written external member without a matching location is dropped at the next registration. Manifests without `locations` default to `local`.
+
+Earlier releases wrote external roots as empty `[registered.members."PATH"]` tables. Those remain readable for selection with a deprecation warning, and `mgit doctor` reports them; preview the rewrite with `mgit register --dry-run`, then run `mgit register` to replace them with typed members. If Chezmoi manages the manifest, registration updates its source state too; check that the installed `mgit` on every machine applying that source reads external members before committing it. Old `agora:` locations, `agora` fields and `[agora.members]` snapshots are rejected, including the old schema-1 Agora form; they are never migrated automatically. Blank lines and comments are ignored.
 
 Existing `schema = 1` manifests with grouped members remain readable. Registration rewrites a manifest containing only its structural `default` group into the direct-member format. A manifest with alternative groups must have those tables removed deliberately before registration; `mgit` refuses to discard them silently.
 
@@ -77,7 +80,7 @@ Workspace tables are invalid in repository document, and `symlinks` table is inv
 mgit repair
 ```
 
-Add `--apply` to clone every missing repository from its `source` URL and follow child workspace documents through direct members. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
+Add `--apply` to clone every missing local repository from its `source` URL and follow child workspace documents through direct members. A missing external member is reported and never cloned. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
 
 Repair never replaces existing path. Present repository must match declared type; non-repository path or type mismatch is error. Child workspace directories and workspace-kind `.mgit.toml` documents must already exist.
 

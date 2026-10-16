@@ -84,7 +84,8 @@ Usage: mgit register [add|rm] [options]
 Generate workspace- and repository-kind .mgit.toml documents for current tree.
 
 The command scans saved locations (default: local), does not descend into
-repositories, and refreshes generated members.
+repositories, and refreshes generated members. Repositories found outside the
+workspace are recorded as ordinary members with ../ paths.
 Add or remove locations and refresh in one command. When Chezmoi manages a
 generated manifest, its source state is updated too.
 
@@ -102,7 +103,8 @@ Usage: mgit repair [--apply]
 
 Preview recognised configuration repairs and missing workspace repositories.
 --apply writes the validated config repair and clones missing repositories.
-Existing repository paths are never replaced.
+Existing repository paths are never replaced, and external members (../ paths)
+are never cloned.
 
 Options:
       --apply    perform the previewed repairs
@@ -860,7 +862,10 @@ workspace_record_kinds=()
 workspace_record_paths=()
 workspace_record_types=()
 workspace_record_sources=()
+workspace_record_scopes=()
+workspace_legacy_warned=()
 workspace_member_group=""
+workspace_member_direct=false
 workspace_member_kind=""
 workspace_member_path=""
 workspace_member_type=""
@@ -877,6 +882,19 @@ workspace_path_safe() {
       ;;
     *$'\n'*|*$'\r'*|*$'\t'*) return 1 ;;
   esac
+}
+
+# An external repository member climbs out of the manifest directory with one
+# or more leading ../ segments, then names a safe path below that ancestor.
+workspace_external_path_safe() {
+  local tail="$1"
+  case "$tail" in ../*) ;; *) return 1 ;; esac
+  while [ "${tail#../}" != "$tail" ]; do tail="${tail#../}"; done
+  workspace_path_safe "$tail"
+}
+
+workspace_member_scope() {
+  case "$1" in ../*) printf external ;; *) printf local ;; esac
 }
 
 location_path_safe() {
@@ -954,12 +972,16 @@ workspace_finish_member() {
       return 1
       ;;
   esac
-  workspace_path_safe "$workspace_member_path" || {
-    printf 'mgit: %s: unsafe workspace member path: %s\n' "$file" "$workspace_member_path" >&2
-    return 1
-  }
+  if ! workspace_path_safe "$workspace_member_path"; then
+    if [ "$workspace_member_direct" != true ] || [ "$workspace_member_kind" != repository ] ||
+       ! workspace_external_path_safe "$workspace_member_path"; then
+      printf 'mgit: %s: unsafe workspace member path: %s\n' "$file" "$workspace_member_path" >&2
+      return 1
+    fi
+  fi
   for i in "${!workspace_record_paths[@]}"; do
     if [ "${workspace_record_groups[$i]}" = "$workspace_member_group" ] &&
+       [ "${workspace_record_scopes[$i]}" != legacy ] &&
        [ "${workspace_record_paths[$i]}" = "$workspace_member_path" ]; then
       printf 'mgit: %s: duplicate member path in group %s: %s\n' \
         "$file" "$workspace_member_group" "$workspace_member_path" >&2
@@ -971,17 +993,19 @@ workspace_finish_member() {
   workspace_record_paths+=("$workspace_member_path")
   workspace_record_types+=("$workspace_member_type")
   workspace_record_sources+=("$workspace_member_source")
+  workspace_record_scopes+=("$(workspace_member_scope "$workspace_member_path")")
   workspace_member_group=""
 }
 
 workspace_sort_members() {
-  local i j group kind path type source previous_group previous_path
+  local i j group kind path type source scope previous_group previous_path
   for ((i = 1; i < ${#workspace_record_paths[@]}; i += 1)); do
     group="${workspace_record_groups[$i]}"
     kind="${workspace_record_kinds[$i]}"
     path="${workspace_record_paths[$i]}"
     type="${workspace_record_types[$i]}"
     source="${workspace_record_sources[$i]}"
+    scope="${workspace_record_scopes[$i]}"
     j=$i
     while [ "$j" -gt 0 ]; do
       previous_group="${workspace_record_groups[$((j - 1))]}"
@@ -992,6 +1016,7 @@ workspace_sort_members() {
       workspace_record_paths[j]="$previous_path"
       workspace_record_types[j]="${workspace_record_types[j - 1]}"
       workspace_record_sources[j]="${workspace_record_sources[j - 1]}"
+      workspace_record_scopes[j]="${workspace_record_scopes[j - 1]}"
       j=$((j - 1))
     done
     workspace_record_groups[j]="$group"
@@ -999,7 +1024,19 @@ workspace_sort_members() {
     workspace_record_paths[j]="$path"
     workspace_record_types[j]="$type"
     workspace_record_sources[j]="$source"
+    workspace_record_scopes[j]="$scope"
   done
+}
+
+# Legacy [registered.members."PATH"] tables predate typed external members.
+# They stay selectable, warn once per manifest, and are rewritten by register.
+workspace_warn_legacy() {
+  local file="$1" item
+  for item in "${workspace_legacy_warned[@]+"${workspace_legacy_warned[@]}"}"; do
+    [ "$item" != "$file" ] || return 0
+  done
+  workspace_legacy_warned+=("$file")
+  printf 'mgit: %s: [registered.members] tables are deprecated; run mgit register to rewrite them as members\n' "$file" >&2
 }
 
 # Parse the deliberately small workspace map formats into global record
@@ -1013,13 +1050,13 @@ parse_workspace() {
   local in_location_member=false snapshot_source="" i
   workspace_default=""
   workspace_locations=()
-  workspace_location_paths=()
   workspace_groups=()
   workspace_record_groups=()
   workspace_record_kinds=()
   workspace_record_paths=()
   workspace_record_types=()
   workspace_record_sources=()
+  workspace_record_scopes=()
   workspace_member_group=""
   [ -f "$file" ] || { printf 'mgit: workspace manifest not found: %s\n' "$file" >&2; return 1; }
 
@@ -1042,13 +1079,19 @@ parse_workspace() {
         printf 'mgit: %s: unsafe registered member path: %s\n' "$file" "$value" >&2
         return 1
       }
-      for i in "${workspace_location_paths[@]+"${workspace_location_paths[@]}"}"; do
-        [ "$i" != "$value" ] || {
+      for i in "${!workspace_record_paths[@]}"; do
+        [ "${workspace_record_scopes[$i]}" != legacy ] || [ "${workspace_record_paths[$i]}" != "$value" ] || {
           printf 'mgit: %s: duplicate registered member path: %s\n' "$file" "$value" >&2
           return 1
         }
       done
-      workspace_location_paths+=("$value")
+      workspace_group_known default || workspace_groups+=(default)
+      workspace_record_groups+=(default)
+      workspace_record_kinds+=(repository)
+      workspace_record_paths+=("$value")
+      workspace_record_types+=("")
+      workspace_record_sources+=("")
+      workspace_record_scopes+=(legacy)
       in_location_member=true
       continue
     fi
@@ -1069,6 +1112,7 @@ parse_workspace() {
       }
       workspace_group_known default || workspace_groups+=(default)
       workspace_member_group=default
+      workspace_member_direct=true
       workspace_member_kind=""
       workspace_member_path="$value"
       workspace_member_type=""
@@ -1106,6 +1150,7 @@ parse_workspace() {
       }
       workspace_group_known "$group" || workspace_groups+=("$group")
       workspace_member_group="$group"
+      workspace_member_direct=false
       workspace_member_kind=""
       workspace_member_path="$value"
       workspace_member_type=""
@@ -1234,9 +1279,10 @@ parse_workspace() {
   workspace_finish_member "$file" || return 1
   if [ "$seen_locations" = false ]; then workspace_locations=(local); fi
   workspace_location_known local || { printf 'mgit: %s: locations must include local\n' "$file" >&2; return 1; }
-  [ "$snapshot_source" != registered ] || [ "$seen_locations" = true ] || {
-    printf 'mgit: %s: registered members require locations\n' "$file" >&2; return 1;
-  }
+  if [ "$snapshot_source" = registered ]; then
+    [ "$seen_locations" = true ] || { printf 'mgit: %s: registered members require locations\n' "$file" >&2; return 1; }
+    workspace_warn_legacy "$file"
+  fi
   workspace_sort_members
   if [ "$seen_kind" != true ] || [ "$kind" != workspace ]; then
     printf 'mgit: %s: missing kind = "workspace"\n' "$file" >&2
@@ -1322,7 +1368,7 @@ config_repair_command() {
 }
 
 write_locations() {
-  local path location separator=""
+  local location separator=""
   printf 'locations = ['
   for location in "${workspace_locations[@]}"; do
     printf '%s' "$separator"
@@ -1330,11 +1376,6 @@ write_locations() {
     separator=', '
   done
   printf ']\n'
-  for path in "${workspace_location_paths[@]+"${workspace_location_paths[@]}"}"; do
-    printf '\n[registered.members.'
-    toml_quote "$path" || return 1
-    printf ']\n'
-  done
 }
 
 help_command() {
@@ -1546,22 +1587,43 @@ register_location_dirs=()
 register_location_values=()
 register_snapshot_dirs=()
 register_snapshot_paths=()
+register_snapshot_roots=()
+register_snapshot_types=()
+register_snapshot_sources=()
+register_discovered=()
 register_change_specs=()
 register_action=refresh
 register_dry_run=false
 
+# Record one location root as a typed repository member of workspace $1,
+# keyed by its path relative to the workspace's physical directory $2.
 register_snapshot_add() {
-  local dir="$1" canonical="$2" root="$3" relative i
+  local dir="$1" canonical="$2" root="$3" relative type source i
+  capture_dir root "$root" || return 1
   relative=$(relpath "$canonical" "$root")
-  if ! location_path_safe "$relative" || ! toml_escape "$relative" >/dev/null; then
+  if { ! workspace_path_safe "$relative" && ! workspace_external_path_safe "$relative"; } ||
+     ! toml_escape "$relative" >/dev/null; then
     printf 'mgit register: repository path cannot be represented: %s\n' "$root" >&2
     return 1
   fi
   for i in "${!register_snapshot_dirs[@]}"; do
-    [ "${register_snapshot_dirs[$i]}" != "$dir" ] || [ "${register_snapshot_paths[$i]}" != "$relative" ] || return 0
+    [ "${register_snapshot_dirs[$i]}" != "$dir" ] || [ "${register_snapshot_roots[$i]}" != "$root" ] || return 0
   done
+  type=$(repo_type "$root")
+  [ "$type" != unknown ] || {
+    printf 'mgit register: location is not a repository: %s\n' "$root" >&2
+    return 1
+  }
+  source=$(git -C "$root" remote get-url origin 2>/dev/null || true)
+  [ -z "$source" ] || toml_escape "$source" >/dev/null || {
+    printf 'mgit register: repository source cannot be represented in TOML: %s\n' "$source" >&2
+    return 1
+  }
   register_snapshot_dirs+=("$dir")
   register_snapshot_paths+=("$relative")
+  register_snapshot_roots+=("$root")
+  register_snapshot_types+=("$type")
+  register_snapshot_sources+=("$source")
 }
 
 register_prepare_locations() {
@@ -1684,7 +1746,7 @@ register_preflight_tree() {
 
 register_tree() {
   local dir="$1" child kid_kinds=() kid_types=() kid_paths=() kid_sources=()
-  local kind child_kind source status i
+  local kind child_kind source status i root local_count external_count
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
@@ -1704,6 +1766,7 @@ register_tree() {
       register_tree "$child"
       status=$?
       [ "$status" -eq 0 ] || return "$status"
+      capture_dir root "$child" && register_discovered+=("$root")
       source=$(git -C "$child" remote get-url origin 2>/dev/null || true)
       kid_kinds+=(repository)
       kid_types+=("$child_kind")
@@ -1726,19 +1789,30 @@ register_tree() {
     parse_workspace "$dir/$MGIT_MANIFEST" || return 2
   fi
   workspace_locations=()
-  workspace_location_paths=()
   for i in "${!register_location_dirs[@]}"; do
     [ "${register_location_dirs[$i]}" = "$dir" ] || continue
     workspace_locations+=("${register_location_values[$i]}")
   done
+  # Location roots become ordinary repository members after the local ones.
+  # A root inside this workspace that local discovery already recorded, here or
+  # in a child workspace, is not written again.
+  local_count=${#kid_types[@]}
   for i in "${!register_snapshot_dirs[@]}"; do
     [ "${register_snapshot_dirs[$i]}" = "$dir" ] || continue
-    workspace_location_paths+=("${register_snapshot_paths[$i]}")
+    case "${register_snapshot_paths[$i]}" in
+      ../*) ;;
+      *) selected_path_seen "${register_snapshot_roots[$i]}" "${register_discovered[@]+"${register_discovered[@]}"}" && continue ;;
+    esac
+    kid_kinds+=(repository)
+    kid_types+=("${register_snapshot_types[$i]}")
+    kid_paths+=("${register_snapshot_paths[$i]}")
+    kid_sources+=("${register_snapshot_sources[$i]}")
   done
-  if [ ${#kid_types[@]} -gt 0 ] || [ ${#workspace_location_paths[@]} -gt 0 ]; then
+  external_count=$((${#kid_types[@]} - local_count))
+  if [ ${#kid_types[@]} -gt 0 ]; then
     if [ "$register_dry_run" = true ]; then
-      printf 'mgit register: would write %s (%d local and %d additional member(s))\n' \
-        "$dir/$MGIT_MANIFEST" "${#kid_types[@]}" "${#workspace_location_paths[@]}"
+      printf 'mgit register: would write %s (%d local and %d external member(s))\n' \
+        "$dir/$MGIT_MANIFEST" "$local_count" "$external_count"
       return 0
     fi
     {
@@ -1760,12 +1834,11 @@ register_tree() {
         fi
         printf '\n'
       done
-      [ ${#kid_types[@]} -gt 0 ] || printf '\n[members]\n'
     } > "$dir/$MGIT_MANIFEST" || return 2
     chezmoi_add_manifest "$dir/$MGIT_MANIFEST" || return 2
-    if [ ${#workspace_location_paths[@]} -gt 0 ]; then
-      printf '%s%s%s%s: recorded %d local and %d additional member(s)\n' \
-        "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}" "${#workspace_location_paths[@]}"
+    if [ "$external_count" -gt 0 ]; then
+      printf '%s%s%s%s: recorded %d local and %d external member(s)\n' \
+        "$BOLD" "$YELLOW" "$dir" "$CLEAR" "$local_count" "$external_count"
     else
       printf '%s%s%s%s: recorded %d member(s)\n' "$BOLD" "$YELLOW" "$dir" "$CLEAR" "${#kid_types[@]}"
     fi
@@ -1783,7 +1856,8 @@ register_tree() {
 }
 
 # Repair is deliberately workspace-driven: it never discovers arbitrary
-# repositories and never replaces an existing path. Structural default-group
+# repositories, never replaces an existing path and never clones an external
+# member outside the workspace. Structural default-group
 # repository entries carry the type and optional source emitted by register.
 repair_seen=()
 repair_dry_run=false
@@ -1807,8 +1881,8 @@ repair_preflight_seen() {
 }
 
 repair_preflight() {
-  local base="$1" canonical destination actual i identity
-  local groups=() kinds=() paths=() types=() sources=()
+  local base="$1" canonical destination actual i identity scope
+  local groups=() kinds=() paths=() types=() sources=() scopes=()
   capture_dir canonical "$base" || {
     printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
     return 1
@@ -1825,8 +1899,11 @@ repair_preflight() {
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
   types=("${workspace_record_types[@]+"${workspace_record_types[@]}"}")
   sources=("${workspace_record_sources[@]+"${workspace_record_sources[@]}"}")
+  scopes=("${workspace_record_scopes[@]+"${workspace_record_scopes[@]}"}")
   for i in "${!paths[@]}"; do
     [ "${groups[$i]}" = default ] || continue
+    scope="${scopes[$i]}"
+    [ "$scope" != legacy ] || continue
     destination=$(resolve_path "${paths[$i]}" "$canonical")
     case "${kinds[$i]}" in
       workspace)
@@ -1858,10 +1935,14 @@ repair_preflight() {
             return 1
           }
           capture_dir identity "$destination" || return 1
+        elif [ "$scope" = external ]; then
+          continue
         elif [ -z "${sources[$i]}" ]; then
           printf 'mgit repair: no clone URL for missing member: %s\n' "$destination" >&2
           return 1
         fi
+        # An external repository may be shared by several workspaces.
+        [ "$scope" = local ] || continue
         repair_preflight_seen "$identity" \
           "${repair_preflight_repositories[@]+"${repair_preflight_repositories[@]}"}" && {
           printf 'mgit repair: duplicate repository path: %s\n' "$identity" >&2
@@ -1905,8 +1986,8 @@ repair_clone() {
 }
 
 repair_tree() {
-  local base="$1" canonical kind member source destination actual failed=false i
-  local groups=() kinds=() paths=() types=() sources=()
+  local base="$1" canonical kind member source destination actual failed=false i scope
+  local groups=() kinds=() paths=() types=() sources=() scopes=()
   capture_dir canonical "$base" || {
     printf 'mgit repair: cannot read workspace directory: %s\n' "$base" >&2
     return 1
@@ -1922,9 +2003,13 @@ repair_tree() {
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
   types=("${workspace_record_types[@]+"${workspace_record_types[@]}"}")
   sources=("${workspace_record_sources[@]+"${workspace_record_sources[@]}"}")
+  scopes=("${workspace_record_scopes[@]+"${workspace_record_scopes[@]}"}")
 
   for i in "${!paths[@]}"; do
     [ "${groups[$i]}" = default ] || continue
+    scope="${scopes[$i]}"
+    # Legacy registered entries carry no type or source; they select only.
+    [ "$scope" != legacy ] || continue
     kind="${kinds[$i]}"
     member="${paths[$i]}"
     source="${sources[$i]}"
@@ -1962,6 +2047,11 @@ repair_tree() {
           fi
           printf 'mgit repair: present %s\n' "$destination"
         else
+          # External repositories belong to another tree; repair never clones them.
+          if [ "$scope" = external ]; then
+            printf 'mgit repair: not cloning missing external member: %s\n' "$destination"
+            continue
+          fi
           if [ -z "$source" ]; then
             printf 'mgit repair: no clone URL for missing member: %s\n' "$destination" >&2
             failed=true
@@ -2096,7 +2186,7 @@ print_diagnostic_context() {
 }
 
 doctor_command() {
-  local help=false pass=0 fail=0
+  local help=false pass=0 warn=0 fail=0
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
@@ -2120,13 +2210,18 @@ doctor_command() {
       printf 'pass configuration: no manifest; filesystem discovery available\n'
       pass=$((pass + 1)) ;;
     valid)
-      printf 'pass configuration: %s manifest valid\n' "$diagnostic_kind"
-      pass=$((pass + 1)) ;;
+      if [ -n "$diagnostic_issue" ]; then
+        printf 'warn configuration: %s manifest uses deprecated [registered.members]; preview mgit register --dry-run, then run mgit register.\n' "$diagnostic_kind"
+        warn=$((warn + 1))
+      else
+        printf 'pass configuration: %s manifest valid\n' "$diagnostic_kind"
+        pass=$((pass + 1))
+      fi ;;
     invalid)
       printf 'fail configuration: correct .mgit.toml; run mgit diag --full for error details.\n'
       fail=$((fail + 1)) ;;
   esac
-  printf 'Checks: pass=%s warn=0 fail=%s skipped=0\n' "$pass" "$fail"
+  printf 'Checks: pass=%s warn=%s fail=%s skipped=0\n' "$pass" "$warn" "$fail"
   if [ "$fail" -gt 0 ]; then
     printf 'Verdict: unhealthy\n'
     return 1
@@ -2830,6 +2925,7 @@ sync_command() {
 
 selected_workspace_dirs=()
 selected_repo_dirs=()
+selected_local_repo_dirs=()
 
 selected_path_seen() {
   local needle="$1" item
@@ -2840,9 +2936,12 @@ selected_path_seen() {
   return 1
 }
 
+# Repositories are identified by physical path. Two local members reaching the
+# same repository are a manifest error; an external member may also be reached
+# from another workspace in the recursive set, so it is selected once.
 select_workspace() {
-  local base="$1" requested_group="$2" canonical group destination actual i
-  local groups=() kinds=() paths=() location_paths=() path
+  local base="$1" requested_group="$2" canonical group destination actual i pass scope
+  local groups=() kinds=() paths=() scopes=()
   capture_dir canonical "$base" || {
     printf 'mgit: cannot read workspace directory: %s\n' "$base" >&2
     return 1
@@ -2862,57 +2961,54 @@ select_workspace() {
   groups=("${workspace_record_groups[@]+"${workspace_record_groups[@]}"}")
   kinds=("${workspace_record_kinds[@]+"${workspace_record_kinds[@]}"}")
   paths=("${workspace_record_paths[@]+"${workspace_record_paths[@]}"}")
-  location_paths=("${workspace_location_paths[@]+"${workspace_location_paths[@]}"}")
-  for i in "${!paths[@]}"; do
-    [ "${groups[$i]}" = "$group" ] || continue
-    destination=$(resolve_path "${paths[$i]}" "$canonical")
-    case "${kinds[$i]}" in
-      workspace)
-        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
-          printf 'mgit: unsafe or missing workspace path: %s\n' "$destination" >&2
-          return 1
-        fi
-        [ -f "$destination/$MGIT_MANIFEST" ] || {
-          printf 'mgit: workspace manifest not found: %s\n' "$destination/$MGIT_MANIFEST" >&2
-          return 1
-        }
-        select_workspace "$destination" "" || return 1
-        ;;
-      repository)
-        if [ ! -d "$destination" ] || [ -L "$destination" ]; then
-          printf 'mgit: unsafe or missing repository path: %s\n' "$destination" >&2
-          return 1
-        fi
-        capture_dir destination "$destination" || return 1
-        actual=$(repo_type "$destination")
-        [ "$actual" != unknown ] || {
-          printf 'mgit: workspace member is not a repository: %s\n' "$destination" >&2
-          return 1
-        }
-        selected_path_seen "$destination" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" && {
-          printf 'mgit: duplicate repository path in workspace selection: %s\n' "$destination" >&2
-          return 1
-        }
-        selected_repo_dirs+=("$destination")
-        ;;
-    esac
-  done
-  if [ "$group" = default ]; then
-    for path in "${location_paths[@]+"${location_paths[@]}"}"; do
-      destination=$(resolve_path "$path" "$canonical")
-      if [ ! -d "$destination" ] || [ -L "$destination" ]; then
-        printf 'mgit: unsafe or missing registered member: %s\n' "$destination" >&2
-        return 1
-      fi
-      capture_dir destination "$destination" || return 1
-      actual=$(repo_type "$destination")
-      [ "$actual" != unknown ] || {
-        printf 'mgit: registered member is not a repository: %s\n' "$destination" >&2
-        return 1
-      }
-      selected_path_seen "$destination" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" || selected_repo_dirs+=("$destination")
+  scopes=("${workspace_record_scopes[@]+"${workspace_record_scopes[@]}"}")
+  for pass in local external; do
+    for i in "${!paths[@]}"; do
+      [ "${groups[$i]}" = "$group" ] || continue
+      scope="${scopes[$i]}"
+      [ "$scope" != legacy ] || scope=external
+      [ "$scope" = "$pass" ] || continue
+      destination=$(resolve_path "${paths[$i]}" "$canonical")
+      case "${kinds[$i]}" in
+        workspace)
+          if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+            printf 'mgit: unsafe or missing workspace path: %s\n' "$destination" >&2
+            return 1
+          fi
+          [ -f "$destination/$MGIT_MANIFEST" ] || {
+            printf 'mgit: workspace manifest not found: %s\n' "$destination/$MGIT_MANIFEST" >&2
+            return 1
+          }
+          select_workspace "$destination" "" || return 1
+          ;;
+        repository)
+          if [ ! -d "$destination" ] || [ -L "$destination" ]; then
+            if [ "$scope" = local ]; then
+              printf 'mgit: unsafe or missing repository path: %s\n' "$destination" >&2
+            else
+              printf 'mgit: unsafe or missing external repository path: %s\n' "$destination" >&2
+            fi
+            return 1
+          fi
+          capture_dir destination "$destination" || return 1
+          actual=$(repo_type "$destination")
+          [ "$actual" != unknown ] || {
+            printf 'mgit: workspace member is not a repository: %s\n' "$destination" >&2
+            return 1
+          }
+          if [ "$scope" = local ]; then
+            selected_path_seen "$destination" "${selected_local_repo_dirs[@]+"${selected_local_repo_dirs[@]}"}" && {
+              printf 'mgit: duplicate repository path in workspace selection: %s\n' "$destination" >&2
+              return 1
+            }
+            selected_local_repo_dirs+=("$destination")
+          fi
+          selected_path_seen "$destination" "${selected_repo_dirs[@]+"${selected_repo_dirs[@]}"}" ||
+            selected_repo_dirs+=("$destination")
+          ;;
+      esac
     done
-  fi
+  done
 }
 
 # Resolve one named KI territory, the registered estate or the territory
