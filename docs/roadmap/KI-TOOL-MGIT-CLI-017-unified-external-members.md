@@ -9,9 +9,9 @@ horizon: now
 status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: 438722c6a899aaa9b1624a7e122cd844fc250e88
+baseline_ref: 4070e62095da49f79f55e090973a07ac3c163146
 created_at: 2026-10-16T21:10:00Z
-updated_at: 2026-10-16T22:05:00Z
+updated_at: 2026-10-17T21:26:12Z
 ---
 
 # Unified external members
@@ -24,10 +24,14 @@ A workspace manifest records every repository in its set, local or external, as 
 
 Owner request of 16 October 2026: the dotfiles checkout `~/.local/share/chezmoi` joins the personal workspace (`~/workspaces/personal`) as `../../.local/share/chezmoi`, with a navigation symlink `~/workspaces/personal/dotfiles`. Discovery skips symlinked repositories, so explicit registration stays. The generated `[registered.members."PATH"]` tables carry no type or source and are a second representation of the same set; the owner asks for one members representation. The request authorises capture, planning and delivery of this record; it grants no acceptance, release or tag.
 
+A parallel capture of 17 October 2026, _Unify repository members_, recorded the same request under this number and is merged here. It adds that the dotfiles checkout's Git remote is `git@github.com:krisb/dotfiles.git`, that the earlier registration wrote `repo:../../.local/share/chezmoi` in `locations` beside an empty `registered.members` table, and that the owner wants the external path under ordinary `members` with `kind = "repository"`, `type = "standard"` and the origin as `source`. The [repository-set guide](../guides/user/repository-sets.md) describes the resulting model.
+
+Reconciliation, 17 October 2026: the delivery commits were rebased onto that capture. The original Ready baseline `438722c` and the parallel reservation `b206b8d` made the same ledger advance, so the rebase dropped `438722c`; `4070e62`, which holds both the reservation and the parallel capture, is the baseline now.
+
 ## Boundary
 
 - **In:** member path validation, parsing, register output, recursive selection and deduplication, repair, legacy `registered.members` migration, doctor, help, manual, README, specification, user guide, changelog and tests.
-- **Out:** a repair option that clones external members, changes to `locations` grammar, territory producer behaviour, version bump, release, tag and Homebrew publication.
+- **Out:** a repair option that clones external members, changes to `locations` grammar, territory producer behaviour, version bump, release, tag and Homebrew publication. Renaming the dotfiles checkout or changing its remote, general symlink discovery, a change to repository-selection scope and any new runtime dependency are out too. The working chezmoi registration and navigation symlink stay until a reviewed migration is available; consumer changes belong to their owning repository, and this record grants no authority to apply dotfiles or modify live workspaces.
 
 ## Current state
 
@@ -77,11 +81,11 @@ This single record.
 
 ### Delivered
 
-From Ready baseline `438722c`, external repositories are ordinary `[members."../PATH"]` entries with `kind`, `type` and `source`, generated from saved `repo:` and `territory:` locations. Selection deduplicates by physical path across the recursive set; repair validates present external members and never clones a missing one; legacy `[registered.members]` tables stay readable with a once-per-manifest warning and a doctor warning until `mgit register` rewrites them. No version bump, release, tag, acceptance or pruning.
+From the Ready baseline (`438722c` before rebase, now `4070e62`), external repositories are ordinary `[members."../PATH"]` entries with `kind`, `type` and `source`, generated from saved `repo:` and `territory:` locations. Selection deduplicates by physical path across the recursive set; repair validates present external members and never clones a missing one; legacy `[registered.members]` tables stay readable with a once-per-manifest warning and a doctor warning until `mgit register` rewrites them. No version bump, release, tag, acceptance or pruning.
 
 ### Change Summary
 
-`bcac3d1` changes `bin/mgit` (path rule, parser scopes, register, selection, repair, doctor, help), adds five Bats cases and updates two, and updates the manual, README, changelog, workspace-dispatch specification and repository-sets guide.
+`e7511d1` (`bcac3d1` before rebase) changes `bin/mgit` (path rule, parser scopes, register, selection, repair, doctor, help), adds five Bats cases and updates two, and updates the manual, README, changelog, workspace-dispatch specification and repository-sets guide.
 
 ### Verification
 
@@ -108,3 +112,12 @@ Planning decisions, 16 October 2026:
 - **Selection and deduplication.** Selection takes local members, then external members, each in path order. Repositories are identified by their resolved physical path: an external member already selected anywhere in the recursive set, or a local member already selected as an external one, is skipped; two local members resolving to the same repository still fail.
 - **Repair.** Repair validates present external members like local ones but never clones a missing external member; it reports it and continues.
 - **Migration.** Legacy `[registered.members."PATH"]` tables stay readable for selection with a once-per-manifest deprecation warning. Plain `mgit register` (or `--dry-run` to preview) rewrites them as members from the saved locations. No separate migrate command.
+
+Requirements folded in from the parallel capture, 17 October 2026, each met by the delivery above:
+
+- **One member namespace.** Local discovery and explicit external registration share one path-keyed repository member; `locations` keeps refresh intent; repository and workspace documents, and repository and child-workspace members, stay distinct.
+- **Path safety.** External paths may leave the workspace directory under an explicit rule rather than a weakened general check; registration, parsing, recursive dispatch, identity resolution and deduplication are reviewed together.
+- **Migration.** Existing `registered.members` manifests remain readable, and rewriting never silently discards saved locations or unrelated members.
+- **Verification.** The checkout dispatches exactly once from `~/workspaces/personal` and `~/workspaces`, with the navigation symlink present; disposable public-CLI tests cover external relative paths, duplicate inclusion, nested traversal, invalid paths and migration failures.
+- **Repair and offline dispatch.** Recording an external `source` never makes repair clone; ordinary dispatch keeps using the saved member set offline.
+- **Consumer coordination.** The consumer source `workspaces/personal/dot_mgit.toml` in [krisb/dotfiles](https://github.com/krisb/dotfiles) migrates alongside a released mGit, preserving source/live agreement and chezmoi's review-and-apply boundary.
