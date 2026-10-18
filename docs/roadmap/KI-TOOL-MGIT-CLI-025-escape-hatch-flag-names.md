@@ -5,24 +5,25 @@ title: Escape-hatch flag names
 kind: deliver
 purpose: debt
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 33ab1c55b77d450de0de06a4973b2e4ad3705785
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T08:57:04Z
+updated_at: 2026-10-18T17:15:31Z
 ---
 
 ## Goal
 
-Settle the escape-hatch flags: the deprecated `-B/--bare` alias goes now, `-R/--raw` stays for running any command, and `-G/--git` stays as a temporary name for running Git past mgit's own commands until `-B` returns in its place as the bypass-to-Git flag.
+Settle the escape-hatch flags: the deprecated `-B/--bare` alias goes, `-R/--raw` stays for running any command, and `-B/--bypass` becomes the flag for running Git past mgit's own commands, replacing the temporary `-G/--git`, which is dropped.
 
 ## Context
 
 Kris's answer of 18 October 2026 in the ways-of-working decisions log ("owner answers, batch 5"): "But I think minus K can just be dropped anyway. You've got an idea of everything that I run on my machine. So yeah, on the past to a scare patch, I think I'd rather go with that, which is a raw and a, and then I'd really, we could run that for a little while and we can say that minus G is a temporary gap and then it goes back to minus B for a bypass." The thread read it back as MGIT-FLAGS: drop the deprecated `-B` now; keep `-R` (raw) and `-G`; `-G` is temporary, and later `-B` returns as the bypass-to-Git flag. "Minus K" is read as `-B` and "past to a scare patch" as the pass-through escape hatch.
 
 Kris confirmed the reading on 18 October 2026 in the ways-of-working decisions log ("owner answers (typed)", MGIT-FLAGS): first migrate every `mgit -B` use in the chezmoi source and across the repositories to `mgit -R`, then remove `-B`.
+
+Kris amended the record on 18 October 2026 in the ways-of-working decisions log ("owner answers, recap batch", MGIT-FLAGS): with every old `-B` use migrated, `-B` becomes the bypass-to-Git flag now, `-G` is dropped and `-R` stays raw; the record is accepted under ACCEPT-AND-PRUNE once the amended criteria pass. `-P/--physical` and `-L/--follow-symlinks` are unchanged; whether `-L` should become a short flag for `--learn` is query MGIT-LEARN-FLAG.
 
 [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md) delivered `-G/--git`, `-R/--raw` and `-B/--bare` as a deprecated alias of `-R` that warns once on standard error.
 
@@ -41,7 +42,8 @@ The confirmed migration repeated the search on 18 October 2026 with the same res
 
 - **In:** removing `-B/--bare` as an alias of `-R` (a usage error naming `-R/--raw` for a transition period, so `mgit -B npm test` never runs as `git npm test`); help, manual, completion, README, running-commands guide, MGIT-WS-014, MGIT-WS-019, MGIT-WS-022, changelog and Bats cases; noting `-G` as temporary in help and the guide.
 - **In:** the territory Bats suites switch their fixture dispatch from `-B` to `-R`.
-- **Out:** reintroducing `-B` as the bypass-to-Git flag, which is a later step after `-G` has run for a while and needs its own record; renaming `-R`; editing the chezmoi completion, owned by the dotfiles repository. No release.
+- **In (amendment):** `-B/--bypass` as the bypass-to-Git flag in place of `-G/--git`; `-G` and `--git` become status-`2` usage errors naming `-B/--bypass`; `--bare` stays a usage error naming `-R/--raw`; help, completion, manual, README, guide, MGIT-WS-014, MGIT-WS-022, changelog and Bats cases.
+- **Out:** renaming `-R`; changing `-P` or `-L`; editing the chezmoi completion, owned by the dotfiles repository. No release.
 
 ## Current state
 
@@ -57,6 +59,8 @@ The confirmed migration repeated the search on 18 October 2026 with the same res
 - [x] Switch `tests/territory-protocol.bats` and `tests/territory-producer.bats` fixture dispatch from `-B` to `-R`.
 - [x] Update the manual, README, running-commands guide, MGIT-WS-014, MGIT-WS-022 and the changelog baseline.
 - [x] Run the complete gate.
+- [x] Amendment: make `-B/--bypass` the bypass-to-Git flag, turn `-G` and `--git` into usage errors naming `-B/--bypass`, keep `--bare` as a usage error naming `-R/--raw`, and update help, both completion scripts, the manual, README, guide, MGIT-WS-014, MGIT-WS-022, changelog and Bats cases.
+- [x] Amendment: run the complete gate.
 
 ## Files touched
 
@@ -64,7 +68,7 @@ The confirmed migration repeated the search on 18 October 2026 with the same res
 
 ## Verify
 
-The [definition of done](../guides/developer/definition-of-done.md) gate passes, in disposable fixtures. `mgit -B pwd` and `mgit --bare pwd` exit `2` with the `-R/--raw` hint and no command output; `mgit -R pwd` is unchanged; `mgit --help`, `mgit completion bash` and `mgit completion zsh` no longer offer `-B` or `--bare`.
+The [definition of done](../guides/developer/definition-of-done.md) gate passes, in disposable fixtures. As amended: `mgit --bare pwd` exits `2` with the `-R/--raw` hint and no command output; `mgit -G status` and `mgit --git status` exit `2` with the `-B/--bypass` hint; `mgit -B worktree list` runs `git worktree list` in every checkout; `mgit -R pwd` is unchanged; `mgit --help`, `mgit completion bash` and `mgit completion zsh` offer `-B/--bypass` and no longer offer `-G`, `--git` or `--bare`.
 
 ## Dependencies / blocks
 
@@ -86,7 +90,7 @@ Running commands drops the deprecation note and marks `-G` as temporary.
 
 ### Roadmap
 
-A later record makes `-B` the bypass-to-Git flag.
+None; the amendment brought `-B` back as the bypass-to-Git flag here rather than in a later record.
 
 ## Review
 
@@ -94,12 +98,15 @@ A later record makes `-B` the bypass-to-Git flag.
 
 Within the approved boundary, `-B` and `--bare` are no longer an alias of `-R`: both are status-`2` usage errors that name `-R/--raw` and run nothing, raised in global option parsing before discovery. `-R/--raw` is unchanged, and `-G/--git` is marked as a temporary name in usage text, the manual, README, guide and changelog. Excluded as planned: reintroducing `-B` as the Git bypass, renaming `-R`, the chezmoi completion and any release. Baseline `33ab1c55b77d450de0de06a4973b2e4ad3705785`; the delivery commit follows it.
 
+Amendment, 18 October 2026, delivered by the ways-of-working mgit-learn run in the same commit as [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md): `-B/--bypass` is the bypass-to-Git flag, `-G` and `--git` are usage errors naming `-B/--bypass`, and `--bare` stays a usage error naming `-R/--raw`.
+
 ### Change Summary
 
 - `bin/mgit`: `-B|--bare` case is a usage error; the `bare_option` variable and the deprecation warning are gone, and messages name `--raw` directly; usage text drops `-B, --bare` and adds the `-G` temporary note; Bash and Zsh completion drop `-B` and `--bare`.
 - `tests/mgit.bats`: new case `-B and --bare are removed and run nothing` (both spellings, alone, with `-G` and with `sync`); the `--raw` case drops its alias assertions; selector and combination cases use `-R` in place of `-B`; help and completion cases assert the `-G` note and the absence of `-B`/`--bare`.
 - `tests/territory-protocol.bats`, `tests/territory-producer.bats`: fixture dispatch uses `-R`.
 - `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `docs/specs/workspace-dispatch.md` (MGIT-WS-014, MGIT-WS-022), `CHANGELOG.md`: alias removed, removal and the temporary `-G` name documented.
+- Amendment: `bin/mgit` gains the `-B|--bypass` case setting the Git bypass mode, `-G|--git` and `--bare` usage errors and `--bypass` messages; usage text, Bash and Zsh completion, manual, README, guide, MGIT-WS-014, MGIT-WS-022 and changelog name `-B/--bypass`; Bats cases `--bypass runs Git subcommands that mgit owns`, `--bare, -G and --git are removed and run nothing` and `--bypass and --raw reject invalid combinations` replace the `-B`/`-G` cases.
 - Deviation from the captured plan, made at planning: the two territory suites joined the boundary because they still drove fixtures with `-B`.
 
 ### Verification
@@ -107,6 +114,7 @@ Within the approved boundary, `-B` and `--bare` are no longer an alias of `-R`: 
 - `ki repo audit --repo .`: pass (FAIL=0; three warnings, all present at baseline: no committed pre-commit hook, and seven non-fatal `[[ ]]` assertions in the two territory suites on lines this change did not touch).
 - `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check`: pass.
 - `MGIT_KI_PRODUCER=/opt/homebrew/bin/ki TMPDIR=<run temp> bats tests/`: 123 of 123 pass, none skipped, all in disposable fixtures with isolated HOME and XDG.
+- Amendment: the complete gate passed again on the delivery commit; see [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md) Verification for the run.
 - Hand check in a disposable repository: `mgit -B pwd` and `mgit --bare pwd` print the `-R/--raw` hint and run nothing; `mgit -R pwd` runs; help and both completion scripts no longer offer `-B` or `--bare`.
 
 ### Outstanding concerns
@@ -120,7 +128,11 @@ The goal holds: `mgit -B <command>` can no longer run anything, so `-B` is free 
 
 ### Mini recap
 
-Removed the `-B/--bare` alias as a usage error naming `-R/--raw`, marked `-G` as temporary, and updated help, completion, manual, guide, spec, README, changelog and tests; the full gate passes. Learning route proposed, not promoted: the next record that brings `-B` back as the Git bypass should also decide whether the removal error stays for a transition period.
+Removed the `-B/--bare` alias as a usage error naming `-R/--raw`, marked `-G` as temporary, and updated help, completion, manual, guide, spec, README, changelog and tests; the full gate passes. Learning route proposed, not promoted: the next record that brings `-B` back as the Git bypass should also decide whether the removal error stays for a transition period. The amendment then brought `-B` back as `-B/--bypass` and dropped `-G`, keeping a removal error for `-G`, `--git` and `--bare`.
+
+## Done
+
+Accepted 2026-10-18 under Kris's MGIT-FLAGS and ACCEPT-AND-PRUNE answers in the owner answers, recap batch, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md): "We fixed all the uses of -b previously, so now we can use -b as the bypass." and "Yes, I think we can drop the -G, for example, and just go straight to -B for bypass." The amended criteria passed in the complete gate.
 
 ## Discussion
 
