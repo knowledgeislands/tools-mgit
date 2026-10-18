@@ -7,12 +7,12 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-17T21:31:16Z
+updated_at: 2026-10-18T04:10:00Z
 ---
 
 ## Goal
 
-Make `mgit` output readable across a whole estate: progress while it runs, then a concise end-of-run result that names only the repositories that need attention.
+Give `mgit` one shared runner and output layer that every multi-repository command uses: a bounded parallel worker pool, progress while it runs, then a concise end-of-run result that names only the repositories that need attention, with `--verbose` and `--json` alternatives.
 
 ## Context
 
@@ -27,6 +27,16 @@ The reference approach is [Git Almanac](https://github.com/knowledgeislands/tool
 This capture does not adopt, schedule, implement or release anything. It does not change the repository-selection boundary, `.mgit.toml` model or exit-status contract, and grants no authority to add a runtime dependency or toolchain.
 
 ## Discussion
+
+### Scope (provisional)
+
+The tools-burndown roadmap overview of 17 October proposed an mgit plan that splits this capture three ways. Its MGIT-RECORDS query recommended a), and the tools-burndown run of 18 October took it, with ESTATE-HOME a), ESCAPE-NAMES a) and OVERVIEW-VERB a), under Kris's overnight instruction to take the recommended course on a judgement call ("provisional, for Kris to confirm"):
+
+- **This record:** the shared runner and output. `-j/--jobs N` bounds a worker pool (about 8 by default) in which each worker writes one result file; one progress line goes to stderr on a terminal only; results come at the end, naming only repositories with something to say; `-v/--verbose` shows every repository and `--json` serves tools such as `ki` and git-almanac.
+- **[KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md):** sync's parallel fetch, classification and fast-forward-only action on this runner.
+- **[KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md):** the read-only `mgit overview` estate view on this runner.
+
+mgit stays pure Bash, as [AGENTS.md](../../AGENTS.md) requires, borrowing only Git Almanac's adapter, model and renderer separation and its output conventions. Bash 3.2 has no `wait -n`, so the pool is background jobs writing result files with a job-slot poll; if that proves fragile, moving the core to TypeScript/Bun is a separate owner decision. The Implementation route section below records the question this answers.
 
 ### Shape
 

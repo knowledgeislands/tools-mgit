@@ -7,7 +7,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-17T21:31:16Z
+updated_at: 2026-10-18T04:10:00Z
 ---
 
 ## Goal
@@ -18,7 +18,7 @@ Give `mgit` an explicit escape hatch so a Git subcommand that `mgit` overrides, 
 
 Owner request, 17 October 2026, in Kris's words: "A lot commands in mgit effectively pass-throughs ... anything I create mgit level overrides pass-through ... There should some kind escape hatch". The requested options are:
 
-- `--bare`: run the Git subcommand in each child, bypassing `mgit`'s own command of the same name.
+- `--bare`: run the Git subcommand in each child, bypassing `mgit`'s own command of the same name (named `--git` below).
 - `--raw`: run any shell command in each repository, replacing today's `-B`.
 - Clear physical and follow-symlinks options.
 
@@ -30,20 +30,24 @@ This capture does not adopt, schedule, implement or release anything. It does no
 
 ## Discussion
 
+### Names (provisional)
+
+The tools-burndown roadmap overview of 17 October found that "bare" already has two meanings in mgit: today's `-B/--bare` shell-command option, and the bare repositories that `sync` skips. Reusing `--bare` for Git bypass would add a third. Its ESCAPE-NAMES query recommended a): `--git` (`-G`) for plain Git pass-through and `--raw` (`-R`) for shell commands, retiring `-B/--bare` with an error that names `--raw`. The tools-burndown run of 18 October took a) under Kris's overnight instruction to take the recommended course on a judgement call ("provisional, for Kris to confirm"), so this record now uses those names.
+
 ### Dispatch model
 
 ```text
  mgit [selectors] ARGS...
    │
-   ├── --raw CMD...        ──> run CMD in each checkout (shell command)     [was -B / --bare]
-   ├── --bare GITCMD...    ──> git GITCMD in each checkout, even if mgit owns GITCMD
-   ├── owned command       ──> mgit implementation (worktree, sync, ...)
+   ├── --raw / -R CMD...   ──> run CMD in each checkout (shell command)     [was -B / --bare]
+   ├── --git / -G GITCMD.. ──> git GITCMD in each checkout, even if mgit owns GITCMD
+   ├── -B / --bare         ──> usage error naming --raw
+   ├── owned command       ──> mgit implementation (worktree, sync, overview, ...)
    └── anything else       ──> git ARGS in each checkout (pass-through)
 ```
 
-- **Breaking rename.** `--bare` changes meaning from "shell command" to "Git bypass". Decide whether `-B` is withdrawn, kept briefly as a deprecated alias for `--raw`, or refused with a migration hint, and how the release and changelog signal the break. Silent reinterpretation of an existing `mgit -B npm test` invocation as `git npm test` must not happen.
-- **Short options.** Choose short forms (if any) for `--raw` and `--bare` that cannot be confused with Git's own `--bare`.
+- **Retirement.** `-B/--bare` fails with a usage error that names `--raw`, so an existing `mgit -B npm test` never runs as `git npm test`. The changelog and release notes mark the break.
 - **Raw execution.** Decide whether `--raw` executes argv directly, as `-B` does today, or through a shell string so pipes and redirections work, and how quoting is documented.
 - **Symlink options.** "Clear" options is read as reviewing the names and help for `-P/--physical` and `-L/--follow-symlinks` (for example aligning with `cd -P`/`-L` and stating what is followed); confirm whether a rename is wanted or only clearer documentation.
-- **Selectors and output.** Every selector and `--all-worktrees` should apply to `--bare` and `--raw` as they do to pass-through today. Output interacts with [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md).
-- **Coverage.** Help, manual, completion, README, running-commands guide, workspace-dispatch specification, changelog and Bats cases for each dispatch path and the `-B` migration.
+- **Selectors and output.** Every selector and `--all-worktrees` should apply to `--git` and `--raw` as they do to pass-through today. Output interacts with [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md).
+- **Coverage.** Help, manual, completion, README, running-commands guide, workspace-dispatch specification, changelog and Bats cases for each dispatch path and the `-B` retirement error.
