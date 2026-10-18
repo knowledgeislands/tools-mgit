@@ -70,15 +70,15 @@ The option changes repository listing, ordinary Git or bare-command dispatch, an
 
 ## Synchronise clean repositories
 
-Run `mgit sync` to inspect and update the primary checkout of every repository in the selected set. A checkout with local changes prints `git status --short` output and is skipped. A clean tracking branch runs `git pull --ff-only`, then `git push` when local commits remain ahead of its upstream. Pass `--all-worktrees` to include linked worktrees.
+Run `mgit sync` to inspect and update the primary checkout of every repository in the selected set. It first fetches the upstream remote of every clean tracking branch, up to eight at once (`-j/--jobs N` sets the limit) and once per repository and remote. Then, one checkout at a time, a branch only behind its upstream is fast-forwarded and a branch only ahead is pushed. A diverged branch is named with its ahead and behind counts and left alone: sync never merges or rebases, whatever `pull.rebase` says. A checkout with local changes prints `git status --short` output and is skipped. Pass `--all-worktrees` to include linked worktrees.
 
-Repositories that pulled or pushed commits are named. Repositories that were already current are reported as one final count. Bare repositories, detached heads, branches without upstreams, divergence, and Git command failures are named and make the command exit with status `1` without forcing a change.
+Repositories that pulled or pushed commits are named. Repositories that were already current are reported as one final count, and bare repositories as another. Detached heads, branches without upstreams, divergence, failed fetches and Git command failures are named and make the command exit with status `1` without forcing a change; so does any bare repository. Pass `-v` or `--verbose`, globally or after `sync`, to also see numbered progress for every checkout and each pull and push as it starts.
 
 The existing selectors and filters narrow the same way as ordinary commands:
 
 ```sh
 mgit --filter 'tools-' sync
-mgit --filter 'tools-' sync
+mgit --filter 'tools-' sync --verbose
 mgit --territory knowledge-islands sync
 ```
 

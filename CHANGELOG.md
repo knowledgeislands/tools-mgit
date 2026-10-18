@@ -41,7 +41,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 
 #### Repository management
 
-- `mgit sync`
+- `mgit sync [-i|--interactive] [-v|--verbose]`
 - `mgit overview [--json] [-v|--verbose] [--stale-days <days>]`
 - `mgit structure standard [--dry-run]`
 - `mgit structure nested [--dry-run]`
@@ -72,7 +72,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit doctor` evaluates Git and manifest readiness without mutation, reports its check scope, verdict and pass/warn/fail/skipped counts, and does not assess package updates or repository synchronization. An absent optional manifest is healthy.
 - `doctor` and `diag` share tool/version, proven local/release/unknown installation mode, host platform/architecture, executing Bash runtime and configuration-state context. `diag` keeps paths and configuration errors behind explicit `--full` output.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
-- `mgit sync` skips dirty worktrees, fast-forward pulls and pushes clean tracking branches, reports changed or exceptional repositories, and rolls already-current repositories into one count.
+- `mgit sync` fetches in parallel through the shared runner, once per repository and remote, then fast-forwards branches only behind and pushes branches only ahead, one checkout at a time. Diverged, dirty, detached and untracked branches and failed fetches are warned about and left untouched; it never merges or rebases. Only checkouts that changed or need attention are named, and current and bare repositories are counted; `-v` adds per-checkout progress.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 - Global selectors that a selected command would ignore fail with a namespaced usage error before management work begins; help and version remain available.
 - `-G/--git` sends a command to Git even when mgit owns its name; `-R/--raw` runs a command directly, and `-B/--bare` remains as a deprecated alias that warns on standard error.

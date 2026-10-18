@@ -873,9 +873,9 @@ assert_usage_error() {
   run "$MGIT" -j 2
   [ "$status" -eq 2 ]
   [[ "$output" == *"--jobs cannot be used with listing"* ]] || false
-  run "$MGIT" -v sync
+  run "$MGIT" --json sync
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--verbose cannot be used with sync"* ]] || false
+  [[ "$output" == *"--json cannot be used with sync"* ]] || false
   run "$MGIT" --json doctor
   [ "$status" -eq 2 ]
   [[ "$output" == *"--json cannot be used with doctor"* ]] || false
@@ -921,13 +921,24 @@ assert_usage_error() {
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: [1/2] current: checking"* ]] || false
-  [[ "$output" == *"mgit sync: [2/2] dirty: checking"* ]] || false
+  [[ "$output" != *"checking"* ]] || false
+  [[ "$output" != *"current"* ]] || false
   [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]] || false
   [[ "$output" == *" M payload"* ]] || false
   [[ "$output" == *"mgit sync: 1 repository already in sync"* ]] || false
+
+  run "$MGIT" sync --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: [1/2] current: checking"* ]] || false
+  [[ "$output" == *"mgit sync: [2/2] dirty: checking"* ]] || false
+  [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]] || false
   [[ "$output" != *"mgit sync: current: pulled"* ]] || false
   [[ "$output" != *"mgit sync: current: pushed"* ]] || false
+  expected="$output"
+
+  run "$MGIT" -v sync
+  [ "$status" -eq 1 ]
+  [ "$output" = "$expected" ]
 }
 
 @test "sync pulls incoming commits and pushes outgoing commits" {
@@ -950,43 +961,53 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]] || false
   [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]] || false
-  [[ "$output" == *"mgit sync: incoming: pulling"* ]] || false
-  [[ "$output" == *"mgit sync: outgoing: pushing"* ]] || false
+  [[ "$output" != *"pulling"* ]] || false
+  [[ "$output" != *"pushing"* ]] || false
   [[ "$output" != *"[y/N]"* ]] || false
   [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
   [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
 }
 
-@test "sync interactive mode confirms pull and push separately" {
+@test "sync interactive mode confirms each pull and push" {
   local seed="$BATS_TEST_TMPDIR/seed"
   local origin="$BATS_TEST_TMPDIR/origin.git"
-  local before
+  local ahead_seed="$BATS_TEST_TMPDIR/ahead-seed"
+  local ahead_origin="$BATS_TEST_TMPDIR/ahead.git"
+  local before behind_before branch
   make_origin "$seed" "$origin" baseline
-  git clone -q "$origin" "$TREE/repo"
-  git -C "$TREE/repo" commit -q --allow-empty -m local-update
-  before=$(git --git-dir="$origin" rev-parse HEAD)
+  make_origin "$ahead_seed" "$ahead_origin" baseline
+  git clone -q "$ahead_origin" "$TREE/ahead"
+  git clone -q "$origin" "$TREE/behind"
+  git clone -q "$origin" "$TREE/level"
+  git -C "$TREE/ahead" commit -q --allow-empty -m local-update
+  git -C "$seed" commit -q --allow-empty -m remote-update
+  git -C "$seed" push -q
+  git -C "$TREE/level" pull -q
+  before=$(git --git-dir="$ahead_origin" rev-parse HEAD)
+  behind_before=$(git -C "$TREE/behind" rev-parse HEAD)
+  branch=$(git -C "$TREE/behind" branch --show-current)
 
   cd "$TREE"
-  run bash -c 'printf "n\n" | "$1" sync -i' _ "$MGIT"
+  run bash -c 'printf "n\n\n" | "$1" sync -i' _ "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pull skipped"* ]] || false
-  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]] || false
-  [[ "$output" != *"mgit sync: repo: pushing"* ]] || false
-  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
-
-  run bash -c 'printf "y\nn\n" | "$1" sync -i' _ "$MGIT"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pull "*"? [y/N]"* ]] || false
-  [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]] || false
-  [[ "$output" == *"mgit sync: repo: push skipped (1 commit ahead)"* ]] || false
-  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]] || false
-  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
+  [ "${lines[0]}" = 'mgit sync: ahead: push 1 commit? [y/N]' ]
+  [ "${lines[1]}" = 'mgit sync: ahead: push skipped (1 commit ahead)' ]
+  [ "${lines[2]}" = "mgit sync: behind: pull 1 commit into $branch from origin/$branch? [y/N]" ]
+  [ "${lines[3]}" = 'mgit sync: behind: pull skipped' ]
+  [[ "$output" != *"level"* ]] || false
+  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]] || false
+  [[ "$output" == *"mgit sync: 2 actions skipped by user"* ]] || false
+  [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$before" ]
+  [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$behind_before" ]
 
   run bash -c 'printf "y\ny\n" | "$1" sync --interactive' _ "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pushed 1 commit"* ]] || false
-  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$(git -C "$TREE/repo" rev-parse HEAD)" ]
+  [[ "$output" == *"mgit sync: ahead: pushed 1 commit"* ]] || false
+  [[ "$output" == *"mgit sync: behind: pulled 1 commit"* ]] || false
+  [[ "$output" != *"skipped by user"* ]] || false
+  [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$(git -C "$TREE/ahead" rev-parse HEAD)" ]
+  [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse HEAD)" ]
 }
 
 @test "sync interactive mode stops when input ends before confirmation" {
@@ -994,12 +1015,15 @@ assert_usage_error() {
   local origin="$BATS_TEST_TMPDIR/origin.git"
   make_origin "$seed" "$origin" baseline
   git clone -q "$origin" "$TREE/repo"
+  git -C "$TREE/repo" commit -q --allow-empty -m local-update
 
   cd "$TREE"
   run bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
   [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]] || false
   [[ "$output" == *"mgit sync: interactive input ended"* ]] || false
-  [[ "$output" != *"mgit sync: repo: pulling"* ]] || false
+  [[ "$output" != *"pushed"* ]] || false
+  [ "$(git --git-dir="$origin" rev-parse HEAD)" != "$(git -C "$TREE/repo" rev-parse HEAD)" ]
 }
 
 @test "sync reports no-upstream bare and divergent repositories" {
@@ -1013,17 +1037,29 @@ assert_usage_error() {
   git -C "$seed" commit -q --allow-empty -m remote-update
   git -C "$seed" push -q
   git -C "$TREE/diverged" commit -q --allow-empty -m local-update
-  local before
+  git -C "$TREE/diverged" config pull.rebase true
+  local before branch
   before=$(git -C "$TREE/diverged" rev-parse HEAD)
+  branch=$(git -C "$TREE/diverged" branch --show-current)
 
   cd "$TREE"
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]] || false
-  [[ "$output" == *"mgit sync: diverged: pull failed"* ]] || false
+  [[ "$output" != *"archive.git"* ]] || false
+  [[ "$output" == *"mgit sync: diverged: diverged from origin/$branch, 1 ahead and 1 behind (skipped)"* ]] || false
   [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]] || false
+  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 1 bare repository skipped' ]
   [ "$(git -C "$TREE/diverged" rev-parse HEAD)" = "$before" ]
+  [ ! -e "$TREE/diverged/.git/rebase-merge" ]
+  [ ! -e "$TREE/diverged/.git/rebase-apply" ]
+  [ ! -e "$TREE/diverged/.git/MERGE_HEAD" ]
+
+  run "$MGIT" sync --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]] || false
+  [[ "$output" != *"bare repository skipped"* ]] || false
 }
 
 @test "sync honors repository filters" {
@@ -1036,12 +1072,85 @@ assert_usage_error() {
   printf 'omitted\n' >> "$TREE/omitted/payload"
 
   cd "$TREE"
-  run "$MGIT" --filter selected sync
+  run "$MGIT" --filter selected sync --verbose
 
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: [1/1] selected: checking"* ]] || false
   [[ "$output" == *"mgit sync: selected: local changes (skipped)"* ]] || false
   [[ "$output" != *"omitted"* ]] || false
+}
+
+@test "sync fetches every repository before fast-forwarding them in order" {
+  local name seed origin
+  for name in alpha beta gamma; do
+    seed="$BATS_TEST_TMPDIR/$name-seed"
+    origin="$BATS_TEST_TMPDIR/$name.git"
+    make_origin "$seed" "$origin" "$name"
+    git clone -q "$origin" "$TREE/$name"
+    git -C "$seed" commit -q --allow-empty -m "$name-update"
+    git -C "$seed" commit -q --allow-empty -m "$name-second"
+    git -C "$seed" push -q
+  done
+
+  cd "$TREE"
+  run "$MGIT" -j 3 sync
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'mgit sync: alpha: pulled 2 commits' ]
+  [ "${lines[1]}" = 'mgit sync: beta: pulled 2 commits' ]
+  [ "${lines[2]}" = 'mgit sync: gamma: pulled 2 commits' ]
+  [ "${lines[3]}" = 'mgit sync: 0 repositories already in sync' ]
+  [ "${#lines[@]}" -eq 4 ]
+  for name in alpha beta gamma; do
+    [ "$(git -C "$TREE/$name" rev-parse HEAD)" = "$(git --git-dir="$BATS_TEST_TMPDIR/$name.git" rev-parse HEAD)" ]
+  done
+
+  run "$MGIT" sync
+  [ "$status" -eq 0 ]
+  [ "$output" = 'mgit sync: 3 repositories already in sync' ]
+}
+
+@test "sync warns about failed fetches and detached checkouts and leaves them untouched" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  local before
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/detached"
+  git clone -q "$origin" "$TREE/lost"
+  git clone -q "$origin" "$TREE/working"
+  git -C "$TREE/detached" checkout -q --detach
+  git -C "$TREE/lost" remote set-url origin "$BATS_TEST_TMPDIR/missing.git"
+  git -C "$seed" commit -q --allow-empty -m remote-update
+  git -C "$seed" push -q
+  before=$(git -C "$TREE/lost" rev-parse HEAD)
+
+  cd "$TREE"
+  run "$MGIT" -j 2 sync
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: detached: detached HEAD (skipped)"* ]] || false
+  [[ "$output" == *"mgit sync: lost: fetch from origin failed (skipped)"* ]] || false
+  [[ "$output" == *"missing.git"* ]] || false
+  [[ "$output" == *"mgit sync: working: pulled 1 commit"* ]] || false
+  [ "$(git -C "$TREE/lost" rev-parse HEAD)" = "$before" ]
+  [ "$(git -C "$TREE/working" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse HEAD)" ]
+}
+
+@test "sync fetches a repository once for all its tracked worktrees" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  make_origin "$seed" "$origin" baseline
+  git -C "$seed" push -q origin HEAD:topic
+  git clone -q "$origin" "$TREE/repo"
+  git -C "$TREE/repo" worktree add -q --track -b topic "$TREE/repo-topic" origin/topic
+  git -C "$seed" commit -q --allow-empty -m main-update
+  git -C "$seed" push -q origin HEAD HEAD:topic
+
+  cd "$TREE"
+  run "$MGIT" -W -j 4 sync
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: repo: pulled 1 commit"* ]] || false
+  [[ "$output" == *"mgit sync: repo [topic]: pulled 1 commit"* ]] || false
+  [[ "$output" != *"failed"* ]] || false
+  [ "$(git -C "$TREE/repo-topic" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse topic)" ]
 }
 
 @test "captured command output has no color and sync uses checkout labels" {
@@ -1055,7 +1164,7 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   [[ "$output" != *$'\033['* ]] || false
 
-  run "$MGIT" --all-worktrees sync
+  run "$MGIT" --all-worktrees sync --verbose
   [ "$status" -eq 1 ]
   [[ "$output" == *"standard [topic]: checking"* ]] || false
   [[ "$output" == *"nested/main: checking"* ]] || false

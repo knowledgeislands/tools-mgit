@@ -61,9 +61,9 @@ unknown when provenance cannot be established.
 .SS Repository management
 \&
 .TP
-.B mgit sync
-Update clean tracking branches in the current set and summarize repositories
-that changed or need attention.
+.B mgit sync [-i|--interactive] [-v|--verbose]
+Fetch in parallel, then fast-forward or push clean tracking branches in the
+current set, and summarize repositories that changed or need attention.
 .TP
 .B mgit overview [--json] [-v|--verbose] [--stale-days <days>]
 Show, read-only, what is outstanding across the current set.
@@ -275,7 +275,9 @@ prints a warning on standard error.
 Run up to
 .I n
 checkouts at once for ordinary commands and
-.BR overview .
+.BR overview ,
+or fetches at once for
+.BR sync .
 The default is 8;
 .B \-j 1
 runs one at a time.
@@ -285,7 +287,9 @@ runs one at a time.
 Run an ordinary command in one checkout at a time, streaming every header and
 all output as it happens, with the terminal attached and no summary line.
 With
-.BR overview ,
+.B overview
+or
+.BR sync ,
 the same as its own
 .BR \-\-verbose .
 .sp
@@ -483,26 +487,36 @@ structure, and child workspace directories and manifests must already exist.
 \&
 .TP
 .B mgit sync
-prints numbered progress for each selected checkout, then checks it with
-.BR "git status --short" .
-Worktrees with local changes print their status and are skipped. Clean tracking
-branches run
-.BR "git pull --ff-only" ,
-then
-.B git push
-when local commits remain ahead of upstream.
-The command announces pulls and pushes before they start.
+first fetches, in parallel, the upstream remote of every selected clean branch
+that tracks one, once per repository and remote.
+Then, one checkout at a time in selection order, it compares each branch with
+its upstream.
+A branch only behind is fast-forwarded with
+.BR "git merge \-\-ff\-only" ;
+a branch only ahead runs
+.BR "git push" .
+Nothing is merged or rebased, whatever
+.B pull.rebase
+says.
+Worktrees with local changes print
+.B git status \-\-short
+and are skipped, as are detached heads, branches without an upstream, diverged
+branches and checkouts whose fetch failed; each is named with a warning and
+left untouched.
 With
 .BR \-i " or " \-\-interactive ,
 it asks before each pull and push; an empty answer skips the action.
-If a pull is skipped, the checkout is not pushed.
 Declined actions are counted at the end and do not cause failure.
 If input ends before an answer, the command stops unsuccessfully.
 .PP
-Repositories that pulled or pushed commits are named. Already-current
-repositories are collapsed into one final count. Bare repositories, detached
-heads, branches without upstreams, divergence, and Git failures are reported
-and make the command exit unsuccessfully without forcing a change.
+Only repositories that pulled, pushed, warned or failed are named.
+Already-current repositories are collapsed into one final count and bare
+repositories into another.
+With
+.BR \-v " or " \-\-verbose ,
+it also prints numbered progress for each checkout, names each bare
+repository, and announces each pull and push before it starts.
+Any warning, failure or bare repository makes the command exit unsuccessfully.
 .TP
 .B mgit overview
 reads local Git state only, never fetching or changing a ref, the index or a

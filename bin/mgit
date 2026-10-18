@@ -182,19 +182,22 @@ EOF
 
 sync_usage() {
   cat <<'EOF'
-Usage: mgit sync [-i|--interactive]
+Usage: mgit sync [-i|--interactive] [-v|--verbose]
 
 Update clean tracking branches across the current repository set.
 
 Primary checkouts are selected by default; pass -W or --all-worktrees to
 include linked worktrees.
-Numbered progress is printed as each selected repository is checked.
-Dirty worktrees print their short status and are skipped. Clean worktrees use
-git pull --ff-only, then git push when local commits remain ahead of upstream.
-Repositories already current are collapsed into one final count.
+Every clean branch with an upstream is fetched first, in parallel. Then, one
+checkout at a time, a branch only behind its upstream is fast-forwarded and a
+branch only ahead is pushed. Diverged, dirty, detached and untracked branches,
+and failed fetches, are named with a warning and left untouched; nothing is
+merged or rebased. Only checkouts that pulled, pushed, warned or failed are
+named; the rest are counted.
 
 Options:
  -i, --interactive       confirm each pull and push; an empty answer skips
+ -v, --verbose           also print progress for every checkout
  -h, --help              display help for this command
 EOF
 }
@@ -296,7 +299,7 @@ _mgit() {
       COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
       ;;
     sync)
-      COMPREPLY=( $(compgen -W '--interactive -i --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W '--interactive -i --verbose -v --help -h' -- "$cur") )
       ;;
     overview)
       case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
@@ -393,7 +396,7 @@ _mgit() {
     repair) _arguments '--apply[perform validated repairs]' '-h[display help for command]' '--help[display help for command]' ;;
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
-    sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-h[display help for command]' '--help[display help for command]' ;;
+    sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
     overview) _arguments '--json[print one JSON document]' '-v[name clean checkouts too]' '--verbose[name clean checkouts too]' '--stale-days[idle days before an unmerged branch is stale]:days:' '-h[display help for command]' '--help[display help for command]' ;;
     structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
@@ -2845,160 +2848,160 @@ sync_confirm_action() {
   done
 }
 
+# Fetch once per repository and remote; linked worktrees of one repository
+# share its refs, so concurrent fetches there would race for ref locks.
+sync_fetch_worker() {
+  [ "${sync_fetch_owner[$1]}" = "$1" ] || return 0
+  git -C "${repos[$1]}" fetch --quiet "${sync_remote[$1]}"
+}
+
+sync_report() {
+  printf 'mgit sync: %s: %s\n' "$1" "$2"
+  [ -z "${3:-}" ] || sync_print_detail "$3"
+}
+
 sync_command() {
-  local help=false interactive=false d label index kind status_output branch upstream before after ahead
-  local pull_output push_output pulled_count synced=0 skipped=0 failed=false
-  local current=0 total=${#repos[@]} answer_status
+  local help=false interactive=false verbose=false d label index branch upstream remote key
+  local status_output counts ahead behind output owner detail synced=0 skipped=0 bare_count=0
+  local failed=false current=0 total=${#repos[@]} answer_status j common
+  local fetch_keys=()
 
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
       -i|--interactive) interactive=true ;;
+      -v|--verbose) verbose=true ;;
       *) usage_error_for sync_usage "sync: unexpected argument: $1"; return ;;
     esac
     shift
   done
   [ "$help" = false ] || { sync_usage; return 0; }
 
+  # Decide serially which checkouts fetch, so the pool never runs two
+  # fetches into the same repository and remote.
+  sync_kind=()
+  sync_branch=()
+  sync_remote=()
+  sync_fetch_owner=()
+  for index in "${!repos[@]}"; do
+    d="${repos[$index]}"
+    sync_kind[index]=$(repo_type "$d")
+    sync_branch[index]=""
+    sync_remote[index]=""
+    sync_fetch_owner[index]=-1
+    [ "${sync_kind[index]}" != bare ] || continue
+    branch=$(git -C "$d" symbolic-ref --quiet --short HEAD 2>/dev/null) || continue
+    sync_branch[index]="$branch"
+    git -C "$d" rev-parse --verify --quiet '@{upstream}' >/dev/null 2>&1 || continue
+    remote=$(git -C "$d" config "branch.$branch.remote" 2>/dev/null) || continue
+    [ "$remote" != . ] || continue
+    sync_remote[index]="$remote"
+    common="$d"
+    if capture_path git_common_dir "$d"; then common="$captured_path"; fi
+    key="$common"$'\t'"$remote"
+    sync_fetch_owner[index]=$index
+    for j in "${!fetch_keys[@]}"; do
+      if [ "${fetch_keys[j]}" = "$key" ]; then
+        sync_fetch_owner[index]="${fetch_keys[j + 1]}"
+        break
+      fi
+    done
+    [ "${sync_fetch_owner[index]}" != "$index" ] || fetch_keys+=("$key" "$index")
+  done
+  runner_start || return 1
+  runner_run sync_fetch_worker
+
   for index in "${!repos[@]}"; do
     d="${repos[$index]}"
     label="${repo_labels[$index]}"
+    branch="${sync_branch[index]}"
     current=$((current + 1))
-    printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$label"
-    kind=$(repo_type "$d")
-    if [ "$kind" = bare ]; then
-      printf 'mgit sync: %s: bare repository (skipped)\n' "$label"
+    [ "$verbose" = false ] || printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$label"
+    if [ "${sync_kind[index]}" = bare ]; then
+      [ "$verbose" = false ] || sync_report "$label" 'bare repository (skipped)'
+      bare_count=$((bare_count + 1))
       failed=true
       continue
     fi
-
     if ! status_output=$(git -C "$d" status --short 2>&1); then
-      printf 'mgit sync: %s: status failed\n' "$label"
-      sync_print_detail "$status_output"
+      sync_report "$label" 'status failed' "$status_output"
       failed=true
       continue
     fi
     if [ -n "$status_output" ]; then
-      printf 'mgit sync: %s: local changes (skipped)\n' "$label"
-      sync_print_detail "$status_output"
+      sync_report "$label" 'local changes (skipped)' "$status_output"
       failed=true
       continue
     fi
-
-    if ! branch=$(git -C "$d" symbolic-ref --quiet --short HEAD 2>/dev/null); then
-      printf 'mgit sync: %s: detached HEAD (skipped)\n' "$label"
+    if [ -z "$branch" ]; then
+      sync_report "$label" 'detached HEAD (skipped)'
       failed=true
       continue
     fi
     if ! upstream=$(git -C "$d" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
-      printf 'mgit sync: %s: branch %s has no upstream (skipped)\n' "$label" "$branch"
+      sync_report "$label" "branch $branch has no upstream (skipped)"
       failed=true
       continue
     fi
-    if ! before=$(git -C "$d" rev-parse HEAD 2>/dev/null); then
-      printf 'mgit sync: %s: cannot resolve HEAD\n' "$label"
+    owner="${sync_fetch_owner[index]}"
+    if [ "$owner" -ge 0 ] && [ "$(runner_status "$owner")" -ne 0 ]; then
+      detail=$(cat "$runner_dir/$owner.err")
+      sync_report "$label" "fetch from ${sync_remote[index]} failed (skipped)" "$detail"
       failed=true
       continue
     fi
+    if ! counts=$(git -C "$d" rev-list --left-right --count 'HEAD...@{upstream}' 2>/dev/null); then
+      sync_report "$label" "cannot compare with upstream $upstream"
+      failed=true
+      continue
+    fi
+    ahead="${counts%%[[:space:]]*}"
+    behind="${counts##*[[:space:]]}"
 
-    if [ "$interactive" = true ]; then
-      sync_confirm_action "$label" "pull $branch from $upstream"
-      answer_status=$?
-      case "$answer_status" in
-        1)
-          printf 'mgit sync: %s: pull skipped\n' "$label"
-          skipped=$((skipped + 1))
-          continue
-          ;;
-        2) return 1 ;;
-      esac
-    fi
-    printf 'mgit sync: %s: pulling\n' "$label"
-    if ! pull_output=$(git -C "$d" pull --ff-only --quiet 2>&1); then
-      printf 'mgit sync: %s: pull failed\n' "$label"
-      sync_print_detail "$pull_output"
+    if [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
+      sync_report "$label" "diverged from $upstream, $ahead ahead and $behind behind (skipped)"
       failed=true
-      continue
-    fi
-    after=$(git -C "$d" rev-parse HEAD 2>/dev/null) || {
-      printf 'mgit sync: %s: cannot resolve HEAD after pull\n' "$label"
-      failed=true
-      continue
-    }
-    pulled_count=0
-    if [ "$before" != "$after" ]; then
-      pulled_count=$(git -C "$d" rev-list --count "$before..$after" 2>/dev/null) || pulled_count=0
-    fi
-
-    if ! status_output=$(git -C "$d" status --short 2>&1); then
-      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: status failed after pull\n' "$label"
-      sync_print_detail "$status_output"
-      failed=true
-      continue
-    fi
-    if [ -n "$status_output" ]; then
-      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: local changes after pull (push skipped)\n' "$label"
-      sync_print_detail "$status_output"
-      failed=true
-      continue
-    fi
-
-    if ! ahead=$(git -C "$d" rev-list --count "$upstream..HEAD" 2>/dev/null); then
-      [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-      printf 'mgit sync: %s: cannot compare with upstream %s\n' "$label" "$upstream"
-      failed=true
-      continue
-    fi
-
-    if [ "$ahead" -gt 0 ]; then
+    elif [ "$behind" -gt 0 ]; then
+      if [ "$interactive" = true ]; then
+        sync_confirm_action "$label" "pull $behind $(sync_commit_noun "$behind") into $branch from $upstream"
+        answer_status=$?
+        case "$answer_status" in
+          1) sync_report "$label" 'pull skipped'; skipped=$((skipped + 1)); continue ;;
+          2) runner_cleanup; return 1 ;;
+        esac
+      fi
+      [ "$verbose" = false ] || sync_report "$label" pulling
+      if ! output=$(git -C "$d" merge --ff-only --quiet '@{upstream}' 2>&1); then
+        sync_report "$label" 'pull failed' "$output"
+        failed=true
+        continue
+      fi
+      sync_report "$label" "pulled $behind $(sync_commit_noun "$behind")"
+    elif [ "$ahead" -gt 0 ]; then
       if [ "$interactive" = true ]; then
         sync_confirm_action "$label" "push $ahead $(sync_commit_noun "$ahead")"
         answer_status=$?
         case "$answer_status" in
           1)
-            [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-              "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-            printf 'mgit sync: %s: push skipped (%d %s ahead)\n' \
-              "$label" "$ahead" "$(sync_commit_noun "$ahead")"
+            sync_report "$label" "push skipped ($ahead $(sync_commit_noun "$ahead") ahead)"
             skipped=$((skipped + 1))
             continue
             ;;
-          2)
-            [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-              "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-            return 1
-            ;;
+          2) runner_cleanup; return 1 ;;
         esac
       fi
-      printf 'mgit sync: %s: pushing\n' "$label"
-      if ! push_output=$(git -C "$d" push --quiet 2>&1); then
-        [ "$pulled_count" -eq 0 ] || printf 'mgit sync: %s: pulled %d %s\n' \
-          "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
-        printf 'mgit sync: %s: push failed\n' "$label"
-        sync_print_detail "$push_output"
+      [ "$verbose" = false ] || sync_report "$label" pushing
+      if ! output=$(git -C "$d" push --quiet 2>&1); then
+        sync_report "$label" 'push failed' "$output"
         failed=true
         continue
       fi
-      if [ "$pulled_count" -gt 0 ]; then
-        printf 'mgit sync: %s: pulled %d %s and pushed %d %s\n' \
-          "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")" \
-          "$ahead" "$(sync_commit_noun "$ahead")"
-      else
-        printf 'mgit sync: %s: pushed %d %s\n' \
-          "$label" "$ahead" "$(sync_commit_noun "$ahead")"
-      fi
-    elif [ "$pulled_count" -gt 0 ]; then
-      printf 'mgit sync: %s: pulled %d %s\n' \
-        "$label" "$pulled_count" "$(sync_commit_noun "$pulled_count")"
+      sync_report "$label" "pushed $ahead $(sync_commit_noun "$ahead")"
     else
       synced=$((synced + 1))
     fi
   done
+  runner_cleanup
 
   if [ "$synced" -eq 1 ]; then
     printf 'mgit sync: 1 repository already in sync\n'
@@ -3009,6 +3012,9 @@ sync_command() {
     printf 'mgit sync: 1 action skipped by user\n'
   elif [ "$skipped" -gt 1 ]; then
     printf 'mgit sync: %d actions skipped by user\n' "$skipped"
+  fi
+  if [ "$verbose" = false ] && [ "$bare_count" -gt 0 ]; then
+    printf 'mgit sync: %s skipped\n' "$(plural "$bare_count" 'bare repository' 'bare repositories')"
   fi
   [ "$failed" = false ]
 }
@@ -3871,7 +3877,11 @@ case "$owned_command" in
   sync|overview|structure|worktree)
     command_name="${1:-}"
     [ "$bare" = false ] || { reject_selector_for "$command_name" "$bare_option"; exit $?; }
-    [ "$command_name" = overview ] || reject_runner_options_for "$command_name" || exit $?
+    case "$command_name" in
+      overview) ;;
+      sync) [ "$runner_json" = false ] || { reject_selector_for sync --json; exit $?; } ;;
+      *) reject_runner_options_for "$command_name" || exit $? ;;
+    esac
     if [ "$command_name" != sync ] && [ "$command_name" != overview ]; then
       [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
@@ -4186,7 +4196,9 @@ if [ "$owned_command" = worktree ]; then
 fi
 
 if [ "$owned_command" = sync ]; then
-  if [ "$show_help" = true ]; then sync_command "${@:2}" --help; else sync_command "${@:2}"; fi
+  shift
+  [ "$runner_verbose" = false ] || set -- --verbose "$@"
+  if [ "$show_help" = true ]; then sync_command "$@" --help; else sync_command "$@"; fi
   exit $?
 fi
 
