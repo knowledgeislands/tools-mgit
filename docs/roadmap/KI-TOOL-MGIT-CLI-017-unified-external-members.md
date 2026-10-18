@@ -5,13 +5,12 @@ title: Unified external members
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 4070e62095da49f79f55e090973a07ac3c163146
 created_at: 2026-10-16T21:10:00Z
-updated_at: 2026-10-17T21:26:12Z
+updated_at: 2026-10-18T05:39:00Z
 ---
 
 # Unified external members
@@ -103,7 +102,15 @@ One representation now carries the whole repository set; `locations` remains the
 
 External membership unified with tests and documentation. A possible follow-up, not captured: let `register add --repo` accept a navigation symlink and store its resolved target.
 
+## Done
+
+Accepted 2026-10-18 by the ways-of-working mgit-build run on Fable's opinion, provisionally for Kris to confirm, on the review packet above.
+
 ## Discussion
+
+### Acceptance (provisional, for Kris to confirm)
+
+Accepted on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2), under Kris's KEEP-PUSHING and FABLE-OPINION answers and taken under ACCEPT-NIGHT's condition: the independent mgit-review run of 17 October passed with no blocking or medium findings. Its four low findings are [KI-TOOL-MGIT-CLI-022](KI-TOOL-MGIT-CLI-022-external-member-review-findings.md). The outstanding consumer-manifest concern is a release and chezmoi matter owned by the dotfiles repository, not triggered by acceptance. Kris confirms or reopens this by editing the record; it is not pruned.
 
 Planning decisions, 16 October 2026:
 
