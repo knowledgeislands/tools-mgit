@@ -5,13 +5,12 @@ title: Estate-scale output
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: b8e591181c7e60f5f52e8a8a25c132bcb12cbea9
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T06:15:00Z
+updated_at: 2026-10-18T08:38:21Z
 ---
 
 ## Goal
@@ -111,6 +110,10 @@ The runner takes a worker function and an index, so `overview` and the KI-TOOL-M
 ### Mini recap
 
 Ordinary commands now run in parallel and report only what needs attention, with `-v` for the old stream and `--json` for tools.
+
+## Done
+
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Treating normal no-change output such as "Already up to date." as quiet is [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md). Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 

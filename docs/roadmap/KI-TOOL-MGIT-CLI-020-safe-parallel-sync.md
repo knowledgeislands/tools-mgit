@@ -5,13 +5,12 @@ title: Safe parallel sync
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 00ef0def90e66d0a8bde0c2e4efb79590c4334d9
 created_at: 2026-10-18T04:10:00Z
-updated_at: 2026-10-18T06:39:50Z
+updated_at: 2026-10-18T08:38:21Z
 ---
 
 ## Goal
@@ -111,6 +110,10 @@ Fetching is the only parallel step and changes nothing but remote-tracking refs;
 ### Mini recap
 
 Sync now fetches in parallel, fast-forwards or pushes only when that is safe, warns about the rest and stays quiet unless asked.
+
+## Done
+
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Kris's TEST-FATAL a) keeps the preceding Bats fix `00ef0de`. Predicting whether a diverged branch would merge cleanly is [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md). Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 

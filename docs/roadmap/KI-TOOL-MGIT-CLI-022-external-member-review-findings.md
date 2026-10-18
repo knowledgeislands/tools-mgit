@@ -5,13 +5,12 @@ title: External member review findings
 kind: deliver
 purpose: corrective
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: b3598766bd8da85b1f90b8974842022285114f82
 created_at: 2026-10-18T04:10:00Z
-updated_at: 2026-10-18T05:50:00Z
+updated_at: 2026-10-18T08:38:21Z
 ---
 
 ## Goal
@@ -100,6 +99,10 @@ The rejection reuses the physical-path identity that deduplication already relie
 ### Mini recap
 
 Four review lows settled: three fixed with tests, one documented.
+
+## Done
+
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. The four dispositions in Delivered are confirmed. Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 

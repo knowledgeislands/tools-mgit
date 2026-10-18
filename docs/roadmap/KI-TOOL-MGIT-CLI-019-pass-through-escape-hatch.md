@@ -5,13 +5,12 @@ title: Pass-through escape hatch
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 022ce41317e90845af2a45864d6e20f82893ee08
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T06:23:00Z
+updated_at: 2026-10-18T08:38:21Z
 ---
 
 ## Goal
@@ -110,6 +109,10 @@ The bypass computes one `owned_command` word after option parsing, `git` under `
 ### Mini recap
 
 Owned names can now reach Git with `-G`, direct commands use `-R`, and `-B` keeps working with a warning.
+
+## Done
+
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Retiring `-B/--bare` now, and `-B` later returning as the bypass-to-Git flag in place of `-G`, is [KI-TOOL-MGIT-CLI-025](KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md), waiting on Kris's confirmation. Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 

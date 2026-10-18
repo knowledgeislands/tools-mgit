@@ -5,13 +5,12 @@ title: Estate overview
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 088c2f4eb94f4af693e517e41a36e9f1d336e242
 created_at: 2026-10-18T04:10:00Z
-updated_at: 2026-10-18T06:02:00Z
+updated_at: 2026-10-18T08:38:21Z
 ---
 
 ## Goal
@@ -106,6 +105,10 @@ The collector does not render anything, so KI-TOOL-MGIT-CLI-018 can run it per c
 ### Mini recap
 
 The estate overview is built serially, read-only, with terminal and JSON views; it is ready for the -018 runner.
+
+## Done
+
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 
