@@ -8,7 +8,7 @@ mgit status
 mgit sync
 ```
 
-Ordinary Git and `-B` commands run in every selected checkout, up to eight at a time. While they run, one progress line on a terminal shows how many have finished. When all have finished, each checkout that printed something or failed is shown in selection order with its header and output, and one line closes the run:
+Ordinary Git and `-R` commands run in every selected checkout, up to eight at a time. While they run, one progress line on a terminal shows how many have finished. When all have finished, each checkout that printed something or failed is shown in selection order with its header and output, and one line closes the run:
 
 ```text
 tools-ki: git status --short
@@ -30,12 +30,23 @@ The options go before the command, as in `mgit -j 4 fetch`. They apply to ordina
 
 Command headers and `sync` progress use the same checkout labels. A linked worktree outside its repository is shown as `repository [branch]`, while Git still runs at the real checkout path. Color appears only on a terminal; captured output contains plain text. Set `NO_COLOR` to a non-empty value to disable color on a terminal.
 
-Prefix a command with `-B` to run it directly rather than as a Git subcommand:
+Prefix a command with `-R` (`--raw`) to run it directly rather than as a Git subcommand. The arguments run as given, not through a shell, so use `sh -c` for pipes and redirections:
 
 ```sh
-mgit -B bun install
-mgit -B bun run build
+mgit -R bun install
+mgit -R sh -c 'git log --oneline | head -1'
 ```
+
+`-B` and `--bare` still work as deprecated aliases for `-R` and print a warning on standard error.
+
+Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `completion` and `help`. Prefix a command with `-G` (`--git`) to send it to Git anyway:
+
+```sh
+mgit -G worktree list
+mgit -G help -a
+```
+
+`-G` cannot be combined with `-R`.
 
 ## Diagnose the current environment
 
@@ -92,12 +103,12 @@ Use `-f` or `--filter` with a nonempty literal directory-basename prefix. Matchi
 
 ```sh
 mgit -f 'mcp-' status
-mgit -f 'mcp-' -B bun run build
+mgit -f 'mcp-' -R bun run build
 ```
 
 Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. `register` and `repair` reject `--filter` instead of silently ignoring it.
 
-Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bare` applies only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
+Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--git` and `--raw` apply only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
 `mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` previews recognised config repairs and missing repository clones, and `--apply` performs them explicitly.
 
@@ -109,7 +120,7 @@ When `ki` is installed, use a territory handle, the registered estate or the ter
 mgit -t knowledge-islands -f tools- -f kit- status
 mgit --territory knowledge-islands sync
 mgit --estate status
-mgit --principals -B pwd
+mgit --principals -R pwd
 ```
 
 MGit calls `ki territory roots --null --territory HANDLE [--filter PREFIX...]`, `ki territory roots --null --estate [--filter PREFIX...]` or `ki territory roots --null --principals [--filter PREFIX...]`. MGit keeps the producer's order, so `--principals` lists Knowledge Islands Principal first and the other Capitals alphabetically by territory name; mgit does not select or order Capitals itself. Filters go to KI so an excluded unavailable root does not block the selected set. Missing membership registrations, ambiguous identities or handles, selected unavailable roots and zero matches fail; mgit buffers and validates the entire output before executing any selected command. Spaces and newlines travel through NUL transport. Directory prefixes apply before optional linked-worktree expansion.
@@ -120,8 +131,10 @@ Territory, estate, principals and explicit repository scopes are mutually exclus
 
 ## Discovery options
 
-- `-P` or `--physical` does not follow symlinked container directories. This is the default.
-- `-L` or `--follow-symlinks` follows symlinked container directories but never symlinked repositories.
+Discovery options matter only when mgit discovers repositories by walking the tree: when the current directory has no workspace manifest, or with `--ignore`. They do not change a manifest's declared members.
+
+- `-P` or `--physical` does not enter symlinked directories while discovering. This is the default.
+- `-L` or `--follow-symlinks` also enters symlinked directories that contain repositories, but never follows a symlink to a repository itself.
 - `-I` or `--ignore` ignores workspace selection from `.mgit.toml` and discovers repositories by walking tree; repository-kind symlink metadata still expands discovered set.
 
 See [define a repository set](repository-sets.md) when discovery is not sufficient, or [manage worktrees](worktrees.md) for the structure and worktree commands.

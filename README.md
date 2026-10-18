@@ -38,7 +38,7 @@ Pass an exact release with `bash -s -- vX.Y.Z`; omitting it installs the latest 
 
 ## Usage
 
-Run `mgit` without a command to list the selected repositories. Pass a Git subcommand to run it across the set, or use `-B` to run another command directly:
+Run `mgit` without a command to list the selected repositories. Pass a Git subcommand to run it across the set, or use `-R` to run another command directly. `-G` passes a command to Git even when mgit owns its name, as in `mgit -G worktree list`; `-B` is a deprecated alias for `-R`:
 
 ```sh
 mgit
@@ -46,7 +46,7 @@ mgit status
 mgit sync
 mgit sync -i
 mgit overview
-mgit -B npm test
+mgit -R npm test
 mgit -v pull
 mgit doctor
 mgit diag

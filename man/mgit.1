@@ -18,10 +18,16 @@ Run
 with the supplied command and arguments in every selected checkout, several
 at once, and report the checkouts with output or a failure.
 .TP
-.B mgit [\fIoptions\fR] \-B \fIcommand\fR [\fIargument\fR ...]
+.B mgit [\fIoptions\fR] \-R \fIcommand\fR [\fIargument\fR ...]
 Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
+.TP
+.B mgit [\fIoptions\fR] \-G \fIgit-command\fR [\fIargument\fR ...]
+Run a Git subcommand in every selected checkout even when
+.B mgit
+owns the name, as in
+.BR "mgit \-G worktree list" .
 .SS Workspace management
 \&
 .TP
@@ -87,7 +93,7 @@ Print contextual help for an mgit command.
 \&
 .B mgit
 runs a Git command, or an arbitrary command with
-.BR \-B ,
+.BR \-R ,
 across a set of repositories.
 It runs up to
 .B \-\-jobs
@@ -222,19 +228,47 @@ with neither input, the installer discovers the latest release.
 \&
 .TP
 .BR \-P , " \-\-physical"
-Do not follow symlinked container directories.
+When discovering repositories, do not enter symlinked directories.
 This is the default.
-Symlinked repositories are never followed.
+Discovery happens only when the current directory has no workspace manifest,
+or with
+.BR \-\-ignore ;
+the option has no effect on a manifest's declared members.
 .sp
 .TP
 .BR \-L , " \-\-follow-symlinks"
-Follow symlinked container directories while discovering repositories.
+When discovering repositories, also enter symlinked directories that contain
+repositories.
+A symlink to a repository itself is never followed.
 .sp
 .TP
-.BR \-B , " \-\-bare"
+.BR \-G , " \-\-git"
+Pass every argument to
+.BR git ,
+even a command name that
+.B mgit
+owns, such as
+.BR worktree ,
+.BR sync
+or
+.BR help .
+It takes the same selectors as an ordinary command and cannot be combined with
+.BR \-R .
+.sp
+.TP
+.BR \-R , " \-\-raw"
 Run the supplied command directly rather than as a
 .B git
 subcommand.
+The arguments are executed as given, not through a shell; use
+.B sh \-c
+for pipes and redirections.
+.sp
+.TP
+.BR \-B , " \-\-bare"
+Deprecated alias for
+.BR \-R ;
+prints a warning on standard error.
 .sp
 .TP
 .BR \-j , " \-\-jobs " \fIn\fR
@@ -359,6 +393,9 @@ Global discovery selectors apply to listing, ordinary commands,
 and
 .BR worktree .
 Only ordinary command pass-through accepts
+.BR \-G ,
+.B \-R
+and
 .BR \-B .
 .B register
 accepts

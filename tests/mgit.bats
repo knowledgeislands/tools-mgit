@@ -479,7 +479,7 @@ assert_usage_error() {
 @test "inapplicable global selectors fail before management commands change state" {
   mkrepo "$TREE/repo"
   cd "$TREE"
-  for option in -P -L -B -I -W; do
+  for option in -P -L -R -B -I -W; do
     assert_usage_error "$option" register
     assert_usage_error "$option" repair
   done
@@ -504,6 +504,10 @@ assert_usage_error() {
   assert_usage_error -B sync
   assert_usage_error -B structure nested
   assert_usage_error -B worktree list
+  assert_usage_error -R
+  assert_usage_error -R sync
+  assert_usage_error -R structure nested
+  assert_usage_error -R worktree list
   assert_usage_error -W structure nested
   assert_usage_error -W worktree list
   assert_usage_error -a focus structure nested
@@ -514,7 +518,7 @@ assert_usage_error() {
 }
 
 @test "help and version remain available with selectors" {
-  run "$MGIT" -B --version
+  run "$MGIT" -R --version
   [ "$status" -eq 0 ]
   [[ "$output" == mgit\ * ]]
   run "$MGIT" -W help structure
@@ -581,6 +585,87 @@ assert_usage_error() {
   [[ "$output" == *"git status --short"* ]]
 }
 
+@test "--git runs Git subcommands that mgit owns" {
+  mkrepo "$TREE/alpha"
+  mkrepo "$TREE/beta"
+  cd "$TREE"
+
+  run "$MGIT" --git worktree list --porcelain
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'alpha: git worktree list --porcelain' ]
+  [[ "${lines[1]}" == "worktree "*/alpha ]]
+  [[ "$output" == *$'\nbeta: git worktree list --porcelain\nworktree '*/beta$'\n'* ]]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
+
+  run "$MGIT" -G help
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'alpha: git help' ]
+  [[ "$output" != *"Usage: mgit"* ]]
+
+  run "$MGIT" -G -f b -j 1 -v sync
+  [ "$status" -eq 1 ]
+  [ "${lines[0]}" = 'beta: git sync' ]
+  [[ "$output" == *"'sync' is not a git command"* ]]
+
+  run "$MGIT" -G --json rev-parse --is-inside-work-tree
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]]
+
+  run "$MGIT" -G -W status --short
+  [ "$status" -eq 0 ]
+}
+
+@test "--raw runs the argument vector directly and -B warns as its deprecated alias" {
+  mkrepo "$TREE/alpha"
+  mkrepo "$TREE/beta"
+  cd "$TREE"
+  local physical
+  physical=$(pwd -P)
+
+  run "$MGIT" -R pwd -P
+  [ "$status" -eq 0 ]
+  [ "$output" = "alpha: pwd -P"$'\n'"$physical/alpha"$'\n'"beta: pwd -P"$'\n'"$physical/beta"$'\n''mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
+  raw="$output"
+
+  run "$MGIT" -B pwd -P
+  [ "$status" -eq 0 ]
+  [ "$output" = 'mgit: warning: -B/--bare is deprecated; use -R/--raw'$'\n'"$raw" ]
+  run "$MGIT" --bare pwd -P
+  [ "$status" -eq 0 ]
+  [ "$output" = 'mgit: warning: -B/--bare is deprecated; use -R/--raw'$'\n'"$raw" ]
+  "$MGIT" -B pwd -P 2>/dev/null > "$BATS_TEST_TMPDIR/out"
+  [ "$(cat "$BATS_TEST_TMPDIR/out")" = "$raw" ]
+
+  run "$MGIT" --raw sh -c 'echo a | tr a b'
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = b ]
+  run "$MGIT" -R 'echo a'
+  [ "$status" -eq 1 ]
+  [[ "${lines[${#lines[@]} - 1]}" == *'2 failed: alpha (exit 127), beta (exit 127)' ]]
+}
+
+@test "--git and --raw reject invalid combinations" {
+  mkrepo "$TREE/repo"
+  cd "$TREE"
+  assert_usage_error -G
+  assert_usage_error -G -R status
+  [[ "$output" == *"--git cannot be combined with --raw"* ]]
+  assert_usage_error --git --bare status
+  [[ "$output" == *"--git cannot be combined with --bare"* ]]
+  assert_usage_error -R
+  [[ "$output" == *"--raw requires a command"* ]]
+  assert_usage_error -R overview
+  [[ "$output" == *"--raw cannot be used with overview"* ]]
+  assert_usage_error -B sync
+  [[ "$output" == *"--bare cannot be used with sync"* ]]
+  [[ "$output" != *deprecated* ]]
+  run "$MGIT" -G -h
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit [options] [command]'* ]]
+  [[ "$output" == *'-G, --git'*'-R, --raw'*'-B, --bare              deprecated alias for --raw'* ]]
+  [[ "$output" == *'when discovering repositories'* ]]
+}
+
 @test "fan-out reports an early failure after a successful final checkout" {
   mkrepo "$TREE/a"
   mkrepo "$TREE/b"
@@ -596,7 +681,7 @@ assert_usage_error() {
   [[ "$plain_output" == *"a: git rev-parse --verify only-b"* ]]
   [[ "$plain_output" == *"b: git rev-parse --verify only-b"* ]]
 
-  run "$MGIT" -B sh -c 'test -f success'
+  run "$MGIT" -R sh -c 'test -f success'
   [ "$status" -eq 1 ]
   plain_output=${output//$'\033[1m'/}
   plain_output=${plain_output//$'\033[33m'/}
@@ -605,7 +690,7 @@ assert_usage_error() {
   [[ "$plain_output" != *"b: sh -c"* ]]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 1 quiet, 0 with output, 1 failed: a (exit 1)' ]
 
-  run "$MGIT" -v -B sh -c 'test -f success'
+  run "$MGIT" -v -R sh -c 'test -f success'
   [ "$status" -eq 1 ]
   [[ "$output" == *"b: sh -c"* ]]
   [[ "$output" != *"mgit: 2 repositories"* ]]
@@ -620,7 +705,7 @@ assert_usage_error() {
   printf '0\n' > "$TREE/d/delay"
   cd "$TREE"
 
-  run "$MGIT" -B sh -c 'sleep "$(cat delay)"; basename "$PWD"'
+  run "$MGIT" -R sh -c 'sleep "$(cat delay)"; basename "$PWD"'
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -eq 9 ]
   [[ "${lines[0]}" == 'a: sh -c sleep'* ]]
@@ -631,7 +716,7 @@ assert_usage_error() {
   [ "${lines[7]}" = d ]
   [ "${lines[8]}" = 'mgit: 4 repositories: 0 quiet, 4 with output, 0 failed' ]
 
-  run "$MGIT" -B sh -c 'case "${PWD##*/}" in b) echo out ;; c) echo err >&2; exit 3 ;; esac'
+  run "$MGIT" -R sh -c 'case "${PWD##*/}" in b) echo out ;; c) echo err >&2; exit 3 ;; esac'
   [ "$status" -eq 1 ]
   [[ "${lines[0]}" == 'b: sh -c case'* ]]
   [ "${lines[1]}" = out ]
@@ -651,14 +736,14 @@ assert_usage_error() {
   # shellcheck disable=SC2016
   local probe='touch "$MARKS/${PWD##*/}"; n=0; while [ "$(ls "$MARKS" | wc -l)" -lt 3 ] && [ $n -lt 20 ]; do sleep 0.1; n=$((n + 1)); done; ls "$MARKS" | wc -l | tr -d " "'
 
-  run "$MGIT" -j 3 -B sh -c "$probe"
+  run "$MGIT" -j 3 -R sh -c "$probe"
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = 3 ]
   [ "${lines[3]}" = 3 ]
   [ "${lines[5]}" = 3 ]
 
   rm -f "$MARKS"/*
-  run "$MGIT" --jobs 1 -B sh -c "$probe"
+  run "$MGIT" --jobs 1 -R sh -c "$probe"
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = 1 ]
   [ "${lines[3]}" = 2 ]
@@ -691,11 +776,11 @@ assert_usage_error() {
   mkrepo "$TREE/b"
   cd "$TREE"
 
-  run "$MGIT" -v -B true
+  run "$MGIT" -v -R true
   [ "$status" -eq 0 ]
   [ "$output" = $'a: true\nb: true' ]
 
-  run "$MGIT" --verbose -B sh -c 'echo out; echo err >&2'
+  run "$MGIT" --verbose -R sh -c 'echo out; echo err >&2'
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -eq 6 ]
   [[ "${lines[0]}" == 'a: sh -c echo'* ]]
@@ -704,7 +789,7 @@ assert_usage_error() {
   [[ "${lines[3]}" == 'b: sh -c echo'* ]]
   [ "${lines[5]}" = err ]
 
-  run "$MGIT" -B true
+  run "$MGIT" -R true
   [ "$status" -eq 0 ]
   [ "$output" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
 }
@@ -714,7 +799,7 @@ assert_usage_error() {
   mkrepo "$TREE/b"
   cd "$TREE"
 
-  run "$MGIT" --json -B sh -c 'if [ "${PWD##*/}" = b ]; then printf "x\ty\n"; echo "e\"" >&2; exit 2; fi'
+  run "$MGIT" --json -R sh -c 'if [ "${PWD##*/}" = b ]; then printf "x\ty\n"; echo "e\"" >&2; exit 2; fi'
   [ "$status" -eq 1 ]
   [ "${#lines[@]}" -eq 1 ]
   [[ "$output" == '{"tool":"mgit","command":"sh -c '*'","version":"'*'","repositories":[{"label":"a","path":"'*'","exit":0,"quiet":true,"stdout":"","stderr":""},{"label":"b","path":"'*'","exit":2,"quiet":false,"stdout":"x\ty\n","stderr":"e\"\n"}],"summary":{"repositories":2,"quiet":1,"output":0,"failed":1}}' ]]
@@ -733,7 +818,7 @@ assert_usage_error() {
   cd "$TREE"
 
   # shellcheck disable=SC2016
-  run "$MGIT" -B sh -c 'printf "%s %s %s\n" "$GIT_TERMINAL_PROMPT" "$GIT_EDITOR" "$GIT_SEQUENCE_EDITOR"; if read -r line; then echo read; else echo eof; fi' <<< 'typed'
+  run "$MGIT" -R sh -c 'printf "%s %s %s\n" "$GIT_TERMINAL_PROMPT" "$GIT_EDITOR" "$GIT_SEQUENCE_EDITOR"; if read -r line; then echo read; else echo eof; fi' <<< 'typed'
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = '0 false false' ]
   [ "${lines[2]}" = eof ]
@@ -751,12 +836,12 @@ assert_usage_error() {
   mkdir "$BATS_TEST_TMPDIR/tmp"
   cd "$TREE"
 
-  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -B true > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -R true > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
   [ ! -s "$BATS_TEST_TMPDIR/err" ]
   [ "$(cat "$BATS_TEST_TMPDIR/out")" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
   [ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ]
 
-  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -B sleep 3 > /dev/null 2>&1 &
+  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -R sleep 3 > /dev/null 2>&1 &
   pid=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     [ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ] || break
@@ -1028,7 +1113,7 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
   [ "$output" = $'ki-principal\nva-principal' ]
 
-  run "$MGIT" --principals -B pwd
+  run "$MGIT" --principals -R pwd
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TREE/ki-principal"* ]]
   [[ "$output" == *"$TREE/va-principal"* ]]
@@ -1277,14 +1362,14 @@ make_external_estate() {
       ! grep -Fq 'dotfiles' personal/.mgit.toml
     fi
     cd "$ESTATE/workspaces/personal"
-    run "$MGIT" -B pwd -P
+    run "$MGIT" -R pwd -P
     [ "$status" -eq 0 ]
     [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
     run "$MGIT"
     [ "$output" = $'acquire\n../../.local/share/chezmoi' ]
 
     cd "$ESTATE/workspaces"
-    run "$MGIT" -B pwd -P
+    run "$MGIT" -R pwd -P
     [ "$status" -eq 0 ]
     [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
     run "$MGIT"
@@ -1293,7 +1378,7 @@ make_external_estate() {
 
   # Discovery that follows the navigation symlink still yields one repository.
   cd "$ESTATE/workspaces/personal"
-  run "$MGIT" --ignore --follow-symlinks -B pwd -P
+  run "$MGIT" --ignore --follow-symlinks -R pwd -P
   [ "$status" -eq 0 ]
   [ "$(printf '%s\n' "$output" | grep -Fxc "$(cd "$DOTFILES" && pwd -P)")" -eq 1 ]
 
@@ -1381,7 +1466,7 @@ make_external_estate() {
     run "$MGIT"
     [ "$status" -eq 1 ]
     [[ "$output" == *'mgit: external repository path resolves inside the workspace; declare it as the local member "acquire": '*'/workspace/acquire'* ]]
-    run "$MGIT" -B pwd
+    run "$MGIT" -R pwd
     [ "$status" -eq 1 ]
     [[ "$output" != *"/workspace/acquire"$'\n'* ]]
     run "$MGIT" repair
@@ -2117,7 +2202,7 @@ make_external_estate() {
   [[ "$output" == *"$storage/one"* ]]
   [[ "$output" != *"$storage/two"* ]]
 
-  run "$MGIT" -W --bare pwd -P
+  run "$MGIT" -W --raw pwd -P
   [ "$status" -eq 0 ]
   [[ "$output" == *"repoB [GOV-104]: pwd -P"* ]]
   [[ "$output" == *"$storage/two"* ]]
@@ -2230,7 +2315,7 @@ make_external_estate() {
   mkrepo "$TREE/tools-b"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-' -B pwd
+  run "$MGIT" -f 'mcp-' -R pwd
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TREE/mcp-a"* ]]
   [[ "$output" != *"tools-b"* ]]
@@ -2444,9 +2529,9 @@ make_overview_hygiene() {
   run "$MGIT" overview --fetch
   [ "$status" -eq 2 ]
   [[ "$output" == *"overview: unexpected argument: --fetch"* ]]
-  run "$MGIT" -B overview
+  run "$MGIT" -R overview
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--bare cannot be used with overview"* ]]
+  [[ "$output" == *"--raw cannot be used with overview"* ]]
   run "$MGIT" help overview
   [ "$status" -eq 0 ]
   [[ "$output" == 'Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]'* ]]
