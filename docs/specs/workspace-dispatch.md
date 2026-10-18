@@ -6,11 +6,11 @@ This as-built area specifies how [mgit specifications](index.md) represent repos
 
 ### MGIT-WS-001 — Direct workspace selection
 
-When current directory contains a workspace-kind `.mgit.toml` manifest and manifest use is enabled, mgit MUST select its declared direct members, local members before external repository members. It MUST continue to read existing schema-1 manifests using their configured default group, and MUST read legacy `[registered.members."PATH"]` tables as external members with a deprecation warning until `register` rewrites them.
+When current directory contains a workspace-kind `.mgit.toml` manifest and manifest use is enabled, mgit MUST select its declared direct members, local members before external repository members. It MUST continue to read existing schema-1 manifests using their configured default group, and MUST read legacy `[registered.members."PATH"]` tables as external members with one deprecation warning per manifest, keyed by physical path, until `register` rewrites them.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `register migrates a legacy structural group to direct members`; `legacy registered members stay readable with a warning until register rewrites them`.
+_Verify:_ `bats tests/mgit.bats` — `register migrates a legacy structural group to direct members`; `legacy registered members stay readable with a warning until register rewrites them`; `repair warns once about a legacy manifest whichever spelling reached it`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -26,11 +26,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-003 — Manifest safety validation
 
-mgit MUST reject malformed, duplicate, unsafe, missing, or cyclic workspace members rather than dispatching against a partial workspace selection. A direct repository member MAY be external — one or more leading `../` segments followed by a safe relative path — and MUST otherwise lie below the manifest directory. Repositories MUST be identified by physical path: two local members reaching the same repository fail, while an external member reached again through another workspace, or after a local member, MUST be dispatched once.
+mgit MUST reject malformed, duplicate, unsafe, missing, or cyclic workspace members rather than dispatching against a partial workspace selection. A direct repository member MAY be external — one or more leading `../` segments followed by a safe relative path — and MUST otherwise lie below the manifest directory; an external member whose physical path lies inside the manifest directory MUST be rejected, in selection and in `repair`, naming the local member path to declare instead. A missing external member MUST fail selection like a missing local member. Repositories MUST be identified by physical path: two local members reaching the same repository fail, while an external member reached again through another workspace, or after a local member, MUST be dispatched once.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `workspace selection rejects malformed, duplicate, and unsafe paths`; `workspace selection rejects mixed formats and unsafe workspace cycles`; `external member paths must climb out and then name a safe repository path`; `external members dispatch exactly once with or without a navigation symlink`.
+_Verify:_ `bats tests/mgit.bats` — `workspace selection rejects malformed, duplicate, and unsafe paths`; `workspace selection rejects mixed formats and unsafe workspace cycles`; `external member paths must climb out and then name a safe repository path`; `external members dispatch exactly once with or without a navigation symlink`; `an external member that resolves back inside its workspace is rejected`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -184,11 +184,11 @@ _Evidence:_ The named Bats case covers standard, nested, and external worktree o
 
 ### MGIT-WS-021 — Management previews
 
-`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair` MUST preview recognised config repairs and missing clone targets without changing them. Both commands MUST retain preflight validation; `repair` may mutate the selected workspace only with `--apply`, and MUST NOT clone a missing external member.
+`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair` MUST preview recognised config repairs and missing clone targets without changing them. `register`, and `register --dry-run` before it, MUST name each hand-written external member that no saved location reproduces and that registration therefore drops. Both commands MUST retain preflight validation; `repair` may mutate the selected workspace only with `--apply`, and MUST NOT clone a missing external member.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair previews missing clone targets without creating them`; `repair validates external members but never clones a missing one`.
+_Verify:_ `bats tests/mgit.bats` — `register dry-run previews add and rm without changing manifests or Chezmoi`; `register dry-run previews repository manifest removal without deleting it`; `repair previews missing clone targets without creating them`; `repair validates external members but never clones a missing one`; `register names each hand-written external member it drops`.
 
 _Evidence:_ The named Bats cases cover preview output, unchanged state, and default execution.
 

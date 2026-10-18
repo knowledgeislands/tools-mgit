@@ -1151,6 +1151,65 @@ make_external_estate() {
   [[ "$output" == *"present "*"/external"* ]]
 }
 
+@test "an external member that resolves back inside its workspace is rejected" {
+  mkdir "$TREE/workspace"
+  mkrepo "$TREE/workspace/acquire"
+  ln -s workspace "$TREE/link"
+  cd "$TREE/workspace"
+  for path in '../workspace/acquire' '../link/acquire'; do
+    printf '%s\n' 'kind = "workspace"' "[members.\"$path\"]" 'kind = "repository"' \
+      'type = "standard"' > .mgit.toml
+    run "$MGIT"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'mgit: external repository path resolves inside the workspace; declare it as the local member "acquire": '*'/workspace/acquire'* ]]
+    run "$MGIT" -B pwd
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"/workspace/acquire"$'\n'* ]]
+    run "$MGIT" repair
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'mgit repair: external repository path resolves inside the workspace; declare it as the local member "acquire"'* ]]
+  done
+}
+
+@test "register names each hand-written external member it drops" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/ext"
+  printf '%s\n' 'kind = "workspace"' \
+    '[members."local"]' 'kind = "repository"' 'type = "standard"' \
+    '[members."../ext"]' 'kind = "repository"' 'type = "standard"' > "$TREE/.mgit.toml"
+  cp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
+  cd "$TREE"
+  run "$MGIT" register --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'mgit register: ./.mgit.toml: would drop external member without a saved location: ../ext (keep it with mgit register add --repo ../ext)'* ]]
+  [[ "$output" == *"would write ./.mgit.toml (1 local and 0 external member(s))"* ]]
+  cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
+
+  "$MGIT" register > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  grep -Fx 'mgit register: ./.mgit.toml: dropped external member without a saved location: ../ext (restore it with mgit register add --repo ../ext)' \
+    "$BATS_TEST_TMPDIR/err"
+  ! grep -Fq '../ext' "$TREE/.mgit.toml"
+
+  # A member that a saved location produces is kept without a word.
+  run "$MGIT" register add --repo ../ext
+  [ "$status" -eq 0 ]
+  grep -Fx '[members."../ext"]' "$TREE/.mgit.toml"
+  run "$MGIT" register --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"drop"* ]]
+}
+
+@test "repair warns once about a legacy manifest whichever spelling reached it" {
+  mkrepo "$TREE/local"
+  mkrepo "$BATS_TEST_TMPDIR/external"
+  printf '%s\n' 'kind = "workspace"' 'locations = ["local", "repo:../external"]' \
+    '[registered.members."../external"]' '[registered.members."local"]' \
+    '[members."local"]' 'kind = "repository"' 'type = "standard"' > "$TREE/.mgit.toml"
+  cd "$TREE"
+  "$MGIT" repair > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  [ "$(grep -c 'deprecated' "$BATS_TEST_TMPDIR/err")" -eq 1 ]
+}
+
 @test "legacy registered members stay readable with a warning until register rewrites them" {
   mkrepo "$TREE/local"
   mkrepo "$BATS_TEST_TMPDIR/external"

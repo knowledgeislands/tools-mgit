@@ -510,7 +510,10 @@ repository member may instead be external: one or more leading
 segments followed by a safe relative path, such as
 .BR ../../.local/share/chezmoi .
 External members are generated from saved locations and rewritten by
-registration.
+registration, which names each hand-written external member it drops.
+An external path that resolves back inside the manifest directory is
+rejected. A missing external member fails selection, as a missing local
+member does.
 .PP
 The
 .B locations

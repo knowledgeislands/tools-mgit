@@ -897,6 +897,19 @@ workspace_member_scope() {
   case "$1" in ../*) printf external ;; *) printf local ;; esac
 }
 
+# An external member that resolves physically back inside its own workspace
+# directory would duplicate a local member, so it is rejected, naming the
+# local path to declare instead. Both arguments are canonical physical paths.
+workspace_external_inside() {
+  local workspace="$1" destination="$2" prefix="$3"
+  case "$destination" in
+    "$workspace"|"$workspace"/*) ;;
+    *) return 1 ;;
+  esac
+  printf '%s: external repository path resolves inside the workspace; declare it as the local member "%s": %s\n' \
+    "$prefix" "$(relpath "$workspace" "$destination")" "$destination" >&2
+}
+
 location_path_safe() {
   case "$1" in
     ""|/*|~*|.|./*|*/./*|*/.|*//*|*/)
@@ -1030,12 +1043,14 @@ workspace_sort_members() {
 
 # Legacy [registered.members."PATH"] tables predate typed external members.
 # They stay selectable, warn once per manifest, and are rewritten by register.
+# The physical path keys the warning, so each spelling of one file warns once.
 workspace_warn_legacy() {
-  local file="$1" item
+  local file="$1" key item
+  key=$(canon_any "$file") || key="$file"
   for item in "${workspace_legacy_warned[@]+"${workspace_legacy_warned[@]}"}"; do
-    [ "$item" != "$file" ] || return 0
+    [ "$item" != "$key" ] || return 0
   done
-  workspace_legacy_warned+=("$file")
+  workspace_legacy_warned+=("$key")
   printf 'mgit: %s: [registered.members] tables are deprecated; run mgit register to rewrite them as members\n' "$file" >&2
 }
 
@@ -1746,7 +1761,8 @@ register_preflight_tree() {
 
 register_tree() {
   local dir="$1" child kid_kinds=() kid_types=() kid_paths=() kid_sources=()
-  local kind child_kind source status i root local_count external_count
+  local kind child_kind source status i j root local_count external_count kept
+  local previous_external=()
   kind=$(repo_type "$dir")
   if [ "$kind" != unknown ]; then
     # A nested structure and a bare store are leaf repository units. A standard
@@ -1787,6 +1803,10 @@ register_tree() {
   done
   if [ -f "$dir/$MGIT_MANIFEST" ]; then
     parse_workspace "$dir/$MGIT_MANIFEST" || return 2
+    for i in "${!workspace_record_paths[@]}"; do
+      [ "${workspace_record_scopes[$i]}" = external ] || continue
+      previous_external+=("${workspace_record_paths[$i]}")
+    done
   fi
   workspace_locations=()
   for i in "${!register_location_dirs[@]}"; do
@@ -1809,6 +1829,22 @@ register_tree() {
     kid_sources+=("${register_snapshot_sources[$i]}")
   done
   external_count=$((${#kid_types[@]} - local_count))
+  # Registration regenerates external members from saved locations, so name
+  # any hand-written one that no location produces before it disappears.
+  for i in "${!previous_external[@]}"; do
+    kept=false
+    for j in "${!kid_paths[@]}"; do
+      [ "${kid_paths[$j]}" != "${previous_external[$i]}" ] || kept=true
+    done
+    [ "$kept" = false ] || continue
+    if [ "$register_dry_run" = true ]; then
+      printf 'mgit register: %s: would drop external member without a saved location: %s (keep it with mgit register add --repo %s)\n' \
+        "$dir/$MGIT_MANIFEST" "${previous_external[$i]}" "${previous_external[$i]}"
+    else
+      printf 'mgit register: %s: dropped external member without a saved location: %s (restore it with mgit register add --repo %s)\n' \
+        "$dir/$MGIT_MANIFEST" "${previous_external[$i]}" "${previous_external[$i]}" >&2
+    fi
+  done
   if [ ${#kid_types[@]} -gt 0 ]; then
     if [ "$register_dry_run" = true ]; then
       printf 'mgit register: would write %s (%d local and %d external member(s))\n' \
@@ -1935,6 +1971,10 @@ repair_preflight() {
             return 1
           }
           capture_dir identity "$destination" || return 1
+          if [ "$scope" = external ] &&
+            workspace_external_inside "$canonical" "$identity" 'mgit repair'; then
+            return 1
+          fi
         elif [ "$scope" = external ]; then
           continue
         elif [ -z "${sources[$i]}" ]; then
@@ -2996,6 +3036,10 @@ select_workspace() {
             printf 'mgit: workspace member is not a repository: %s\n' "$destination" >&2
             return 1
           }
+          if [ "${scopes[$i]}" = external ] &&
+            workspace_external_inside "$canonical" "$destination" mgit; then
+            return 1
+          fi
           if [ "$scope" = local ]; then
             selected_path_seen "$destination" "${selected_local_repo_dirs[@]+"${selected_local_repo_dirs[@]}"}" && {
               printf 'mgit: duplicate repository path in workspace selection: %s\n' "$destination" >&2
