@@ -52,6 +52,9 @@ Options:
   -P, --physical          don't follow symlinked container directories (default)
   -L, --follow-symlinks   follow symlinked container directories
   -B, --bare              run COMMAND directly instead of as a Git subcommand
+  -j, --jobs <n>          run up to N checkouts at once (default 8)
+  -v, --verbose           run checkouts one at a time, streaming every header and output
+      --json              print ordinary-command results as one JSON document
   -I, --ignore            ignore workspace manifests and discover repositories
   -t, --territory <handle> select roots resolved by ki for a territory handle
       --estate            select every root in the registered KI estate
@@ -247,13 +250,13 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair doctor diag sync overview structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bare -j --jobs -v --verbose --json -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
       return
       ;;
-    -t|--territory)
+    -t|--territory|-j|--jobs)
       COMPREPLY=()
       return
       ;;
@@ -261,8 +264,8 @@ _mgit() {
   while (( i < COMP_CWORD )); do
     word="${COMP_WORDS[i]}"
     case "$word" in
-      -t|--territory|-f|--filter) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-B|--bare|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -t|--territory|-f|--filter|-j|--jobs) ((i += 2)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bare|-v|--verbose|--json|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -350,6 +353,11 @@ _mgit() {
     '--follow-symlinks[follow symlinked container directories]'
     '-B[run an ordinary command without git prefix]'
     '--bare[run an ordinary command without git prefix]'
+    '-j[run up to N checkouts at once]:jobs:'
+    '--jobs[run up to N checkouts at once]:jobs:'
+    '-v[run checkouts one at a time, streaming all output]'
+    '--verbose[run checkouts one at a time, streaming all output]'
+    '--json[print ordinary-command results as one JSON document]'
     '-I[ignore workspace selection from .mgit.toml]'
     '--ignore[ignore workspace selection from .mgit.toml]'
     '-t[select roots resolved by ki for a named territory]:territory name:'
@@ -3293,9 +3301,13 @@ overview_json_repository() {
   printf ']}'
 }
 
+overview_worker() {
+  overview_collect "${repos[$1]}" "$overview_stale_days" "$overview_now" "${overview_branch_facts[$1]}"
+}
+
 overview_command() {
-  local json=false verbose=false stale_days=30 i d label path common now facts error status
-  local clean=0 attention=0 failed=0 seen_common=() branch_facts first=true line errfile
+  local json=false verbose=false stale_days=30 i d label path common facts error status
+  local clean=0 attention=0 failed=0 seen_common=() first=true line
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=true ;;
@@ -3311,8 +3323,24 @@ overview_command() {
     esac
     shift
   done
-  now=$(date +%s)
-  errfile=$(mktemp "${TMPDIR:-/tmp}/mgit-overview.XXXXXX") || return 1
+  overview_stale_days="$stale_days"
+  overview_now=$(date +%s)
+  # Repository-wide facts belong to the first selected checkout of each
+  # repository, so decide that serially before the pool starts.
+  overview_branch_facts=()
+  for i in "${!repos[@]}"; do
+    overview_branch_facts[i]=true
+    if capture_path git_common_dir "${repos[$i]}"; then
+      common="$captured_path"
+      if selected_path_seen "$common" "${seen_common[@]+"${seen_common[@]}"}"; then
+        overview_branch_facts[i]=false
+      else
+        seen_common+=("$common")
+      fi
+    fi
+  done
+  runner_start || return 1
+  runner_run overview_worker
   if [ "$json" = true ]; then
     printf '{"tool":"mgit","command":"overview","version":%s,"stale_days":%s,"repositories":[' \
       "$(json_string "$MGIT_VERSION")" "$stale_days"
@@ -3321,22 +3349,15 @@ overview_command() {
     d="${repos[$i]}"
     label="${repo_labels[$i]}"
     capture_dir path "$d" || path="$d"
-    branch_facts=true
-    if capture_path git_common_dir "$d"; then
-      common="$captured_path"
-      if selected_path_seen "$common" "${seen_common[@]+"${seen_common[@]}"}"; then
-        branch_facts=false
-      else
-        seen_common+=("$common")
-      fi
-    fi
     error=""
-    if facts=$(overview_collect "$d" "$stale_days" "$now" "$branch_facts" 2>"$errfile"); then
+    facts=""
+    if [ "$(runner_status "$i")" -eq 0 ]; then
+      facts=$(cat "$runner_dir/$i.out")
       overview_classify "$facts"
       status="$overview_state"
     else
       status=failed
-      IFS= read -r error < "$errfile" || true
+      IFS= read -r error < "$runner_dir/$i.err" || true
       [ -n "$error" ] || error="cannot read repository"
     fi
     case "$status" in
@@ -3362,7 +3383,7 @@ overview_command() {
         ;;
     esac
   done
-  rm -f "$errfile"
+  runner_cleanup
   if [ "$json" = true ]; then
     printf '],"summary":{"repositories":%s,"clean":%s,"attention":%s,"failed":%s}}\n' \
       "${#repos[@]}" "$clean" "$attention" "$failed"
@@ -3370,6 +3391,182 @@ overview_command() {
     printf 'mgit overview: %s: %s clean, %s need attention, %s failed\n' \
       "$(plural "${#repos[@]}" repository repositories)" "$clean" "$attention" "$failed"
   fi
+  [ "$failed" -eq 0 ]
+}
+
+# The shared runner runs one worker function per selected checkout in a
+# bounded pool of background subshells. Each worker's stdout, stderr and exit
+# status land in files under a private directory, so results can be rendered
+# in selection order once every worker has finished. Bash 3.2 has no wait -n,
+# so a slot is freed by waiting on the oldest running worker.
+runner_jobs=8
+runner_dir=""
+runner_pids=()
+
+runner_cleanup() {
+  [ -z "$runner_dir" ] || rm -rf "$runner_dir"
+  runner_dir=""
+}
+
+runner_start() {
+  runner_dir=$(mktemp -d "${TMPDIR:-/tmp}/mgit.XXXXXX") || {
+    printf 'mgit: cannot create a temporary directory\n' >&2
+    return 1
+  }
+  trap runner_cleanup EXIT
+  trap 'runner_abort; exit 130' INT
+  trap 'runner_abort; exit 143' TERM
+}
+
+runner_abort() {
+  local pid
+  for pid in "${runner_pids[@]+"${runner_pids[@]}"}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+  runner_progress_clear
+  runner_cleanup
+}
+
+# One redrawn line on stderr, only when stderr is a terminal.
+runner_progress() {
+  local done="$1" total="$2" label="$3" width=10 filled bar=""
+  [ -t 2 ] || return 0
+  filled=$((done * width / total))
+  while [ ${#bar} -lt "$filled" ]; do bar="$bar#"; done
+  while [ ${#bar} -lt "$width" ]; do bar="$bar-"; done
+  printf '\r\033[K[%s] %d/%d %s' "$bar" "$done" "$total" "$label" >&2
+}
+
+runner_progress_clear() {
+  [ -t 2 ] || return 0
+  printf '\r\033[K' >&2
+}
+
+# Run "$1 INDEX" for every index of repos[]. Workers cannot read the terminal,
+# prompt for credentials or open an editor, so nothing waits on input unseen.
+runner_run() {
+  local worker="$1" total=${#repos[@]} next=0 oldest=0
+  runner_pids=()
+  while [ "$oldest" -lt "$total" ]; do
+    while [ "$next" -lt "$total" ] && [ $((next - oldest)) -lt "$runner_jobs" ]; do
+      (
+        export GIT_TERMINAL_PROMPT=0 GIT_EDITOR=false GIT_SEQUENCE_EDITOR=false
+        trap - EXIT INT TERM
+        status=0
+        "$worker" "$next" > "$runner_dir/$next.out" 2> "$runner_dir/$next.err" < /dev/null || status=$?
+        printf '%s\n' "$status" > "$runner_dir/$next.rc"
+      ) &
+      runner_pids+=("$!")
+      next=$((next + 1))
+    done
+    wait "${runner_pids[oldest]}" 2>/dev/null || true
+    oldest=$((oldest + 1))
+    runner_progress "$oldest" "$total" "${repo_labels[oldest - 1]}"
+  done
+  runner_pids=()
+  runner_progress_clear
+}
+
+runner_status() {
+  local status=""
+  [ ! -f "$runner_dir/$1.rc" ] || IFS= read -r status < "$runner_dir/$1.rc" || true
+  printf '%s' "${status:-1}"
+}
+
+# A pass-through worker. Any `status` is quiet exactly when the checkout has no
+# change entries and is level with an upstream, whatever form was requested.
+dispatch_worker() {
+  local d="${repos[$1]}" line quiet=true level=false
+  if [ "$runner_raw" = true ]; then
+    ( cd "$d" && "${runner_command[@]}" )
+    return
+  fi
+  ( cd "$d" && git "${runner_command[@]}" ) || return
+  [ "${runner_command[0]}" = status ] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      '# branch.ab +0 -0') level=true ;;
+      '#'*) ;;
+      *) quiet=false ;;
+    esac
+  done < <(GIT_OPTIONAL_LOCKS=0 git -C "$d" status --porcelain=v2 --branch 2>/dev/null || printf 'failed\n')
+  if [ "$quiet" = true ] && [ "$level" = true ]; then
+    : > "$runner_dir/$1.quiet"
+  else
+    : > "$runner_dir/$1.loud"
+  fi
+}
+
+# Today's dispatch: every checkout in turn, streaming, with a header each.
+dispatch_streaming() {
+  local i d label failed=false
+  for i in "${!repos[@]}"; do
+    d="${repos[$i]}"
+    label="${repo_labels[$i]}"
+    if [ "$runner_raw" = true ]; then
+      printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
+      ( cd "$d" && "${runner_command[@]}" ) || failed=true
+    else
+      printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
+      ( cd "$d" && git "${runner_command[@]}" ) || failed=true
+    fi
+  done
+  [ "$failed" = false ]
+}
+
+file_json_string() {
+  local content
+  content=$(cat "$1"; printf x)
+  json_string "${content%x}"
+}
+
+# Captured dispatch: run every checkout in the pool, then print in selection
+# order only checkouts with output or a failure, and close with the counts.
+dispatch_captured() {
+  local i label status quiet shown=0 quiets=0 failed=0 failures="" first=true header path
+  if [ "$runner_raw" = true ]; then header="$printed_cmd"; else header="git $printed_cmd"; fi
+  runner_start || return 1
+  runner_run dispatch_worker
+  [ "$runner_json" = false ] ||
+    printf '{"tool":"mgit","command":%s,"version":%s,"repositories":[' \
+      "$(json_string "$header")" "$(json_string "$MGIT_VERSION")"
+  for i in "${!repos[@]}"; do
+    label="${repo_labels[$i]}"
+    status=$(runner_status "$i")
+    quiet=false
+    if [ "$status" -ne 0 ]; then
+      failed=$((failed + 1))
+      failures="$failures, $label (exit $status)"
+    elif [ -f "$runner_dir/$i.quiet" ] || { [ ! -f "$runner_dir/$i.loud" ] &&
+      [ ! -s "$runner_dir/$i.out" ] && [ ! -s "$runner_dir/$i.err" ]; }; then
+      quiet=true
+      quiets=$((quiets + 1))
+    else
+      shown=$((shown + 1))
+    fi
+    if [ "$runner_json" = true ]; then
+      [ "$first" = true ] || printf ','
+      first=false
+      capture_dir path "${repos[$i]}" || path="${repos[$i]}"
+      printf '{"label":%s,"path":%s,"exit":%s,"quiet":%s,"stdout":%s,"stderr":%s}' \
+        "$(json_string "$label")" "$(json_string "$path")" "$status" "$quiet" \
+        "$(file_json_string "$runner_dir/$i.out")" "$(file_json_string "$runner_dir/$i.err")"
+      continue
+    fi
+    [ "$quiet" = false ] || continue
+    printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$header"
+    cat "$runner_dir/$i.out"
+    cat "$runner_dir/$i.err" >&2
+  done
+  if [ "$runner_json" = true ]; then
+    printf '],"summary":{"repositories":%s,"quiet":%s,"output":%s,"failed":%s}}\n' \
+      "${#repos[@]}" "$quiets" "$shown" "$failed"
+  else
+    printf 'mgit: %s: %s quiet, %s with output, %s failed%s\n' \
+      "$(plural "${#repos[@]}" repository repositories)" "$quiets" "$shown" "$failed" \
+      "${failures:+: ${failures#, }}"
+  fi
+  runner_cleanup
   [ "$failed" -eq 0 ]
 }
 
@@ -3562,6 +3759,9 @@ territory_handle=""
 ki_selector=""
 show_help=false
 show_version=false
+jobs_option=false
+runner_verbose=false
+runner_json=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -3594,6 +3794,14 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { usage_error "$1 requires a literal prefix"; exit $?; }
       [ -n "$2" ] || { usage_error "--filter requires a nonempty literal prefix"; exit $?; }
       filters+=("$2"); shift ;;
+    -j|--jobs)
+      [ $# -ge 2 ] || { usage_error "$1 requires a number of jobs"; exit $?; }
+      case "$2" in
+        ''|*[!0-9]*|0*) usage_error "--jobs requires a positive whole number: $2"; exit $? ;;
+      esac
+      runner_jobs="$2"; jobs_option=true; shift ;;
+    -v|--verbose)         runner_verbose=true ;;
+    --json)               runner_json=true ;;
     -h|--help)            show_help=true ;;
     -V|--version)         show_version=true ;;
     --)                   shift; break ;;
@@ -3620,6 +3828,11 @@ reject_selector_for() {
   local command="$1" option="$2"
   usage_error "$option cannot be used with $command"
 }
+reject_runner_options_for() {
+  [ "$jobs_option" = false ] || { reject_selector_for "$1" --jobs; return; }
+  [ "$runner_verbose" = false ] || { reject_selector_for "$1" --verbose; return; }
+  [ "$runner_json" = false ] || { reject_selector_for "$1" --json; return; }
+}
 case "${1:-}" in
   register|repair|doctor|diag|completion)
     command_name="${1:-}"
@@ -3628,6 +3841,7 @@ case "${1:-}" in
     [ ${#filters[@]} -eq 0 ] || { reject_selector_for "$command_name" --filter; exit $?; }
     [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
     [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
+    reject_runner_options_for "$command_name" || exit $?
     if [ "$command_name" != register ] || [ "$ki_selector" != --territory ]; then
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
     fi
@@ -3635,6 +3849,7 @@ case "${1:-}" in
   sync|overview|structure|worktree)
     command_name="${1:-}"
     [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
+    [ "$command_name" = overview ] || reject_runner_options_for "$command_name" || exit $?
     if [ "$command_name" != sync ] && [ "$command_name" != overview ]; then
       [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
@@ -3642,6 +3857,13 @@ case "${1:-}" in
     ;;
   '')
     [ "$bare" = false ] || { reject_selector_for listing --bare; exit $?; }
+    reject_runner_options_for listing || exit $?
+    ;;
+  *)
+    if [ "$runner_verbose" = true ] && [ "$runner_json" = true ]; then
+      usage_error '--verbose and --json cannot be combined'
+      exit $?
+    fi
     ;;
 esac
 
@@ -3947,7 +4169,10 @@ if [ "${1:-}" = "sync" ]; then
 fi
 
 if [ "${1:-}" = "overview" ]; then
-  if [ "$show_help" = true ]; then overview_command "${@:2}" --help; else overview_command "${@:2}"; fi
+  shift
+  [ "$runner_verbose" = false ] || set -- --verbose "$@"
+  [ "$runner_json" = false ] || set -- --json "$@"
+  if [ "$show_help" = true ]; then overview_command "$@" --help; else overview_command "$@"; fi
   exit $?
 fi
 
@@ -3963,16 +4188,10 @@ fi
 printed_cmd=$(printf '%q ' "$@")
 printed_cmd="${printed_cmd% }"
 
-dispatch_failed=false
-for i in "${!repos[@]}"; do
-  d="${repos[$i]}"
-  label="${repo_labels[$i]}"
-  if [ "$bare" = true ]; then
-    printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
-    ( cd "$d" && "$@" ) || dispatch_failed=true
-  else
-    printf '%s%s%s%s: git %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$printed_cmd"
-    ( cd "$d" && git "$@" ) || dispatch_failed=true
-  fi
-done
-[ "$dispatch_failed" = false ]
+runner_raw="$bare"
+runner_command=("$@")
+if [ "$runner_verbose" = true ]; then
+  dispatch_streaming
+else
+  dispatch_captured
+fi

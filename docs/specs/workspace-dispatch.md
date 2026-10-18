@@ -164,7 +164,7 @@ _Evidence:_ The named Bats checks cover clean, dirty, incoming, outgoing, no-ups
 
 ### MGIT-WS-019 — Aggregate command failure
 
-Ordinary Git and `-B` dispatch MUST attempt every selected checkout in order and return status `1` when any child command fails, even when the final child succeeds. It MUST return `0` only when every child succeeds.
+Ordinary Git and `-B` dispatch MUST attempt every selected checkout and return status `1` when any child command fails, even when the final child succeeds. It MUST return `0` only when every child succeeds, and its closing line MUST name each failed checkout with its exit status.
 
 _Conformance:_ conforming
 
@@ -174,7 +174,7 @@ _Evidence:_ The named Bats case exercises both dispatch families with an early f
 
 ### MGIT-WS-020 — Checkout output identity
 
-Ordinary command headers and `sync` progress and outcomes MUST use the selected checkout label, including external worktrees, while Git executes at the checkout path. Captured standard output MUST contain no ANSI styling; a non-empty `NO_COLOR` MUST disable styling on a terminal.
+Ordinary command headers and `sync` progress and outcomes MUST use the selected checkout label, including external worktrees, while Git executes at the checkout path. Ordinary command results MUST appear in selection order whatever order the checkouts finish in. Captured standard output MUST contain no ANSI styling; a non-empty `NO_COLOR` MUST disable styling on a terminal.
 
 _Conformance:_ conforming
 
@@ -194,11 +194,11 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` and `overview` accept listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution and the runner options `--jobs`, `--verbose` and `--json`, but not `--verbose` with `--json`. `sync` and `overview` accept listing selectors, and `overview` also accepts the runner options. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `inapplicable global selectors fail before management commands change state`; `command-specific selectors reject ignored combinations`; `help and version remain available with selectors`.
+_Verify:_ `bats tests/mgit.bats` — `inapplicable global selectors fail before management commands change state`; `command-specific selectors reject ignored combinations`; `help and version remain available with selectors`; `runner options are validated and rejected where they do not apply`.
 
 _Evidence:_ The selector matrix covers status, namespace, and no-side-effect behavior for the command families.
 
@@ -223,3 +223,15 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `overview names only checkouts that need attention and counts the rest`; `overview reports obsolete branches by the clean-down criteria`; `overview reports stashes, detached checkouts and worktrees once per repository`; `overview prints one JSON document`; `overview reads Git state without changing it`; `overview fails only for unreadable checkouts and validates its options`.
 
 _Evidence:_ The named Bats cases cover each attention state and obsolete-branch kind, JSON shape, a byte-for-byte read-only proof against a stale index, failure and option validation.
+
+## Shared runner
+
+### MGIT-WS-025 — Bounded parallel runner and concise output
+
+Ordinary Git and `-B` dispatch, and `overview` collection, MUST run selected checkouts in a pool of at most `--jobs` workers (default 8), each with standard input from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR` and `GIT_SEQUENCE_EDITOR` set to `false`, capturing output in a private temporary directory removed on exit or interrupt. Progress MUST go to standard error only when it is a terminal. Ordinary dispatch MUST then print, in selection order, the header and captured output of each checkout with output or a non-zero status, counting the rest as quiet; any `git status` MUST be quiet exactly when the checkout has no change entries and is level with an upstream; one closing line MUST give the quiet, output and failed counts. `--verbose` MUST restore serial streaming dispatch with no closing line, and `--json` MUST print one JSON document.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `the runner prints results in selection order and counts quiet checkouts`; `the runner runs checkouts concurrently up to the job limit`; `status is quiet only for clean checkouts level with an upstream`; `verbose streams every checkout in turn as before`; `json prints ordinary-command results as one document`; `workers cannot prompt, open an editor or read the terminal`; `the runner draws no progress off a terminal and removes its files`; `overview runs on the pool and takes the global output options`.
+
+_Evidence:_ The named Bats cases prove ordering against reversed finishing times, concurrency by shared markers, the quiet rules, failure naming, the streaming and JSON alternatives, the input and editor guards, and temporary-file removal on success and on a termination signal.

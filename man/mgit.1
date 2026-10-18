@@ -15,7 +15,8 @@ List the primary checkouts in the current set.
 .B mgit [\fIoptions\fR] [\fIcommand\fR ...]
 Run
 .B git
-with the supplied command and arguments in every selected checkout.
+with the supplied command and arguments in every selected checkout, several
+at once, and report the checkouts with output or a failure.
 .TP
 .B mgit [\fIoptions\fR] \-B \fIcommand\fR [\fIargument\fR ...]
 Run a command directly, without prefixing it with
@@ -88,8 +89,36 @@ Print contextual help for an mgit command.
 runs a Git command, or an arbitrary command with
 .BR \-B ,
 across a set of repositories.
-Before each invocation it prints the checkout label and command.
+It runs up to
+.B \-\-jobs
+checkouts at once, capturing each one's output, and draws one progress line on
+standard error when that is a terminal.
+When every checkout has finished it prints, in selection order, the checkout
+label and command followed by the captured output for each checkout that
+printed anything or failed, then one summary line counting quiet checkouts,
+checkouts with output and failures, and naming each failed checkout with its
+exit status.
+A checkout that exits 0 without output is quiet.
+Any
+.B git status
+is quiet exactly when the checkout has no changes and is level with an
+upstream.
 With no command it prints the checkout labels that would be used.
+.PP
+Commands run with standard input from
+.IR /dev/null ,
+.B GIT_TERMINAL_PROMPT=0
+and
+.B GIT_EDITOR
+and
+.B GIT_SEQUENCE_EDITOR
+set to
+.BR false ,
+so a command that would prompt or open an editor fails instead of waiting
+unseen; run it with
+.B \-\-verbose
+instead.
+Captured output carries no colour.
 .PP
 The reserved command tree consists of
 .BR register ,
@@ -206,6 +235,37 @@ Follow symlinked container directories while discovering repositories.
 Run the supplied command directly rather than as a
 .B git
 subcommand.
+.sp
+.TP
+.BR \-j , " \-\-jobs " \fIn\fR
+Run up to
+.I n
+checkouts at once for ordinary commands and
+.BR overview .
+The default is 8;
+.B \-j 1
+runs one at a time.
+.sp
+.TP
+.BR \-v , " \-\-verbose"
+Run an ordinary command in one checkout at a time, streaming every header and
+all output as it happens, with the terminal attached and no summary line.
+With
+.BR overview ,
+the same as its own
+.BR \-\-verbose .
+.sp
+.TP
+.B \-\-json
+Print an ordinary command's results as one JSON document: the command, each
+checkout's label, path, exit status, quiet flag, standard output and standard
+error, and the counts.
+With
+.BR overview ,
+the same as its own
+.BR \-\-json .
+It cannot be combined with
+.BR \-\-verbose .
 .sp
 .TP
 .BR \-I , " \-\-ignore"
@@ -663,6 +723,8 @@ For a fan-out command,
 .B mgit
 returns status 1 if any selected repository command fails, after attempting
 every selected checkout. It returns 0 only when every command succeeds.
+An interrupt stops the run, removes its temporary files and exits 130, or 143
+for a termination signal.
 .SH SEE ALSO
 \&
 .BR git (1),

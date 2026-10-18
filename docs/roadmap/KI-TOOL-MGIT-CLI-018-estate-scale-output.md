@@ -5,13 +5,13 @@ title: Estate-scale output
 kind: deliver
 purpose: capability
 component: cli
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: b8e591181c7e60f5f52e8a8a25c132bcb12cbea9
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T05:46:00Z
+updated_at: 2026-10-18T06:15:00Z
 ---
 
 ## Goal
@@ -37,15 +37,15 @@ Pass-through and `-B` dispatch run one checkout at a time in the main loop at th
 
 ## Steps
 
-- [ ] Add the runner: launch one background worker per checkout up to the job limit, freeing a slot by waiting on the oldest running worker; each worker runs with stdin from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR` set to `false`, so nothing interactive can hang or proceed unseen, and writes its stdout, stderr and exit status to files in a private `mktemp -d` directory removed on exit or interrupt.
-- [ ] Draw one progress line on stderr only when stderr is a terminal, `[#####-----] 27/54 label`, and clear it before results print.
-- [ ] Add global `-j/--jobs N` (positive integer) and `-v/--verbose`, and global `--json` for pass-through, each rejected as a usage error where it does not apply.
-- [ ] Render pass-through results in selection order: a checkout with output or a non-zero status prints its header and captured output as today; a checkout with exit `0` and no output, or a quiet `git status`, counts only; then one summary line, naming each failed checkout with its exit status. Exit `1` when any failed.
-- [ ] Keep `-v/--verbose` byte-for-byte today's serial streaming dispatch.
-- [ ] Move the `overview` collector onto the runner.
-- [ ] Add Bats cases: results in selection order under parallel workers, quiet collapse and count, the `status` quiet rule, failure naming and exit status, `-j` validation and `-j 1`, verbose streaming, JSON shape, no progress when stderr is not a terminal, editor and prompt guards, and overview under the pool.
-- [ ] Update help, manual, completion, README, running-commands guide, workspace-dispatch specification and changelog.
-- [ ] Run the complete gate.
+- [x] Add the runner: launch one background worker per checkout up to the job limit, freeing a slot by waiting on the oldest running worker; each worker runs with stdin from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR` set to `false`, so nothing interactive can hang or proceed unseen, and writes its stdout, stderr and exit status to files in a private `mktemp -d` directory removed on exit or interrupt.
+- [x] Draw one progress line on stderr only when stderr is a terminal, `[#####-----] 27/54 label`, and clear it before results print.
+- [x] Add global `-j/--jobs N` (positive integer) and `-v/--verbose`, and global `--json` for pass-through, each rejected as a usage error where it does not apply.
+- [x] Render pass-through results in selection order: a checkout with output or a non-zero status prints its header and captured output as today; a checkout with exit `0` and no output, or a quiet `git status`, counts only; then one summary line, naming each failed checkout with its exit status. Exit `1` when any failed.
+- [x] Keep `-v/--verbose` byte-for-byte today's serial streaming dispatch.
+- [x] Move the `overview` collector onto the runner.
+- [x] Add Bats cases: results in selection order under parallel workers, quiet collapse and count, the `status` quiet rule, failure naming and exit status, `-j` validation and `-j 1`, verbose streaming, JSON shape, no progress when stderr is not a terminal, editor and prompt guards, and overview under the pool.
+- [x] Update help, manual, completion, README, running-commands guide, workspace-dispatch specification and changelog.
+- [x] Run the complete gate.
 
 ## Files touched
 
@@ -76,6 +76,41 @@ Running commands describes progress, the quiet count, `--verbose`, `--jobs` and 
 ### Roadmap
 
 Unblocks KI-TOOL-MGIT-CLI-020.
+
+## Review
+
+### Delivered
+
+From the Ready baseline `b8e5911`, ordinary Git and `-B` dispatch run on one shared runner in `bin/mgit`: a pool of at most `-j/--jobs N` background workers (default 8) that frees a slot by waiting on the oldest worker, since Bash 3.2 has no `wait -n`. Each worker runs with standard input from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR` set to `false`, and writes its output and exit status to a private `mktemp -d` directory that is removed on exit, interrupt (status `130`) or termination (status `143`). One progress line, `[#####-----] 2/4 label`, is drawn on standard error only when it is a terminal. When every worker has finished, checkouts with output or a failure print today's header and captured output in selection order; the rest count as quiet, and any `git status` is quiet exactly when the checkout has no change entries and is level with an upstream. A closing line such as `mgit: 4 repositories: 2 quiet, 1 with output, 1 failed: c (exit 3)` follows, and the exit status stays `1` when any checkout fails. Global `-v/--verbose` runs today's serial streaming loop unchanged, and global `--json` prints one document. `overview` collection runs on the same pool, with its rendering unchanged, and takes the global `-v` and `--json` as its own options. The runner options are a usage error for listing, `sync`, `structure`, `worktree` and the management commands. No version bump, release or tag.
+
+### Change Summary
+
+The commit `feat(cli): add the KI-TOOL-MGIT-CLI-018 shared runner` adds the runner, progress line, captured and streaming dispatch, JSON output, the global `-j/--jobs`, `-v/--verbose` and `--json` options with their rejections, usage text and Bash and Zsh completion to `bin/mgit`, and moves `overview` collection onto the pool. It adds nine Bats cases and updates the fan-out case for the quiet count, and updates the manual, README, running-commands guide, changelog, MGIT-WS-019, MGIT-WS-020 and MGIT-WS-022, and a new MGIT-WS-025 in the workspace-dispatch specification.
+
+### Verification
+
+`ki repo audit --repo .` passes with the existing HOOK-1 warning; `shellcheck`, `bash -n`, `mandoc -T lint` and `git diff --check` are clean; `bats tests/` passes 116 of 116. Run against the baseline `bin/mgit`, the nine new cases and the updated fan-out case all fail. Ordering is proved with checkouts that finish in reverse order, concurrency with shared start markers under `-j 3` and `-j 1`, and cleanup by a termination signal sent mid-run. A run under a pseudo-terminal drew and cleared the progress line. All runs used disposable fixtures with isolated Git configuration.
+
+### Outstanding concerns
+
+Each is provisional, for Kris to confirm:
+
+- **Captured output loses colour.** Git sees no terminal, so status and diff colour is gone by default; `-v` restores it.
+- **Interactive commands need `-v`.** A command that needs an editor or a credential prompt fails rather than waiting, for example `mgit commit` without `-m`. An SSH passphrase prompt reads the terminal directly and is not suppressed; that needs an agent or `-v`.
+- **The closing line goes to standard output.** Scripts that read ordinary-command output now see one more line; `--json` is the stable interface for tools.
+- **No upstream is never quiet.** A clean `git status --short` in a checkout without an upstream prints its header with no output, as a flag that the work is not on a remote.
+- **Interrupts stop workers, not their children.** A termination signal kills the worker subshells and removes the files, but a Git process a worker started may run to completion; an interrupt from the terminal reaches the whole process group.
+- **The oldest worker gates the pool.** A slow early checkout holds back free slots until it finishes; at the default of eight this costs little, and `-j` raises the limit.
+
+Human acceptance is outstanding.
+
+### Post-change review
+
+The runner takes a worker function and an index, so `overview` and the KI-TOOL-MGIT-CLI-020 sync fetch can reuse it without new plumbing. Repository-wide `overview` facts are still decided serially before the pool starts, so `-W` output is the same at every job count. The serial loop is kept as its own function, so `-v` is exactly today's behaviour rather than a rendering of captured results.
+
+### Mini recap
+
+Ordinary commands now run in parallel and report only what needs attention, with `-v` for the old stream and `--json` for tools.
 
 ## Discussion
 
@@ -116,4 +151,4 @@ Interacts with [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-h
 
 ### Adoption (provisional, for Kris to confirm)
 
-Adopted into Next and planned to Ready on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2, option a), under Kris's KEEP-PUSHING and FABLE-OPINION answers. Building stops at Awaiting review, pure Bash with Bats fixtures only, with no release. Kris confirms or reverses the adoption and plan by editing this record. The Implementation route is settled as keep Bash, so no Decision Record is needed; the runner design in the plan is provisional, for Kris to confirm.
+Adopted into Next and planned to Ready on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2, option a), under Kris's KEEP-PUSHING and FABLE-OPINION answers. Building stops at Awaiting review, pure Bash with Bats fixtures only, with no release. Kris confirms or reverses the adoption and plan by editing this record. The Implementation route is settled as keep Bash, so no Decision Record is needed; the runner design in the plan is provisional, for Kris to confirm. Built to Awaiting review the same day; the choices in Outstanding concerns are provisional, for Kris to confirm.

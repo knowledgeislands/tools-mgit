@@ -602,7 +602,226 @@ assert_usage_error() {
   plain_output=${plain_output//$'\033[33m'/}
   plain_output=${plain_output//$'\033[0m'/}
   [[ "$plain_output" == *"a: sh -c"* ]]
-  [[ "$plain_output" == *"b: sh -c"* ]]
+  [[ "$plain_output" != *"b: sh -c"* ]]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 1 quiet, 0 with output, 1 failed: a (exit 1)' ]
+
+  run "$MGIT" -v -B sh -c 'test -f success'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"b: sh -c"* ]]
+  [[ "$output" != *"mgit: 2 repositories"* ]]
+}
+
+@test "the runner prints results in selection order and counts quiet checkouts" {
+  local name
+  for name in a b c d; do mkrepo "$TREE/$name"; done
+  printf '0.6\n' > "$TREE/a/delay"
+  printf '0.3\n' > "$TREE/b/delay"
+  printf '0\n' > "$TREE/c/delay"
+  printf '0\n' > "$TREE/d/delay"
+  cd "$TREE"
+
+  run "$MGIT" -B sh -c 'sleep "$(cat delay)"; basename "$PWD"'
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 9 ]
+  [[ "${lines[0]}" == 'a: sh -c sleep'* ]]
+  [ "${lines[1]}" = a ]
+  [[ "${lines[2]}" == 'b: sh -c sleep'* ]]
+  [ "${lines[3]}" = b ]
+  [ "${lines[5]}" = c ]
+  [ "${lines[7]}" = d ]
+  [ "${lines[8]}" = 'mgit: 4 repositories: 0 quiet, 4 with output, 0 failed' ]
+
+  run "$MGIT" -B sh -c 'case "${PWD##*/}" in b) echo out ;; c) echo err >&2; exit 3 ;; esac'
+  [ "$status" -eq 1 ]
+  [[ "${lines[0]}" == 'b: sh -c case'* ]]
+  [ "${lines[1]}" = out ]
+  [[ "${lines[2]}" == 'c: sh -c '* ]]
+  [ "${lines[3]}" = err ]
+  [ "${lines[4]}" = 'mgit: 4 repositories: 2 quiet, 1 with output, 1 failed: c (exit 3)' ]
+  [ "${#lines[@]}" -eq 5 ]
+}
+
+@test "the runner runs checkouts concurrently up to the job limit" {
+  local name
+  for name in a b c; do mkrepo "$TREE/$name"; done
+  export MARKS="$BATS_TEST_TMPDIR/marks"
+  mkdir "$MARKS"
+  cd "$TREE"
+  # Each worker waits briefly for its siblings, then reports how many started.
+  # shellcheck disable=SC2016
+  local probe='touch "$MARKS/${PWD##*/}"; n=0; while [ "$(ls "$MARKS" | wc -l)" -lt 3 ] && [ $n -lt 20 ]; do sleep 0.1; n=$((n + 1)); done; ls "$MARKS" | wc -l | tr -d " "'
+
+  run "$MGIT" -j 3 -B sh -c "$probe"
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = 3 ]
+  [ "${lines[3]}" = 3 ]
+  [ "${lines[5]}" = 3 ]
+
+  rm -f "$MARKS"/*
+  run "$MGIT" --jobs 1 -B sh -c "$probe"
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = 1 ]
+  [ "${lines[3]}" = 2 ]
+  [ "${lines[5]}" = 3 ]
+  [ "${lines[6]}" = 'mgit: 3 repositories: 0 quiet, 3 with output, 0 failed' ]
+}
+
+@test "status is quiet only for clean checkouts level with an upstream" {
+  local origins="$BATS_TEST_TMPDIR/origins"
+  mkdir -p "$origins"
+  make_origin "$TREE/clean" "$origins/clean.git" clean
+  make_origin "$TREE/dirty" "$origins/dirty.git" dirty
+  printf 'changed\n' >> "$TREE/dirty/payload"
+  make_origin "$TREE/ahead" "$origins/ahead.git" ahead
+  git -C "$TREE/ahead" commit -q --allow-empty -m ahead
+  mkrepo "$TREE/local"
+  cd "$TREE"
+
+  run "$MGIT" status --short
+  [ "$status" -eq 0 ]
+  [ "$output" = $'ahead: git status --short\ndirty: git status --short\n M payload\nlocal: git status --short\nmgit: 4 repositories: 1 quiet, 3 with output, 0 failed' ]
+
+  run "$MGIT" -f c status
+  [ "$status" -eq 0 ]
+  [ "$output" = 'mgit: 1 repository: 1 quiet, 0 with output, 0 failed' ]
+}
+
+@test "verbose streams every checkout in turn as before" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  cd "$TREE"
+
+  run "$MGIT" -v -B true
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a: true\nb: true' ]
+
+  run "$MGIT" --verbose -B sh -c 'echo out; echo err >&2'
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 6 ]
+  [[ "${lines[0]}" == 'a: sh -c echo'* ]]
+  [ "${lines[1]}" = out ]
+  [ "${lines[2]}" = err ]
+  [[ "${lines[3]}" == 'b: sh -c echo'* ]]
+  [ "${lines[5]}" = err ]
+
+  run "$MGIT" -B true
+  [ "$status" -eq 0 ]
+  [ "$output" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
+}
+
+@test "json prints ordinary-command results as one document" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  cd "$TREE"
+
+  run "$MGIT" --json -B sh -c 'if [ "${PWD##*/}" = b ]; then printf "x\ty\n"; echo "e\"" >&2; exit 2; fi'
+  [ "$status" -eq 1 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [[ "$output" == '{"tool":"mgit","command":"sh -c '*'","version":"'*'","repositories":[{"label":"a","path":"'*'","exit":0,"quiet":true,"stdout":"","stderr":""},{"label":"b","path":"'*'","exit":2,"quiet":false,"stdout":"x\ty\n","stderr":"e\"\n"}],"summary":{"repositories":2,"quiet":1,"output":0,"failed":1}}' ]]
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "$output" | python3 -m json.tool >/dev/null
+  fi
+
+  run "$MGIT" --json rev-parse --is-inside-work-tree
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]]
+  [[ "$output" == *'"stdout":"true\n"'* ]]
+}
+
+@test "workers cannot prompt, open an editor or read the terminal" {
+  mkrepo "$TREE/repo"
+  cd "$TREE"
+
+  # shellcheck disable=SC2016
+  run "$MGIT" -B sh -c 'printf "%s %s %s\n" "$GIT_TERMINAL_PROMPT" "$GIT_EDITOR" "$GIT_SEQUENCE_EDITOR"; if read -r line; then echo read; else echo eof; fi' <<< 'typed'
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = '0 false false' ]
+  [ "${lines[2]}" = eof ]
+
+  before=$(git -C "$TREE/repo" rev-parse HEAD)
+  run "$MGIT" commit -q --allow-empty
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'mgit: 1 repository: 0 quiet, 0 with output, 1 failed: repo (exit 1)'* ]]
+  [ "$(git -C "$TREE/repo" rev-parse HEAD)" = "$before" ]
+}
+
+@test "the runner draws no progress off a terminal and removes its files" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  mkdir "$BATS_TEST_TMPDIR/tmp"
+  cd "$TREE"
+
+  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -B true > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
+  [ ! -s "$BATS_TEST_TMPDIR/err" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/out")" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
+  [ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ]
+
+  TMPDIR="$BATS_TEST_TMPDIR/tmp" "$MGIT" -B sleep 3 > /dev/null 2>&1 &
+  pid=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ] || break
+    sleep 0.1
+  done
+  [ -n "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ]
+  kill -TERM "$pid"
+  status=0
+  wait "$pid" || status=$?
+  [ "$status" -eq 143 ]
+  [ -z "$(ls -A "$BATS_TEST_TMPDIR/tmp")" ]
+}
+
+@test "runner options are validated and rejected where they do not apply" {
+  mkrepo "$TREE/repo"
+  cd "$TREE"
+  for value in 0 -1 abc 007 ''; do
+    run "$MGIT" -j "$value" status
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--jobs requires a positive whole number"* ]]
+  done
+  run "$MGIT" --jobs
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--jobs requires a number of jobs"* ]]
+
+  run "$MGIT" -v --json status
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--verbose and --json cannot be combined"* ]]
+  run "$MGIT" -j 2
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--jobs cannot be used with listing"* ]]
+  run "$MGIT" -v sync
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--verbose cannot be used with sync"* ]]
+  run "$MGIT" --json doctor
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--json cannot be used with doctor"* ]]
+  run "$MGIT" -j 2 worktree list
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--jobs cannot be used with worktree"* ]]
+}
+
+@test "overview runs on the pool and takes the global output options" {
+  make_overview_estate
+  make_overview_hygiene
+  cd "$TREE"
+  run "$MGIT" overview
+  [ "$status" -eq 0 ]
+  expected="$output"
+  run "$MGIT" -j 1 overview
+  [ "$output" = "$expected" ]
+  run "$MGIT" --jobs 3 overview
+  [ "$output" = "$expected" ]
+
+  run "$MGIT" overview --json
+  expected="$output"
+  run "$MGIT" --json overview
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+
+  run "$MGIT" overview --verbose
+  expected="$output"
+  run "$MGIT" -v overview
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
 }
 
 @test "sync rolls up current repositories and shows dirty worktrees" {

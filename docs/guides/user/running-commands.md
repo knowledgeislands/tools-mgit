@@ -8,7 +8,25 @@ mgit status
 mgit sync
 ```
 
-Ordinary Git and `-B` commands continue through every selected checkout. The invocation exits with status `1` if any checkout command fails, even when the final checkout succeeds.
+Ordinary Git and `-B` commands run in every selected checkout, up to eight at a time. While they run, one progress line on a terminal shows how many have finished. When all have finished, each checkout that printed something or failed is shown in selection order with its header and output, and one line closes the run:
+
+```text
+tools-ki: git status --short
+ M README.md
+mgit: 54 repositories: 53 quiet, 1 with output, 0 failed
+```
+
+A checkout that exits `0` without output is quiet. Any `git status` is quiet exactly when the checkout has no changes and is level with an upstream, so a checkout without an upstream is always shown. The invocation exits with status `1` if any checkout command fails, and the closing line names each failed checkout with its exit status, as in `1 failed: tools-ki (exit 128)`.
+
+Commands cannot read the terminal: standard input is empty, Git does not prompt for credentials and `GIT_EDITOR` is `false`, so a command that needs an editor or a prompt fails rather than waiting unseen. Captured output also loses Git's colour. For these commands pass `-v` or `--verbose`, which runs one checkout at a time with the terminal attached and streams every header and all output as before.
+
+| Option | Effect |
+| --- | --- |
+| `-j N`, `--jobs N` | Run up to `N` checkouts at once (default 8; `-j 1` for one at a time). |
+| `-v`, `--verbose` | One checkout at a time, every header and all output streamed, no closing line. |
+| `--json` | One JSON document with each checkout's label, path, exit status, quiet flag, standard output and standard error, and the counts. |
+
+The options go before the command, as in `mgit -j 4 fetch`. They apply to ordinary commands and to `overview`, and are a usage error elsewhere. An interrupt removes the run's temporary files.
 
 Command headers and `sync` progress use the same checkout labels. A linked worktree outside its repository is shown as `repository [branch]`, while Git still runs at the real checkout path. Color appears only on a terminal; captured output contains plain text. Set `NO_COLOR` to a non-empty value to disable color on a terminal.
 
@@ -66,7 +84,7 @@ mgit overview: 54 repositories: 51 clean, 3 need attention, 0 failed
 
 A checkout needs attention for staged, modified, untracked or conflicted files; a detached HEAD, no upstream or a gone upstream; commits ahead or behind its last-fetched upstream; stashes; prunable or detached linked worktrees; or obsolete branches. A local branch is obsolete when it is merged into the default branch (`origin/HEAD`, else `main` or `master`), patch-equivalent to it, tracks a gone upstream, or is unmerged and idle for more than `--stale-days` days (default 30). A remote-tracking branch is obsolete when merged or stale. `automation/*`, `dependabot/*` and `renovate/*` branches follow the same rules and are marked. Branches checked out in a worktree are never obsolete.
 
-Pass `--verbose` to name clean checkouts too, and `--json` for one JSON document with every checkout and the counts, for tools such as `ki`. Selectors and `--all-worktrees` apply as for listing; with `--all-worktrees`, repository-wide facts (stashes, worktrees and branches) appear once per repository. The command exits with status `1` only when a checkout cannot be read. Ahead and behind counts are as fresh as the last fetch.
+Pass `--verbose` to name clean checkouts too, and `--json` for one JSON document with every checkout and the counts, for tools such as `ki`; the global `-v` and `--json` do the same. Checkouts are read in parallel, bounded by `--jobs`. Selectors and `--all-worktrees` apply as for listing; with `--all-worktrees`, repository-wide facts (stashes, worktrees and branches) appear once per repository. The command exits with status `1` only when a checkout cannot be read. Ahead and behind counts are as fresh as the last fetch.
 
 ## Limit the set
 
