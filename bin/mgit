@@ -63,7 +63,7 @@ Options:
   -t, --territory <handle> select roots resolved by ki for a territory handle
       --estate            select every root in the registered KI estate
       --principals        select the territory Capitals, in KI's order
-  -f, --filter <prefix>    literal case-sensitive basename prefix; repeatable OR
+      --filter <prefix>   literal case-sensitive basename prefix; repeatable OR
   -W, --all-worktrees     include every active linked worktree
   -h, --help              display help for command
   -V, --version           print the CLI version
@@ -283,7 +283,7 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair doctor diag sync overview structure worktree learn completion help'
-  global_options='-P --physical -L --follow-symlinks -B --bypass -R --raw -j --jobs -v --verbose --json --learn -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -B --bypass -R --raw -j --jobs -v --verbose --json --learn -I --ignore -t --territory --estate --principals --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
@@ -297,7 +297,7 @@ _mgit() {
   while (( i < COMP_CWORD )); do
     word="${COMP_WORDS[i]}"
     case "$word" in
-      -t|--territory|-f|--filter|-j|--jobs) ((i += 2)); continue ;;
+      -t|--territory|--filter|-j|--jobs) ((i += 2)); continue ;;
       -P|--physical|-L|--follow-symlinks|-B|--bypass|-R|--raw|-v|--verbose|--json|--learn|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
@@ -404,7 +404,6 @@ _mgit() {
     '--territory[select roots resolved by ki for a named territory]:territory name:'
     '--estate[select every root in the registered KI estate]'
     '--principals[select the territory Capitals in KI order]'
-    '-f[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '--filter[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '-W[include linked worktrees for listing, ordinary commands, sync and overview]'
     '--all-worktrees[include linked worktrees for listing, ordinary commands, sync and overview]'
@@ -4021,7 +4020,10 @@ while [ $# -gt 0 ]; do
       [ -z "$ki_selector" ] || { usage_error '--territory, --estate and --principals cannot be combined or repeated'; exit $?; }
       ki_selector=--principals
       territory_handle=principals ;;
-    -f|--filter)
+    -f)
+      usage_error "$1 has been removed; use --filter to select repositories"
+      exit $? ;;
+    --filter)
       [ $# -ge 2 ] || { usage_error "$1 requires a literal prefix"; exit $?; }
       [ -n "$2" ] || { usage_error "--filter requires a nonempty literal prefix"; exit $?; }
       filters+=("$2"); shift ;;

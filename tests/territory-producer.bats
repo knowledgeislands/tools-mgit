@@ -78,15 +78,15 @@ assert_no_dispatch() {
 }
 
 @test "real producer uses literal case-sensitive repeated basename prefixes with excluded missing roots" {
-  run "$MGIT" -t short -f 'Tool [*]' -f absent -f 'Tool [*]' -R git config pilot.proof yes
+  run "$MGIT" -t short --filter 'Tool [*]' --filter absent --filter 'Tool [*]' -R git config pilot.proof yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$MEMBER" config --get pilot.proof)" = yes ]
   ! git -C "$CAPITAL" config --get pilot.proof
-  run "$MGIT" --estate -f Capital
+  run "$MGIT" --estate --filter Capital
   [ "$status" -eq 0 ]
   [ "$output" = '../Capital Space' ]
   for prefix in tool '*' unrelated-member-key ''; do
-    assert_no_dispatch -t short -f "$prefix"
+    assert_no_dispatch -t short --filter "$prefix"
   done
   assert_no_dispatch -t capital-registry
 }
@@ -98,29 +98,29 @@ assert_no_dispatch() {
   write_registry
   local linked="$ROOT/runtime checkout"$'\n'
   git -C "$MEMBER" worktree add -qb feature "$linked"
-  run "$MGIT" -j 1 -t short -f 'Tool [*]' -W -R sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
+  run "$MGIT" -j 1 -t short --filter 'Tool [*]' -W -R sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
   [ "$status" -eq 0 ]
   local first second
   { IFS= read -r -d '' first; IFS= read -r -d '' second; } < "$ROOT/dispatch.nul"
   [ "$first" = "$MEMBER" ] || { printf 'first=%q expected=%q\n' "$first" "$MEMBER"; return 1; }
   [ "$second" = "$linked" ]
-  run "$MGIT" -t short -f 'runtime checkout'
+  run "$MGIT" -t short --filter 'runtime checkout'
   [ "$status" -ne 0 ]
 }
 
 @test "real producer blocks selected missing roots and missing member registrations before dispatch" {
   assert_no_dispatch -t short
-  assert_no_dispatch --estate -f Unavailable
+  assert_no_dispatch --estate --filter Unavailable
   {
     printf 'schema = 1\n'
     registry_entry capital-registry capital "$CAPITAL"
   } > "$XDG_STATE_HOME/ki/registry.toml"
-  assert_no_dispatch -t short -f Capital
+  assert_no_dispatch -t short --filter Capital
 }
 
 @test "real producer rejects duplicate identities and handles before every Git mutation" {
   registry_entry duplicate-key member "$ROOT/other" >> "$XDG_STATE_HOME/ki/registry.toml"
-  assert_no_dispatch -t short -f Capital
+  assert_no_dispatch -t short --filter Capital
   write_registry
   local other="$ROOT/Other Capital"
   init_repo "$other"
@@ -130,7 +130,7 @@ assert_no_dispatch() {
   cat "$ROOT/other.toml" > "$other/.ki.toml"
   printf '%s\n' 'territory_prefix = "short"' 'territory_name = "Other"' 'territory_members = ["https://github.com/example/other"]' >> "$other/.ki.toml"
   registry_entry other-registry other "$other" >> "$XDG_STATE_HOME/ki/registry.toml"
-  assert_no_dispatch -t short -f Capital
+  assert_no_dispatch -t short --filter Capital
 }
 
 write_other_capital() {
@@ -151,13 +151,13 @@ write_other_capital() {
   run "$MGIT" --principals
   [ "$status" -eq 0 ]
   [ "$output" = $'../Zulu Capital\n../Alpha Capital\n../Capital Space' ] || { printf '%s\n' "$output"; return 1; }
-  run "$MGIT" --principals -f Alpha -f Capital -R git config pilot.principal yes
+  run "$MGIT" --principals --filter Alpha --filter Capital -R git config pilot.principal yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$ROOT/Alpha Capital" config --get pilot.principal)" = yes ]
   [ "$(git -C "$CAPITAL" config --get pilot.principal)" = yes ]
   ! git -C "$ROOT/Zulu Capital" config --get pilot.principal
   ! git -C "$MEMBER" config --get pilot.principal
-  assert_no_dispatch --principals -f Tool
+  assert_no_dispatch --principals --filter Tool
   assert_no_dispatch --principals --estate
   assert_no_dispatch -t short --principals
   assert_no_dispatch --principals --repo "$MEMBER"
@@ -198,7 +198,7 @@ write_other_capital() {
   grep -Fx 'locations = ["local", "territory:short"]' .mgit.toml
   # A registry change cannot affect a saved snapshot until explicit refresh.
   mv "$XDG_STATE_HOME/ki/registry.toml" "$ROOT/registry.saved"
-  run "$MGIT" -f 'Tool [*]' -R git config pilot.offline yes
+  run "$MGIT" --filter 'Tool [*]' -R git config pilot.offline yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$MEMBER" config --get pilot.offline)" = yes ]
   run "$MGIT" register

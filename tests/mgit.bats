@@ -499,8 +499,8 @@ assert_usage_error() {
     assert_usage_error "$option" register
     assert_usage_error "$option" repair
   done
-  assert_usage_error -f repo register
-  assert_usage_error -f repo repair
+  assert_usage_error --filter repo register
+  assert_usage_error --filter repo repair
   assert_usage_error --estate register
   assert_usage_error --estate repair
   assert_usage_error --principals register
@@ -524,7 +524,7 @@ assert_usage_error() {
   assert_usage_error -W worktree list
   assert_usage_error -a focus structure nested
   assert_usage_error -a focus worktree list
-  assert_usage_error -f repo completion bash
+  assert_usage_error --filter repo completion bash
   [ -d "$TREE/repo/.git" ]
   [ ! -e "$TREE/repo/.bare" ]
 }
@@ -615,7 +615,7 @@ assert_usage_error() {
   [ "${lines[0]}" = 'alpha: git help' ]
   [[ "$output" != *"Usage: mgit"* ]] || false
 
-  run "$MGIT" -B -f b -j 1 -v structure
+  run "$MGIT" -B --filter b -j 1 -v structure
   [ "$status" -eq 1 ]
   [ "${lines[0]}" = 'beta: git structure' ]
   [[ "$output" == *"'structure' is not a git command"* ]] || false
@@ -837,10 +837,10 @@ make_level_pair() {
   run "$MGIT" status
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 5 repositories: 0 quiet, 5 with output, 0 failed' ]
 
-  run "$MGIT" -v -f alpha st
+  run "$MGIT" -v --filter alpha st
   [ "$status" -eq 0 ]
   [[ "$output" == $'alpha: git st\n## '*'...origin/'* ]] || false
-  run "$MGIT" --json -f alpha st
+  run "$MGIT" --json --filter alpha st
   [[ "$output" == *'"quiet":true,"stdout":"## '*'...origin/'* ]] || false
 }
 
@@ -879,11 +879,11 @@ make_level_pair() {
 
   run "$MGIT" learn status --short
   [ "$status" -eq 1 ]
-  run "$MGIT" -f alpha -f beta learn status --short
+  run "$MGIT" --filter alpha --filter beta learn status --short
   [ "$status" -eq 0 ]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: no repository printed anything, which is already quiet' ]
 
-  run "$MGIT" -f alpha learn st
+  run "$MGIT" --filter alpha learn st
   [ "$status" -eq 1 ]
   [ "$output" = 'mgit: not learned: learning needs at least two repositories' ]
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
@@ -973,7 +973,7 @@ make_level_pair() {
   [[ "$output" == *'--learn cannot be combined with --verbose'* ]] || false
   assert_usage_error --learn --json status
   [[ "$output" == *'--learn cannot be combined with --json'* ]] || false
-  assert_usage_error -f alpha learn --list
+  assert_usage_error --filter alpha learn --list
   [[ "$output" == *'--filter cannot be used with learn --list'* ]] || false
   assert_usage_error learn --list extra
   assert_usage_error learn --forget
@@ -987,7 +987,7 @@ make_level_pair() {
   [ "$status" -eq 0 ]
   [[ "$output" == 'Usage: mgit learn'* ]] || false
 
-  run "$MGIT" -B --learn -f alpha -f beta config --get branch.trunk.remote
+  run "$MGIT" -B --learn --filter alpha --filter beta config --get branch.trunk.remote
   [ "$status" -eq 1 ]
 }
 
@@ -1404,7 +1404,7 @@ make_level_pair() {
   [ "$status" -eq 0 ]
   [ "$output" = $'first\nwith space' ]
 
-  run "$MGIT" --territory focus -f first
+  run "$MGIT" --territory focus --filter first
   [ "$status" -eq 0 ]
   [ "$output" = "first" ]
 }
@@ -1438,7 +1438,7 @@ make_level_pair() {
   [ "$status" -eq 0 ]
   [ "$output" = $'ki-principal\ner-principal\nva-principal' ]
 
-  run "$MGIT" --principals -f va -f ki
+  run "$MGIT" --principals --filter va --filter ki
   [ "$status" -eq 0 ]
   [ "$output" = $'ki-principal\nva-principal' ]
 
@@ -2525,7 +2525,7 @@ make_external_estate() {
   [[ "$output" != *"company-uuid"* ]] || false
   [[ "$output" != *".git/mgit-worktrees"* ]] || false
 
-  run "$MGIT" -W -f 'repo A' rev-parse --show-toplevel
+  run "$MGIT" -W --filter 'repo A' rev-parse --show-toplevel
   [ "$status" -eq 0 ]
   [[ "$output" == *"repo A [GOV-104]: git rev-parse --show-toplevel"* ]] || false
   [[ "$output" == *"$storage/one"* ]] || false
@@ -2625,14 +2625,14 @@ make_external_estate() {
   mkrepo "$TREE/tools-d"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-'
+  run "$MGIT" --filter 'mcp-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a"* ]] || false
   [[ "$output" == *"mcp-b"* ]] || false
   [[ "$output" == *"sub/mcp-c"* ]] || false
   [[ "$output" != *"tools-d"* ]] || false
 
-  run "$MGIT" -f 'mcp-a' -f 'tools-'
+  run "$MGIT" --filter 'mcp-a' --filter 'tools-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a"* ]] || false
   [[ "$output" != *"mcp-b"* ]] || false
@@ -2644,13 +2644,35 @@ make_external_estate() {
   mkrepo "$TREE/tools-b"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-' -R pwd
+  run "$MGIT" --filter 'mcp-' -R pwd
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TREE/mcp-a"* ]] || false
   [[ "$output" != *"tools-b"* ]] || false
 
   run "$MGIT" --filter
   [ "$status" -eq 2 ]
+}
+
+@test "-f is not a short filter and runs nothing" {
+  mkrepo "$TREE/mcp-a"
+  cd "$TREE"
+  assert_usage_error -f 'mcp-' -R touch marker
+  [[ "$output" == *"mgit: error: -f has been removed; use --filter to select repositories"* ]] || false
+  assert_usage_error -f 'mcp-' status
+  assert_usage_error -f
+  [ ! -e "$TREE/mcp-a/marker" ]
+
+  run "$MGIT" -h
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'      --filter <prefix>'* ]] || false
+  [[ "$output" != *'-f, --filter'* ]] || false
+
+  run "$MGIT" completion bash
+  [[ "$output" != *' -f --filter '* ]] || false
+  [[ "$output" != *'-f|--filter'* ]] || false
+  run "$MGIT" completion zsh
+  [[ "$output" == *"'--filter["* ]] || false
+  [[ "$output" != *"'-f["* ]] || false
 }
 
 @test "--filter selects whole repos before optional worktree expansion" {
@@ -2660,13 +2682,13 @@ make_external_estate() {
   mkrepo "$TREE/tools-b"
 
   cd "$TREE"
-  run "$MGIT" -f 'mcp-'
+  run "$MGIT" --filter 'mcp-'
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a/main"* ]] || false
   [[ "$output" != *"mcp-a/featureA"* ]] || false
   [[ "$output" != *"tools-b"* ]] || false
 
-  run "$MGIT" -f 'mcp-' --all-worktrees
+  run "$MGIT" --filter 'mcp-' --all-worktrees
   [ "$status" -eq 0 ]
   [[ "$output" == *"mcp-a/main"* ]] || false
   [[ "$output" == *"mcp-a/featureA"* ]] || false
@@ -2739,7 +2761,7 @@ make_overview_hygiene() {
   [ "$status" -eq 0 ]
   [[ "$output" == *$'\nclean: clean\n'* ]] || false
   [[ "$output" == *$'\nstore.git: clean\n'* ]] || false
-  run "$MGIT" -f d overview
+  run "$MGIT" --filter d overview
   [ "$status" -eq 0 ]
   [ "$output" = $'dirty: 1 staged, 1 modified, 1 untracked\nmgit overview: 1 repository: 0 clean, 1 need attention, 0 failed' ]
 }

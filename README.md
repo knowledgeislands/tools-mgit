@@ -73,7 +73,7 @@ mgit --territory knowledge-islands status
 mgit --estate status
 mgit --principals status
 mgit register add --territory short --repo ../shared-tools
-mgit -t knowledge-islands -f tools- -f kit- status
+mgit -t knowledge-islands --filter tools- --filter kit- status
 mgit register rm --repo ../shared-tools
 ```
 

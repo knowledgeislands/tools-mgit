@@ -368,7 +368,7 @@ and has the same restrictions as
 .BR \-\-estate .
 .sp
 .TP
-.BR \-f , " \-\-filter" " \fIPREFIX\fR"
+.BR \-\-filter " \fIPREFIX\fR"
 Select logical repository directory basenames beginning with the nonempty
 literal, case-sensitive
 .IR PREFIX .
@@ -378,6 +378,10 @@ Explicit KI scopes pass filters to the producer before physical-root checks;
 excluded unavailable registered roots do not block selection.
 Default discovery and saved snapshots apply the same predicate locally without
 KI.
+There is no short letter;
+.B \-f
+is a usage error that names
+.BR \-\-filter .
 Empty prefixes and zero matches fail before dispatch.
 .sp
 .TP

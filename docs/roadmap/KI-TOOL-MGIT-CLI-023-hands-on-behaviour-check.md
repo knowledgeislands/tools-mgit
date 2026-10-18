@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T18:18:51Z
+updated_at: 2026-10-18T18:35:08Z
 ---
 
 ## Goal
@@ -33,7 +33,7 @@ This record also carries the open concern of [KI-TOOL-MGIT-CLI-017](https://gith
 
 ## Current state
 
-The five records are done and their code is on `main`. No finding has been reported yet.
+The five records are done and their code is on `main`. One finding, the `--filter` short letter, is fixed; the hands-on check itself is still to come.
 
 ## Steps
 
@@ -85,7 +85,9 @@ The provisional choices accepted as built, each worth a deliberate look:
 
 ### Remedial findings
 
-None yet. Record each finding Kris reports here, with its disposition, before planning.
+Record each finding Kris reports here, with its disposition, before planning.
+
+- **No short letter for `--filter` (fixed here).** Kris, 18 October 2026, CLI-F-FILTER c) in the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) ("owner answer, CLI-F-FILTER; mark"): "I'm thinking we just go with `--filter` and no short version". `--filter` is unchanged; `-f` is a status-`2` usage error that names `--filter` and runs nothing, as `-G` was handled, leaving `-f` free for force or file. Help, Bash and Zsh completions, manual, README, guides, the MGIT-WS-009 specification and the changelog are updated, with the Bats case `-f is not a short filter and runs nothing`; the house form is recorded in the `ki-repo-tools` command-line conventions. The flag-name record this would have joined, [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md), is already pruned.
 
 ### Adoption
 

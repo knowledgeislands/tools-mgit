@@ -95,4 +95,4 @@ The cut-over removes `-a/--agora`, saved `agora:NAME` locations, the `agora` fie
 3. Run `mgit register --dry-run` from the workspace containing your edited copy, and inspect the proposed generated membership. A resolution failure writes nothing. Carry approved edits into the Chezmoi source when applicable.
 4. Once the preview is correct, run `mgit register` explicitly, then `mgit` to review the resulting selection. Ordinary saved-snapshot operations remain offline until another explicit registration refresh.
 
-Replace glob examples such as `-f 'tools-*'` with the literal prefix `-f 'tools-'`. Repeated filters mean OR, matching directory basenames case-sensitively before worktree expansion; an empty prefix or zero matches fails before a command runs.
+Replace glob examples such as `--filter 'tools-*'` with the literal prefix `--filter 'tools-'`. Repeated filters mean OR, matching directory basenames case-sensitively before worktree expansion; an empty prefix or zero matches fails before a command runs.

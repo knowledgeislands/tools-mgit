@@ -54,7 +54,7 @@ mgit has no built-in rules about which output is normal. Teach it by running a G
 
 ```sh
 mgit learn st
-mgit -f tools --learn status -sb
+mgit --filter tools --learn status -sb
 ```
 
 The command runs as usual. mgit then takes each checkout's output and replaces that checkout's own details with placeholders: `{path}` for its directory, `{remote-url}` for its remote's address, `{upstream}` for its upstream branch such as `origin/main`, `{remote}`, `{branch}` and `{repository}` for the repository's directory name, longest value first; values shorter than two characters are left alone. If every checkout then prints the same output, on both standard output and standard error, mgit writes it as a template and names the file. If any checkout failed, or the outputs differ, it names the checkouts that differed from the most common output, writes nothing and exits `1`. Learning needs at least two repositories, and output that is empty everywhere is already quiet, so nothing is written.
@@ -130,11 +130,11 @@ Pass `--verbose` to name clean checkouts too, and `--json` for one JSON document
 
 ## Limit the set
 
-Use `-f` or `--filter` with a nonempty literal directory-basename prefix. Matching is case-sensitive; repeated prefixes are combined with OR. Characters such as `*` and `[` are literal, not glob syntax. A prefix never matches a parent directory or a linked-worktree name. Zero matches fail before dispatch.
+Use `--filter` with a nonempty literal directory-basename prefix. It has no short letter; `-f` is a usage error that names `--filter`. Matching is case-sensitive; repeated prefixes are combined with OR. Characters such as `*` and `[` are literal, not glob syntax. A prefix never matches a parent directory or a linked-worktree name. Zero matches fail before dispatch.
 
 ```sh
-mgit -f 'mcp-' status
-mgit -f 'mcp-' -R bun run build
+mgit --filter 'mcp-' status
+mgit --filter 'mcp-' -R bun run build
 ```
 
 Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. `register` and `repair` reject `--filter` instead of silently ignoring it.
@@ -148,7 +148,7 @@ Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) a
 When `ki` is installed, use a territory handle, the registered estate or the territory Capitals:
 
 ```sh
-mgit -t knowledge-islands -f tools- -f kit- status
+mgit -t knowledge-islands --filter tools- --filter kit- status
 mgit --territory knowledge-islands sync
 mgit --estate status
 mgit --principals -R pwd

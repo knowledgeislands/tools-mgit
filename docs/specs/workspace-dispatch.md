@@ -72,11 +72,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-009 — Filter composition
 
-`-f/--filter` MUST accept nonempty literal case-sensitive directory-basename prefixes, repeatable with OR semantics. Default discovery and offline snapshots MUST use the same basename predicate locally, before worktree expansion. Explicit KI scopes MUST pass filters to the producer before physical-root validation. Empty prefixes and zero matches MUST fail before dispatch; no glob option or alias exists.
+`--filter` MUST accept nonempty literal case-sensitive directory-basename prefixes, repeatable with OR semantics; it has no short letter, and `-f` MUST be a status-`2` usage error that names `--filter` and runs nothing. Default discovery and offline snapshots MUST use the same basename predicate locally, before worktree expansion. Explicit KI scopes MUST pass filters to the producer before physical-root validation. Empty prefixes and zero matches MUST fail before dispatch; no glob option or alias exists.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter limits the repo set by literal basename prefixes`; `--filter applies to bare commands and requires a pattern`.
+_Verify:_ `bats tests/mgit.bats` — `--filter limits the repo set by literal basename prefixes`; `--filter applies to bare commands and requires a pattern`; `-f is not a short filter and runs nothing`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 

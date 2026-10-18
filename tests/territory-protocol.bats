@@ -48,14 +48,14 @@ assert_atomic() {
 @test "local basename prefixes reject empty zero matches and treat glob characters literally" {
   git init -q "$ROOT/workspace/Tool [*] Space"
   git init -q "$ROOT/workspace/tool-lower"
-  run "$MGIT" -f 'Tool [*]'
+  run "$MGIT" --filter 'Tool [*]'
   [ "$status" -eq 0 ]
   [ "$output" = 'Tool [*] Space' ]
-  run "$MGIT" -f Tool -f tool
+  run "$MGIT" --filter Tool --filter tool
   [ "$status" -eq 0 ]
   [[ "$output" == *'Tool [*] Space'* ]] && [[ "$output" == *tool-lower* ]]
   for prefix in '' '*' TOOL; do
-    run "$MGIT" -f "$prefix" -R touch "$ROOT/dispatched"
+    run "$MGIT" --filter "$prefix" -R touch "$ROOT/dispatched"
     [ "$status" -ne 0 ]
     [ ! -e "$ROOT/dispatched" ]
   done

@@ -82,6 +82,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 - Global selectors that a selected command would ignore fail with a namespaced usage error before management work begins; help and version remain available.
 - `-B/--bypass` sends a command to Git even when mgit owns its name; `-R/--raw` runs a command directly. The temporary `-G/--git` names are usage errors that name `-B/--bypass`, and `--bare`, formerly a deprecated alias of `-R`, is a usage error that names `-R/--raw`; both run nothing.
+- `--filter` has no short letter: `-f` is a usage error that names `--filter` and runs nothing, leaving `-f` free for force or file.
 - Ordinary Git and `-R` fan-out attempt every selected checkout and return status `1` if any child command fails.
 - Command headers and `sync` use checkout labels consistently; ANSI styling appears only on a terminal unless `NO_COLOR` is set.
 - Old Agora flags, saved `agora:` locations and Agora schema are rejected with explicit migration guidance; no aliases, glob filters or automatic state migration remain.
