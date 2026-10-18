@@ -153,45 +153,45 @@ KI
 @test "--help prints usage and exits 0" {
   run "$MGIT" --help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Usage: mgit"* ]]
-  [[ "$output" == *"ignore workspace manifests and discover repositories"* ]]
-  [[ "$output" == *"--territory <handle>"* ]]
-  [[ "$output" == *"--all-worktrees"* ]]
-  [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"--principals"* ]]
-  [[ "$output" == *"passed through to Git"* ]]
+  [[ "$output" == *"Usage: mgit"* ]] || false
+  [[ "$output" == *"ignore workspace manifests and discover repositories"* ]] || false
+  [[ "$output" == *"--territory <handle>"* ]] || false
+  [[ "$output" == *"--all-worktrees"* ]] || false
+  [[ "$output" == *"--estate"* ]] || false
+  [[ "$output" == *"--principals"* ]] || false
+  [[ "$output" == *"passed through to Git"* ]] || false
 
   run "$MGIT" help register
   [ "$status" -eq 0 ]
-  [[ "$output" == *"--territory <handle>"* ]]
-  [[ "$output" == *"--repo <path>"* ]]
+  [[ "$output" == *"--territory <handle>"* ]] || false
+  [[ "$output" == *"--repo <path>"* ]] || false
 }
 
 @test "--version prints the version" {
   run "$MGIT" --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "mgit 0.17.0" ]]
+  [[ "$output" == "mgit 0.17.0" ]] || false
 }
 
 @test "diag redacts the working path unless full output is requested" {
   cd "$TREE"
   run "$MGIT" diag
   [ "$status" -eq 0 ]
-  [[ "$output" == *'mgit diag: manifest=absent'* ]]
+  [[ "$output" == *'mgit diag: manifest=absent'* ]] || false
   for label in Tool Version Installation Platform Architecture Runtime Configuration; do
     [[ "$output" == *"$label:"* ]] || false
   done
-  [[ "$output" == *'Installation: local'* ]]
-  [[ "$output" == *'Runtime: bash '* ]]
-  [[ "$output" == *'Configuration: absent'* ]]
-  [[ "$output" != *"$TREE"* ]]
-  [[ "$output" != *"$BATS_TEST_DIRNAME"* ]]
+  [[ "$output" == *'Installation: local'* ]] || false
+  [[ "$output" == *'Runtime: bash '* ]] || false
+  [[ "$output" == *'Configuration: absent'* ]] || false
+  [[ "$output" != *"$TREE"* ]] || false
+  [[ "$output" != *"$BATS_TEST_DIRNAME"* ]] || false
 
   run "$MGIT" diag --full
   [ "$status" -eq 0 ]
-  [[ "$output" == *"directory=$TREE"* ]]
-  [[ "$output" == *'configuration-path='* ]]
-  [[ "$output" == *'executable='* ]]
+  [[ "$output" == *"directory=$TREE"* ]] || false
+  [[ "$output" == *'configuration-path='* ]] || false
+  [[ "$output" == *'executable='* ]] || false
 }
 
 @test "diag resolves linked checkouts and does not guess copied executable provenance" {
@@ -200,17 +200,17 @@ KI
   ln -s linked-mgit second-link
   run "$TREE/second-link" diag
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Installation: local'* ]]
+  [[ "$output" == *'Installation: local'* ]] || false
 
   mkdir -p "$TREE/copied/bin"
   cp "$MGIT" "$TREE/copied/bin/mgit"
   run "$TREE/copied/bin/mgit" diag
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Installation: unknown'* ]]
+  [[ "$output" == *'Installation: unknown'* ]] || false
   printf '%s\n' '{}' > "$TREE/copied/INSTALL_RECEIPT.json"
   run "$TREE/copied/bin/mgit" diag
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Installation: release'* ]]
+  [[ "$output" == *'Installation: release'* ]] || false
 }
 
 @test "diagnostics redact invalid configuration content and doctor counts failures" {
@@ -219,21 +219,21 @@ KI
   before=$(cat .mgit.toml)
   run "$MGIT" doctor
   [ "$status" -eq 1 ]
-  [[ "$output" == *'Configuration: invalid'* ]]
-  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]]
-  [[ "$output" == *'Verdict: unhealthy'* ]]
-  [[ "$output" == *'mgit diag --full'* ]]
-  [[ "$output" != *'private-secret-invalid-kind'* ]]
-  [[ "$output" != *"$TREE"* ]]
+  [[ "$output" == *'Configuration: invalid'* ]] || false
+  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]] || false
+  [[ "$output" == *'Verdict: unhealthy'* ]] || false
+  [[ "$output" == *'mgit diag --full'* ]] || false
+  [[ "$output" != *'private-secret-invalid-kind'* ]] || false
+  [[ "$output" != *"$TREE"* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
   run "$MGIT" diag
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Configuration: invalid'* ]]
-  [[ "$output" != *'private-secret-invalid-kind'* ]]
+  [[ "$output" == *'Configuration: invalid'* ]] || false
+  [[ "$output" != *'private-secret-invalid-kind'* ]] || false
   run "$MGIT" diag --full
   [ "$status" -eq 0 ]
-  [[ "$output" == *'detail=unsupported manifest kind'* ]]
-  [[ "$output" != *'private-secret-invalid-kind'* ]]
+  [[ "$output" == *'detail=unsupported manifest kind'* ]] || false
+  [[ "$output" != *'private-secret-invalid-kind'* ]] || false
 }
 
 @test "doctor reports a missing Git prerequisite without claiming dependent checks failed" {
@@ -245,19 +245,19 @@ KI
   done
   run env PATH="$fixture_bin" /bin/bash "$MGIT" doctor
   [ "$status" -eq 1 ]
-  [[ "$output" == *'fail git: Git unavailable; install Git and retry.'* ]]
-  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]]
-  [[ "$output" == *'Configuration: absent'* ]]
+  [[ "$output" == *'fail git: Git unavailable; install Git and retry.'* ]] || false
+  [[ "$output" == *'Checks: pass=1 warn=0 fail=1 skipped=0'* ]] || false
+  [[ "$output" == *'Configuration: absent'* ]] || false
 }
 
 @test "doctor evaluates the manifest without writing and config repair is retired" {
   cd "$TREE"
   run "$MGIT" doctor
   [ "$status" -eq 0 ]
-  [[ "$output" == *'filesystem discovery available'* ]]
-  [[ "$output" == *'Checks: pass=2 warn=0 fail=0 skipped=0'* ]]
-  [[ "$output" == *'Verdict: healthy'* ]]
-  [[ "$output" == *'Not checked: package updates'* ]]
+  [[ "$output" == *'filesystem discovery available'* ]] || false
+  [[ "$output" == *'Checks: pass=2 warn=0 fail=0 skipped=0'* ]] || false
+  [[ "$output" == *'Verdict: healthy'* ]] || false
+  [[ "$output" == *'Not checked: package updates'* ]] || false
 
   mkrepo "$TREE/a"
   printf '%s\n' 'kind = "workspace"' '[members."a"]' 'kind = "repository"' \
@@ -265,25 +265,25 @@ KI
   before=$(cat .mgit.toml)
   run "$MGIT" doctor
   [ "$status" -eq 0 ]
-  [[ "$output" == *'workspace manifest valid'* ]]
+  [[ "$output" == *'workspace manifest valid'* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
 
   mv .mgit.toml manifest.toml
   ln -s absent.toml .mgit.toml
   run "$MGIT" doctor
   [ "$status" -eq 1 ]
-  [[ "$output" == *'Configuration: invalid'* ]]
-  [[ "$output" == *'correct .mgit.toml'* ]]
+  [[ "$output" == *'Configuration: invalid'* ]] || false
+  [[ "$output" == *'correct .mgit.toml'* ]] || false
   run "$MGIT" diag --full
   [ "$status" -eq 0 ]
-  [[ "$output" == *'manifest must be a regular file'* ]]
-  [[ "$output" == *'mgit diag: manifest=present'* ]]
+  [[ "$output" == *'manifest must be a regular file'* ]] || false
+  [[ "$output" == *'mgit diag: manifest=present'* ]] || false
   rm .mgit.toml
   mv manifest.toml .mgit.toml
 
   run "$MGIT" config repair
   [ "$status" -eq 2 ]
-  [[ "$output" == *"command 'config' removed"* ]]
+  [[ "$output" == *"command 'config' removed"* ]] || false
 
   run "$MGIT" doctor --help extra
   [ "$status" -eq 2 ]
@@ -318,7 +318,7 @@ KI
     "$BATS_TEST_DIRNAME/../install.sh" v1.2.3
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"installing mgit (v1.2.3)"* ]]
+  [[ "$output" == *"installing mgit (v1.2.3)"* ]] || false
   [ -x "$install_bin/mgit" ]
   cmp "$MGIT" "$install_bin/mgit"
   cmp "$BATS_TEST_DIRNAME/../man/mgit.1" "$install_man/mgit.1"
@@ -335,17 +335,17 @@ KI
   [ "$status" -eq 0 ]
   [ -x "$install_bin/mgit" ]
   [ ! -e "$missing_man/mgit.1" ]
-  [[ "$output" == *"manual unavailable for v0.1.0"* ]]
+  [[ "$output" == *"manual unavailable for v0.1.0"* ]] || false
 }
 
 @test "installer rejects malformed versions and extra arguments" {
   run "$BATS_TEST_DIRNAME/../install.sh" 1.2.3
   [ "$status" -eq 2 ]
-  [[ "$output" == *"expected an exact version like vX.Y.Z"* ]]
+  [[ "$output" == *"expected an exact version like vX.Y.Z"* ]] || false
 
   run env MGIT_VERSION=main "$BATS_TEST_DIRNAME/../install.sh"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"MGIT_VERSION must be an exact version like vX.Y.Z"* ]]
+  [[ "$output" == *"MGIT_VERSION must be an exact version like vX.Y.Z"* ]] || false
 
   run "$BATS_TEST_DIRNAME/../install.sh" v1.2.3 extra
   [ "$status" -eq 2 ]
@@ -373,31 +373,31 @@ KI
 @test "completion prints bash and zsh setup" {
   run "$MGIT" completion bash
   [ "$status" -eq 0 ]
-  [[ "$output" == *"complete -F _mgit mgit"* ]]
-  [[ "$output" == *"structure"* ]]
-  [[ "$output" == *"repair"* ]]
-  [[ "$output" == *"doctor"* ]]
-  [[ "$output" == *"diag"* ]]
-  [[ "$output" == *"sync"* ]]
-  [[ "$output" == *"--estate --principals"* ]]
-  [[ "$output" == *"add rm --territory -t --repo --dry-run --help -h"* ]]
-  [[ "$output" == *"--apply"* ]]
-  [[ "$output" == *"--all-worktrees"* ]]
-  [[ "$output" != *"bootstrap"* ]]
-  [[ "$output" != *"convert"* ]]
+  [[ "$output" == *"complete -F _mgit mgit"* ]] || false
+  [[ "$output" == *"structure"* ]] || false
+  [[ "$output" == *"repair"* ]] || false
+  [[ "$output" == *"doctor"* ]] || false
+  [[ "$output" == *"diag"* ]] || false
+  [[ "$output" == *"sync"* ]] || false
+  [[ "$output" == *"--estate --principals"* ]] || false
+  [[ "$output" == *"add rm --territory -t --repo --dry-run --help -h"* ]] || false
+  [[ "$output" == *"--apply"* ]] || false
+  [[ "$output" == *"--all-worktrees"* ]] || false
+  [[ "$output" != *"bootstrap"* ]] || false
+  [[ "$output" != *"convert"* ]] || false
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
-  [[ "$output" == *"#compdef mgit"* ]]
-  [[ "$output" == *"standard nested"* ]]
-  [[ "$output" == *"--estate"* ]]
-  [[ "$output" == *"--principals[select the territory Capitals in KI order]"* ]]
-  [[ "$output" == *"add or remove a territory location"* ]]
-  [[ "$output" == *"add or remove a repository location"* ]]
-  [[ "$output" == *"perform validated repairs"* ]]
-  [[ "$output" == *"sync:update clean tracking branches"* ]]
-  [[ "$output" == *"compdef _mgit mgit"* ]]
-  [[ "$output" != *'_mgit "$@"'* ]]
+  [[ "$output" == *"#compdef mgit"* ]] || false
+  [[ "$output" == *"standard nested"* ]] || false
+  [[ "$output" == *"--estate"* ]] || false
+  [[ "$output" == *"--principals[select the territory Capitals in KI order]"* ]] || false
+  [[ "$output" == *"add or remove a territory location"* ]] || false
+  [[ "$output" == *"add or remove a repository location"* ]] || false
+  [[ "$output" == *"perform validated repairs"* ]] || false
+  [[ "$output" == *"sync:update clean tracking branches"* ]] || false
+  [[ "$output" == *"compdef _mgit mgit"* ]] || false
+  [[ "$output" != *'_mgit "$@"'* ]] || false
 
   run "$MGIT" completion fish
   [ "$status" -eq 2 ]
@@ -407,7 +407,7 @@ KI
   run zsh -f -c '
     autoload -Uz compinit && compinit -C
     eval "$("$1" completion zsh)"
-    [[ ${_comps[mgit]} == _mgit ]]
+    [[ ${_comps[mgit]} == _mgit ]] || false
   ' zsh "$MGIT"
 
   [ "$status" -eq 0 ]
@@ -448,14 +448,14 @@ KI
 @test "worktree requires an explicit action" {
   run "$MGIT" worktree
   [ "$status" -eq 2 ]
-  [[ "$output" == *"worktree: expected list, status, add, or remove"* ]]
+  [[ "$output" == *"worktree: expected list, status, add, or remove"* ]] || false
 }
 
 assert_usage_error() {
   run "$MGIT" "$@"
   [ "$status" -eq 2 ]
-  [[ "$output" == mgit:\ error:* ]]
-  [[ "$output" == *"Usage: mgit"* ]]
+  [[ "$output" == mgit:\ error:* ]] || false
+  [[ "$output" == *"Usage: mgit"* ]] || false
 }
 
 @test "invalid owned syntax wins over help" {
@@ -520,59 +520,59 @@ assert_usage_error() {
 @test "help and version remain available with selectors" {
   run "$MGIT" -R --version
   [ "$status" -eq 0 ]
-  [[ "$output" == mgit\ * ]]
+  [[ "$output" == mgit\ * ]] || false
   run "$MGIT" -W help structure
   [ "$status" -eq 0 ]
-  [[ "$output" == Usage:\ mgit\ structure* ]]
+  [[ "$output" == Usage:\ mgit\ structure* ]] || false
 }
 
 @test "standalone reserved-command help exits 0" {
   for command in register repair doctor diag sync overview structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Usage: mgit"* ]]
+    [[ "$output" == *"Usage: mgit"* ]] || false
   done
 }
 
 @test "help is contextual for reserved commands and their subcommands" {
   run "$MGIT" register -h
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit register [add|rm] [options]"* ]]
-  [[ "$output" != *"Commands:"* ]]
+  [[ "$output" == "Usage: mgit register [add|rm] [options]"* ]] || false
+  [[ "$output" != *"Commands:"* ]] || false
 
   run "$MGIT" help sync
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit sync"* ]]
+  [[ "$output" == "Usage: mgit sync"* ]] || false
 
   run "$MGIT" help worktree remove
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit worktree remove <path> [--force]"* ]]
+  [[ "$output" == "Usage: mgit worktree remove <path> [--force]"* ]] || false
 }
 
 @test "reserved command trees reject unknown subcommands" {
   run "$MGIT" structure sideways
   [ "$status" -eq 2 ]
-  [[ "$output" == *"structure: unknown command: sideways"* ]]
+  [[ "$output" == *"structure: unknown command: sideways"* ]] || false
 }
 
 @test "removed group interface is absent from help and completion" {
   run "$MGIT" --group focus status
   [ "$status" -eq 2 ]
-  [[ "$output" == *"unknown option: --group"* ]]
+  [[ "$output" == *"unknown option: --group"* ]] || false
 
   run "$MGIT" help group
   [ "$status" -eq 2 ]
-  [[ "$output" == *"unknown mgit command: group"* ]]
+  [[ "$output" == *"unknown mgit command: group"* ]] || false
 
   run "$MGIT" completion bash
   [ "$status" -eq 0 ]
-  [[ "$output" != *"--group"* ]]
-  [[ "$output" != *"group:create"* ]]
+  [[ "$output" != *"--group"* ]] || false
+  [[ "$output" != *"group:create"* ]] || false
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
-  [[ "$output" != *"--group"* ]]
-  [[ "$output" != *"group:create"* ]]
+  [[ "$output" != *"--group"* ]] || false
+  [[ "$output" != *"group:create"* ]] || false
 }
 
 @test "ordinary Git command options remain pass-through" {
@@ -582,7 +582,7 @@ assert_usage_error() {
   run "$MGIT" status --short
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"git status --short"* ]]
+  [[ "$output" == *"git status --short"* ]] || false
 }
 
 @test "--git runs Git subcommands that mgit owns" {
@@ -593,23 +593,23 @@ assert_usage_error() {
   run "$MGIT" --git worktree list --porcelain
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'alpha: git worktree list --porcelain' ]
-  [[ "${lines[1]}" == "worktree "*/alpha ]]
-  [[ "$output" == *$'\nbeta: git worktree list --porcelain\nworktree '*/beta$'\n'* ]]
+  [[ "${lines[1]}" == "worktree "*/alpha ]] || false
+  [[ "$output" == *$'\nbeta: git worktree list --porcelain\nworktree '*/beta$'\n'* ]] || false
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
 
   run "$MGIT" -G help
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'alpha: git help' ]
-  [[ "$output" != *"Usage: mgit"* ]]
+  [[ "$output" != *"Usage: mgit"* ]] || false
 
-  run "$MGIT" -G -f b -j 1 -v sync
+  run "$MGIT" -G -f b -j 1 -v structure
   [ "$status" -eq 1 ]
-  [ "${lines[0]}" = 'beta: git sync' ]
-  [[ "$output" == *"'sync' is not a git command"* ]]
+  [ "${lines[0]}" = 'beta: git structure' ]
+  [[ "$output" == *"'structure' is not a git command"* ]] || false
 
   run "$MGIT" -G --json rev-parse --is-inside-work-tree
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]]
+  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]] || false
 
   run "$MGIT" -G -W status --short
   [ "$status" -eq 0 ]
@@ -641,7 +641,7 @@ assert_usage_error() {
   [ "${lines[1]}" = b ]
   run "$MGIT" -R 'echo a'
   [ "$status" -eq 1 ]
-  [[ "${lines[${#lines[@]} - 1]}" == *'2 failed: alpha (exit 127), beta (exit 127)' ]]
+  [[ "${lines[${#lines[@]} - 1]}" == *'2 failed: alpha (exit 127), beta (exit 127)' ]] || false
 }
 
 @test "--git and --raw reject invalid combinations" {
@@ -649,21 +649,21 @@ assert_usage_error() {
   cd "$TREE"
   assert_usage_error -G
   assert_usage_error -G -R status
-  [[ "$output" == *"--git cannot be combined with --raw"* ]]
+  [[ "$output" == *"--git cannot be combined with --raw"* ]] || false
   assert_usage_error --git --bare status
-  [[ "$output" == *"--git cannot be combined with --bare"* ]]
+  [[ "$output" == *"--git cannot be combined with --bare"* ]] || false
   assert_usage_error -R
-  [[ "$output" == *"--raw requires a command"* ]]
+  [[ "$output" == *"--raw requires a command"* ]] || false
   assert_usage_error -R overview
-  [[ "$output" == *"--raw cannot be used with overview"* ]]
+  [[ "$output" == *"--raw cannot be used with overview"* ]] || false
   assert_usage_error -B sync
-  [[ "$output" == *"--bare cannot be used with sync"* ]]
-  [[ "$output" != *deprecated* ]]
+  [[ "$output" == *"--bare cannot be used with sync"* ]] || false
+  [[ "$output" != *'warning: -B/--bare is deprecated'* ]] || false
   run "$MGIT" -G -h
   [ "$status" -eq 0 ]
-  [[ "$output" == 'Usage: mgit [options] [command]'* ]]
-  [[ "$output" == *'-G, --git'*'-R, --raw'*'-B, --bare              deprecated alias for --raw'* ]]
-  [[ "$output" == *'when discovering repositories'* ]]
+  [[ "$output" == 'Usage: mgit [options] [command]'* ]] || false
+  [[ "$output" == *'-G, --git'*'-R, --raw'*'-B, --bare              deprecated alias for --raw'* ]] || false
+  [[ "$output" == *'when discovering repositories'* ]] || false
 }
 
 @test "fan-out reports an early failure after a successful final checkout" {
@@ -678,22 +678,22 @@ assert_usage_error() {
   plain_output=${output//$'\033[1m'/}
   plain_output=${plain_output//$'\033[33m'/}
   plain_output=${plain_output//$'\033[0m'/}
-  [[ "$plain_output" == *"a: git rev-parse --verify only-b"* ]]
-  [[ "$plain_output" == *"b: git rev-parse --verify only-b"* ]]
+  [[ "$plain_output" == *"a: git rev-parse --verify only-b"* ]] || false
+  [[ "$plain_output" == *"b: git rev-parse --verify only-b"* ]] || false
 
   run "$MGIT" -R sh -c 'test -f success'
   [ "$status" -eq 1 ]
   plain_output=${output//$'\033[1m'/}
   plain_output=${plain_output//$'\033[33m'/}
   plain_output=${plain_output//$'\033[0m'/}
-  [[ "$plain_output" == *"a: sh -c"* ]]
-  [[ "$plain_output" != *"b: sh -c"* ]]
+  [[ "$plain_output" == *"a: sh -c"* ]] || false
+  [[ "$plain_output" != *"b: sh -c"* ]] || false
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 1 quiet, 0 with output, 1 failed: a (exit 1)' ]
 
   run "$MGIT" -v -R sh -c 'test -f success'
   [ "$status" -eq 1 ]
-  [[ "$output" == *"b: sh -c"* ]]
-  [[ "$output" != *"mgit: 2 repositories"* ]]
+  [[ "$output" == *"b: sh -c"* ]] || false
+  [[ "$output" != *"mgit: 2 repositories"* ]] || false
 }
 
 @test "the runner prints results in selection order and counts quiet checkouts" {
@@ -708,9 +708,9 @@ assert_usage_error() {
   run "$MGIT" -R sh -c 'sleep "$(cat delay)"; basename "$PWD"'
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -eq 9 ]
-  [[ "${lines[0]}" == 'a: sh -c sleep'* ]]
+  [[ "${lines[0]}" == 'a: sh -c sleep'* ]] || false
   [ "${lines[1]}" = a ]
-  [[ "${lines[2]}" == 'b: sh -c sleep'* ]]
+  [[ "${lines[2]}" == 'b: sh -c sleep'* ]] || false
   [ "${lines[3]}" = b ]
   [ "${lines[5]}" = c ]
   [ "${lines[7]}" = d ]
@@ -718,9 +718,9 @@ assert_usage_error() {
 
   run "$MGIT" -R sh -c 'case "${PWD##*/}" in b) echo out ;; c) echo err >&2; exit 3 ;; esac'
   [ "$status" -eq 1 ]
-  [[ "${lines[0]}" == 'b: sh -c case'* ]]
+  [[ "${lines[0]}" == 'b: sh -c case'* ]] || false
   [ "${lines[1]}" = out ]
-  [[ "${lines[2]}" == 'c: sh -c '* ]]
+  [[ "${lines[2]}" == 'c: sh -c '* ]] || false
   [ "${lines[3]}" = err ]
   [ "${lines[4]}" = 'mgit: 4 repositories: 2 quiet, 1 with output, 1 failed: c (exit 3)' ]
   [ "${#lines[@]}" -eq 5 ]
@@ -783,10 +783,10 @@ assert_usage_error() {
   run "$MGIT" --verbose -R sh -c 'echo out; echo err >&2'
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -eq 6 ]
-  [[ "${lines[0]}" == 'a: sh -c echo'* ]]
+  [[ "${lines[0]}" == 'a: sh -c echo'* ]] || false
   [ "${lines[1]}" = out ]
   [ "${lines[2]}" = err ]
-  [[ "${lines[3]}" == 'b: sh -c echo'* ]]
+  [[ "${lines[3]}" == 'b: sh -c echo'* ]] || false
   [ "${lines[5]}" = err ]
 
   run "$MGIT" -R true
@@ -802,15 +802,15 @@ assert_usage_error() {
   run "$MGIT" --json -R sh -c 'if [ "${PWD##*/}" = b ]; then printf "x\ty\n"; echo "e\"" >&2; exit 2; fi'
   [ "$status" -eq 1 ]
   [ "${#lines[@]}" -eq 1 ]
-  [[ "$output" == '{"tool":"mgit","command":"sh -c '*'","version":"'*'","repositories":[{"label":"a","path":"'*'","exit":0,"quiet":true,"stdout":"","stderr":""},{"label":"b","path":"'*'","exit":2,"quiet":false,"stdout":"x\ty\n","stderr":"e\"\n"}],"summary":{"repositories":2,"quiet":1,"output":0,"failed":1}}' ]]
+  [[ "$output" == '{"tool":"mgit","command":"sh -c '*'","version":"'*'","repositories":[{"label":"a","path":"'*'","exit":0,"quiet":true,"stdout":"","stderr":""},{"label":"b","path":"'*'","exit":2,"quiet":false,"stdout":"x\ty\n","stderr":"e\"\n"}],"summary":{"repositories":2,"quiet":1,"output":0,"failed":1}}' ]] || false
   if command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "$output" | python3 -m json.tool >/dev/null
   fi
 
   run "$MGIT" --json rev-parse --is-inside-work-tree
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]]
-  [[ "$output" == *'"stdout":"true\n"'* ]]
+  [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]] || false
+  [[ "$output" == *'"stdout":"true\n"'* ]] || false
 }
 
 @test "workers cannot prompt, open an editor or read the terminal" {
@@ -826,7 +826,7 @@ assert_usage_error() {
   before=$(git -C "$TREE/repo" rev-parse HEAD)
   run "$MGIT" commit -q --allow-empty
   [ "$status" -eq 1 ]
-  [[ "$output" == *'mgit: 1 repository: 0 quiet, 0 with output, 1 failed: repo (exit 1)'* ]]
+  [[ "$output" == *'mgit: 1 repository: 0 quiet, 0 with output, 1 failed: repo (exit 1)'* ]] || false
   [ "$(git -C "$TREE/repo" rev-parse HEAD)" = "$before" ]
 }
 
@@ -861,27 +861,27 @@ assert_usage_error() {
   for value in 0 -1 abc 007 ''; do
     run "$MGIT" -j "$value" status
     [ "$status" -eq 2 ]
-    [[ "$output" == *"--jobs requires a positive whole number"* ]]
+    [[ "$output" == *"--jobs requires a positive whole number"* ]] || false
   done
   run "$MGIT" --jobs
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--jobs requires a number of jobs"* ]]
+  [[ "$output" == *"--jobs requires a number of jobs"* ]] || false
 
   run "$MGIT" -v --json status
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--verbose and --json cannot be combined"* ]]
+  [[ "$output" == *"--verbose and --json cannot be combined"* ]] || false
   run "$MGIT" -j 2
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--jobs cannot be used with listing"* ]]
+  [[ "$output" == *"--jobs cannot be used with listing"* ]] || false
   run "$MGIT" -v sync
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--verbose cannot be used with sync"* ]]
+  [[ "$output" == *"--verbose cannot be used with sync"* ]] || false
   run "$MGIT" --json doctor
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--json cannot be used with doctor"* ]]
+  [[ "$output" == *"--json cannot be used with doctor"* ]] || false
   run "$MGIT" -j 2 worktree list
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--jobs cannot be used with worktree"* ]]
+  [[ "$output" == *"--jobs cannot be used with worktree"* ]] || false
 }
 
 @test "overview runs on the pool and takes the global output options" {
@@ -921,13 +921,13 @@ assert_usage_error() {
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: [1/2] current: checking"* ]]
-  [[ "$output" == *"mgit sync: [2/2] dirty: checking"* ]]
-  [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]]
-  [[ "$output" == *" M payload"* ]]
-  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]]
-  [[ "$output" != *"mgit sync: current: pulled"* ]]
-  [[ "$output" != *"mgit sync: current: pushed"* ]]
+  [[ "$output" == *"mgit sync: [1/2] current: checking"* ]] || false
+  [[ "$output" == *"mgit sync: [2/2] dirty: checking"* ]] || false
+  [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]] || false
+  [[ "$output" == *" M payload"* ]] || false
+  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]] || false
+  [[ "$output" != *"mgit sync: current: pulled"* ]] || false
+  [[ "$output" != *"mgit sync: current: pushed"* ]] || false
 }
 
 @test "sync pulls incoming commits and pushes outgoing commits" {
@@ -948,12 +948,12 @@ assert_usage_error() {
   run "$MGIT" sync
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]]
-  [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]]
-  [[ "$output" == *"mgit sync: incoming: pulling"* ]]
-  [[ "$output" == *"mgit sync: outgoing: pushing"* ]]
-  [[ "$output" != *"[y/N]"* ]]
-  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]]
+  [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]] || false
+  [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]] || false
+  [[ "$output" == *"mgit sync: incoming: pulling"* ]] || false
+  [[ "$output" == *"mgit sync: outgoing: pushing"* ]] || false
+  [[ "$output" != *"[y/N]"* ]] || false
+  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
   [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
 }
@@ -970,22 +970,22 @@ assert_usage_error() {
   cd "$TREE"
   run bash -c 'printf "n\n" | "$1" sync -i' _ "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pull skipped"* ]]
-  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]]
-  [[ "$output" != *"mgit sync: repo: pushing"* ]]
+  [[ "$output" == *"mgit sync: repo: pull skipped"* ]] || false
+  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]] || false
+  [[ "$output" != *"mgit sync: repo: pushing"* ]] || false
   [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
 
   run bash -c 'printf "y\nn\n" | "$1" sync -i' _ "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pull "*"? [y/N]"* ]]
-  [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]]
-  [[ "$output" == *"mgit sync: repo: push skipped (1 commit ahead)"* ]]
-  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]]
+  [[ "$output" == *"mgit sync: repo: pull "*"? [y/N]"* ]] || false
+  [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]] || false
+  [[ "$output" == *"mgit sync: repo: push skipped (1 commit ahead)"* ]] || false
+  [[ "$output" == *"mgit sync: 1 action skipped by user"* ]] || false
   [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$before" ]
 
   run bash -c 'printf "y\ny\n" | "$1" sync --interactive' _ "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mgit sync: repo: pushed 1 commit"* ]]
+  [[ "$output" == *"mgit sync: repo: pushed 1 commit"* ]] || false
   [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$(git -C "$TREE/repo" rev-parse HEAD)" ]
 }
 
@@ -998,8 +998,8 @@ assert_usage_error() {
   cd "$TREE"
   run bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: interactive input ended"* ]]
-  [[ "$output" != *"mgit sync: repo: pulling"* ]]
+  [[ "$output" == *"mgit sync: interactive input ended"* ]] || false
+  [[ "$output" != *"mgit sync: repo: pulling"* ]] || false
 }
 
 @test "sync reports no-upstream bare and divergent repositories" {
@@ -1020,9 +1020,9 @@ assert_usage_error() {
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]]
-  [[ "$output" == *"mgit sync: diverged: pull failed"* ]]
-  [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]]
+  [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]] || false
+  [[ "$output" == *"mgit sync: diverged: pull failed"* ]] || false
+  [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]] || false
   [ "$(git -C "$TREE/diverged" rev-parse HEAD)" = "$before" ]
 }
 
@@ -1039,9 +1039,9 @@ assert_usage_error() {
   run "$MGIT" --filter selected sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"mgit sync: [1/1] selected: checking"* ]]
-  [[ "$output" == *"mgit sync: selected: local changes (skipped)"* ]]
-  [[ "$output" != *"omitted"* ]]
+  [[ "$output" == *"mgit sync: [1/1] selected: checking"* ]] || false
+  [[ "$output" == *"mgit sync: selected: local changes (skipped)"* ]] || false
+  [[ "$output" != *"omitted"* ]] || false
 }
 
 @test "captured command output has no color and sync uses checkout labels" {
@@ -1053,14 +1053,14 @@ assert_usage_error() {
 
   run "$MGIT" status --short
   [ "$status" -eq 0 ]
-  [[ "$output" != *$'\033['* ]]
+  [[ "$output" != *$'\033['* ]] || false
 
   run "$MGIT" --all-worktrees sync
   [ "$status" -eq 1 ]
-  [[ "$output" == *"standard [topic]: checking"* ]]
-  [[ "$output" == *"nested/main: checking"* ]]
-  [[ "$output" != *"storage-topic"* ]]
-  [[ "$output" != *$'\033['* ]]
+  [[ "$output" == *"standard [topic]: checking"* ]] || false
+  [[ "$output" == *"nested/main: checking"* ]] || false
+  [[ "$output" != *"storage-topic"* ]] || false
+  [[ "$output" != *$'\033['* ]] || false
 }
 
 @test "--territory selects only NUL-delimited roots from ki" {
@@ -1115,8 +1115,8 @@ assert_usage_error() {
 
   run "$MGIT" --principals -R pwd
   [ "$status" -eq 0 ]
-  [[ "$output" == *"$TREE/ki-principal"* ]]
-  [[ "$output" == *"$TREE/va-principal"* ]]
+  [[ "$output" == *"$TREE/ki-principal"* ]] || false
+  [[ "$output" == *"$TREE/va-principal"* ]] || false
 }
 
 @test "--principals composes with sync and all-worktrees like --estate" {
@@ -1131,7 +1131,7 @@ assert_usage_error() {
   [ "$output" = "ki-principal" ]
 
   run "$MGIT" --principals sync
-  [[ "$output" != *"cannot be used"* ]]
+  [[ "$output" != *"cannot be used"* ]] || false
 }
 
 @test "--principals stops before a command when ki cannot resolve roots" {
@@ -1145,8 +1145,8 @@ assert_usage_error() {
   run "$MGIT" --principals status
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"fake territory resolution failed"* ]]
-  [[ "$output" != *"git status"* ]]
+  [[ "$output" == *"fake territory resolution failed"* ]] || false
+  [[ "$output" != *"git status"* ]] || false
 }
 
 @test "--territory preserves its exact roots instead of following symlink metadata" {
@@ -1175,8 +1175,8 @@ assert_usage_error() {
   run "$MGIT" --territory focus status
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"fake territory resolution failed"* ]]
-  [[ "$output" != *"git status"* ]]
+  [[ "$output" == *"fake territory resolution failed"* ]] || false
+  [[ "$output" != *"git status"* ]] || false
 }
 
 @test "--territory reports a missing ki command" {
@@ -1185,17 +1185,17 @@ assert_usage_error() {
   run "$MGIT" --territory focus
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"--territory requires ki on PATH"* ]]
+  [[ "$output" == *"--territory requires ki on PATH"* ]] || false
 
   run "$MGIT" --estate
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"--estate requires ki on PATH"* ]]
+  [[ "$output" == *"--estate requires ki on PATH"* ]] || false
 
   run "$MGIT" --principals
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"--principals requires ki on PATH"* ]]
+  [[ "$output" == *"--principals requires ki on PATH"* ]] || false
 }
 
 @test "--territory rejects incompatible selectors and management commands" {
@@ -1239,7 +1239,7 @@ assert_usage_error() {
   grep -Fx 'locations = ["local", "territory:focus"]' "$TREE/.mgit.toml"
   grep -A2 -Fx '[members."../external"]' "$TREE/.mgit.toml" | grep -Fx 'type = "standard"'
   [ "$(grep -Fxc '[members."local"]' "$TREE/.mgit.toml")" -eq 1 ]
-  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml"
+  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml" || false
 
   FAKE_KI_FAIL=true
   run "$MGIT"
@@ -1298,7 +1298,7 @@ assert_usage_error() {
   run "$MGIT" register rm --territory focus --repo ../one --territory second --repo ../two
   [ "$status" -eq 0 ]
   grep -Fx 'locations = ["local"]' "$TREE/.mgit.toml"
-  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml"
+  ! grep -Fq '[registered.members.' "$TREE/.mgit.toml" || false
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = 'local' ]
@@ -1331,13 +1331,13 @@ make_external_estate() {
   cd "$ESTATE/workspaces/personal"
   run "$MGIT" register add --repo ../../.local/share/chezmoi
   [ "$status" -eq 0 ]
-  [[ "$output" == *"recorded 1 local and 1 external member(s)"* ]]
+  [[ "$output" == *"recorded 1 local and 1 external member(s)"* ]] || false
   grep -Fx 'locations = ["local", "repo:../../.local/share/chezmoi"]' .mgit.toml
   grep -A3 -Fx '[members."../../.local/share/chezmoi"]' .mgit.toml > "$BATS_TEST_TMPDIR/entry"
   grep -Fx 'kind = "repository"' "$BATS_TEST_TMPDIR/entry"
   grep -Fx 'type = "standard"' "$BATS_TEST_TMPDIR/entry"
   grep -Fx "source = \"$BATS_TEST_TMPDIR/dotfiles.git\"" "$BATS_TEST_TMPDIR/entry"
-  ! grep -Fq 'registered' .mgit.toml
+  ! grep -Fq 'registered' .mgit.toml || false
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = $'acquire\n../../.local/share/chezmoi' ]
@@ -1359,7 +1359,7 @@ make_external_estate() {
       ln -s ../../.local/share/chezmoi "$ESTATE/workspaces/personal/dotfiles"
       cd "$ESTATE/workspaces"
       "$MGIT" register >/dev/null
-      ! grep -Fq 'dotfiles' personal/.mgit.toml
+      ! grep -Fq '[members."dotfiles"]' personal/.mgit.toml || false
     fi
     cd "$ESTATE/workspaces/personal"
     run "$MGIT" -R pwd -P
@@ -1385,7 +1385,7 @@ make_external_estate() {
   # A location root that local discovery already records is not written twice.
   cd "$ESTATE/workspaces"
   "$MGIT" register add --repo knowledge-islands/tools-mgit >/dev/null
-  ! grep -Fq '[members."knowledge-islands/tools-mgit"]' .mgit.toml
+  ! grep -Fq '[members."knowledge-islands/tools-mgit"]' .mgit.toml || false
   run "$MGIT"
   [ "$output" = $'knowledge-islands/tools-mgit\n../.local/share/chezmoi\npersonal/acquire' ]
 }
@@ -1398,26 +1398,26 @@ make_external_estate() {
       'type = "standard"' > .mgit.toml
     run "$MGIT"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"unsafe workspace member path"* || "$output" == *"missing repository path"* ]]
+    [[ "$output" == *"unsafe workspace member path"* || "$output" == *"missing repository path"* ]] || false
   done
   printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "workspace"' > .mgit.toml
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsafe workspace member path: ../ext"* ]]
+  [[ "$output" == *"unsafe workspace member path: ../ext"* ]] || false
   printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' > .mgit.toml
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"requires type"* ]]
+  [[ "$output" == *"requires type"* ]] || false
   printf '%s\n' 'kind = "workspace"' '[members."../missing"]' 'kind = "repository"' \
     'type = "standard"' > .mgit.toml
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsafe or missing external repository path"* ]]
+  [[ "$output" == *"unsafe or missing external repository path"* ]] || false
   printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' \
     'type = "standard"' '[members."../ext"]' 'kind = "repository"' 'type = "standard"' > .mgit.toml
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"duplicate member path"* ]]
+  [[ "$output" == *"duplicate member path"* ]] || false
   printf '%s\n' 'kind = "workspace"' '[members."../ext"]' 'kind = "repository"' \
     'type = "standard"' > .mgit.toml
   run "$MGIT"
@@ -1436,23 +1436,23 @@ make_external_estate() {
   cd "$TREE/workspace"
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would clone standard repository"*"/workspace/local"* ]]
-  [[ "$output" == *"not cloning missing external member: "*"/external"* ]]
+  [[ "$output" == *"would clone standard repository"*"/workspace/local"* ]] || false
+  [[ "$output" == *"not cloning missing external member: "*"/external"* ]] || false
   run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   [ -f "$TREE/workspace/local/payload" ]
   [ ! -e "$TREE/external" ]
-  [[ "$output" == *"not cloning missing external member"* ]]
+  [[ "$output" == *"not cloning missing external member"* ]] || false
 
   mkbare "$TREE/external"
   run "$MGIT" repair
   [ "$status" -eq 1 ]
-  [[ "$output" == *"structure mismatch at "*"/external"* ]]
+  [[ "$output" == *"structure mismatch at "*"/external"* ]] || false
   rm -rf "$TREE/external"
   mkrepo "$TREE/external"
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *"present "*"/external"* ]]
+  [[ "$output" == *"present "*"/external"* ]] || false
 }
 
 @test "an external member that resolves back inside its workspace is rejected" {
@@ -1465,13 +1465,13 @@ make_external_estate() {
       'type = "standard"' > .mgit.toml
     run "$MGIT"
     [ "$status" -eq 1 ]
-    [[ "$output" == *'mgit: external repository path resolves inside the workspace; declare it as the local member "acquire": '*'/workspace/acquire'* ]]
+    [[ "$output" == *'mgit: external repository path resolves inside the workspace; declare it as the local member "acquire": '*'/workspace/acquire'* ]] || false
     run "$MGIT" -R pwd
     [ "$status" -eq 1 ]
-    [[ "$output" != *"/workspace/acquire"$'\n'* ]]
+    [[ "$output" != *"/workspace/acquire"$'\n'* ]] || false
     run "$MGIT" repair
     [ "$status" -eq 1 ]
-    [[ "$output" == *'mgit repair: external repository path resolves inside the workspace; declare it as the local member "acquire"'* ]]
+    [[ "$output" == *'mgit repair: external repository path resolves inside the workspace; declare it as the local member "acquire"'* ]] || false
   done
 }
 
@@ -1485,14 +1485,14 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" register --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *'mgit register: ./.mgit.toml: would drop external member without a saved location: ../ext (keep it with mgit register add --repo ../ext)'* ]]
-  [[ "$output" == *"would write ./.mgit.toml (1 local and 0 external member(s))"* ]]
+  [[ "$output" == *'mgit register: ./.mgit.toml: would drop external member without a saved location: ../ext (keep it with mgit register add --repo ../ext)'* ]] || false
+  [[ "$output" == *"would write ./.mgit.toml (1 local and 0 external member(s))"* ]] || false
   cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
 
   "$MGIT" register > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
   grep -Fx 'mgit register: ./.mgit.toml: dropped external member without a saved location: ../ext (restore it with mgit register add --repo ../ext)' \
     "$BATS_TEST_TMPDIR/err"
-  ! grep -Fq '../ext' "$TREE/.mgit.toml"
+  ! grep -Fq '../ext' "$TREE/.mgit.toml" || false
 
   # A member that a saved location produces is kept without a word.
   run "$MGIT" register add --repo ../ext
@@ -1500,7 +1500,7 @@ make_external_estate() {
   grep -Fx '[members."../ext"]' "$TREE/.mgit.toml"
   run "$MGIT" register --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" != *"drop"* ]]
+  [[ "$output" != *"drop"* ]] || false
 }
 
 @test "repair warns once about a legacy manifest whichever spelling reached it" {
@@ -1527,20 +1527,20 @@ make_external_estate() {
   [ "$(grep -c 'deprecated' "$BATS_TEST_TMPDIR/err")" -eq 1 ]
   run "$MGIT" doctor
   [ "$status" -eq 0 ]
-  [[ "$output" == *'warn configuration: workspace manifest uses deprecated [registered.members]'* ]]
-  [[ "$output" == *'Checks: pass=1 warn=1 fail=0'* ]]
+  [[ "$output" == *'warn configuration: workspace manifest uses deprecated [registered.members]'* ]] || false
+  [[ "$output" == *'Checks: pass=1 warn=1 fail=0'* ]] || false
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" != *"would clone"* ]]
-  [[ "$output" != *"not cloning"* ]]
+  [[ "$output" != *"would clone"* ]] || false
+  [[ "$output" != *"not cloning"* ]] || false
 
   run "$MGIT" register --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would write ./.mgit.toml (1 local and 1 external member(s))"* ]]
+  [[ "$output" == *"would write ./.mgit.toml (1 local and 1 external member(s))"* ]] || false
   cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
 
   "$MGIT" register >/dev/null
-  ! grep -Fq 'registered' "$TREE/.mgit.toml"
+  ! grep -Fq 'registered' "$TREE/.mgit.toml" || false
   grep -A1 -Fx '[members."../external"]' "$TREE/.mgit.toml" | grep -Fx 'kind = "repository"'
   "$MGIT" > "$BATS_TEST_TMPDIR/out" 2> "$BATS_TEST_TMPDIR/err"
   [ "$(cat "$BATS_TEST_TMPDIR/out")" = $'local\n../external' ]
@@ -1556,7 +1556,7 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT"
   [ "$status" -ne 0 ]
-  [[ "$output" == *'Agora syntax is retired'* ]]
+  [[ "$output" == *'Agora syntax is retired'* ]] || false
   run "$MGIT" register --dry-run
   [ "$status" -ne 0 ]
   cmp "$TREE/.mgit.toml" "$BATS_TEST_TMPDIR/before"
@@ -1599,8 +1599,8 @@ make_external_estate() {
 
   [ -f "$TREE/.mgit.toml" ]
   [ -f "$TREE/sub/.mgit.toml" ]
-  ! grep -Fq 'schema =' "$TREE/.mgit.toml"
-  ! grep -Fq 'default =' "$TREE/.mgit.toml"
+  ! grep -Fq 'schema =' "$TREE/.mgit.toml" || false
+  ! grep -Fq 'default =' "$TREE/.mgit.toml" || false
   [ "$(grep -cFx 'kind = "repository"' "$TREE/.mgit.toml")" -eq 2 ]
   grep -Fx 'kind = "workspace"' "$TREE/.mgit.toml"
   grep -Fx '[members."sub"]' "$TREE/.mgit.toml"
@@ -1651,8 +1651,8 @@ make_external_estate() {
 
   [ "$status" -eq 0 ]
   [ -f "$TREE/.mgit.toml" ]
-  [[ "$output" == *"warning: manifest remains local; chezmoi could not add it"* ]]
-  [[ "$output" != *"no git repos found"* ]]
+  [[ "$output" == *"warning: manifest remains local; chezmoi could not add it"* ]] || false
+  [[ "$output" != *"no git repos found"* ]] || false
 }
 
 @test "register warns but removes a local manifest when chezmoi cannot forget it" {
@@ -1671,7 +1671,7 @@ make_external_estate() {
   [ "$status" -eq 1 ]
   [ ! -e "$TREE/.mgit.toml" ]
   [ -e "$CHEZMOI_SOURCE/dot_mgit.toml" ]
-  [[ "$output" == *"warning: manifest removal remains local; chezmoi could not forget it"* ]]
+  [[ "$output" == *"warning: manifest removal remains local; chezmoi could not forget it"* ]] || false
 }
 
 @test "register does not manage manifests inside the chezmoi source directory" {
@@ -1736,7 +1736,7 @@ make_external_estate() {
 
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *"present "*"standard-repo"* ]]
+  [[ "$output" == *"present "*"standard-repo"* ]] || false
 }
 
 @test "register dry-run previews add and rm without changing manifests or Chezmoi" {
@@ -1746,7 +1746,7 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external" --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would write ./.mgit.toml"* ]]
+  [[ "$output" == *"would write ./.mgit.toml"* ]] || false
   [ ! -e "$TREE/.mgit.toml" ]
   [ ! -e "$CHEZMOI_LOG" ]
   "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external" >/dev/null
@@ -1754,7 +1754,7 @@ make_external_estate() {
   : > "$CHEZMOI_LOG"
   run "$MGIT" register rm --repo "$BATS_TEST_TMPDIR/external" --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would write ./.mgit.toml"* ]]
+  [[ "$output" == *"would write ./.mgit.toml"* ]] || false
   cmp "$TREE/saved.toml" "$TREE/.mgit.toml"
   [ ! -s "$CHEZMOI_LOG" ]
 }
@@ -1765,7 +1765,7 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" register --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would remove ./repo/.mgit.toml"* ]]
+  [[ "$output" == *"would remove ./repo/.mgit.toml"* ]] || false
   [ -f "$TREE/repo/.mgit.toml" ]
 }
 
@@ -1777,7 +1777,7 @@ make_external_estate() {
   cd "$TREE/workspace"
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would clone standard repository"* ]]
+  [[ "$output" == *"would clone standard repository"* ]] || false
   [ ! -e "$TREE/workspace/missing" ]
   run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
@@ -1800,7 +1800,7 @@ make_external_estate() {
 
   [ "$status" -eq 1 ]
   [ ! -e "$TREE/missing-repo" ]
-  [[ "$output" == *"no clone URL"* ]]
+  [[ "$output" == *"no clone URL"* ]] || false
 
   run "$MGIT" repair --apply
   [ "$status" -eq 1 ]
@@ -1811,7 +1811,7 @@ make_external_estate() {
   run "$MGIT" repair
   [ "$status" -eq 1 ]
   [ -f "$TREE/missing-repo" ]
-  [[ "$output" == *"refusing to replace non-repository path"* ]]
+  [[ "$output" == *"refusing to replace non-repository path"* ]] || false
 }
 
 @test "bare mgit lists the discovered repos" {
@@ -1819,11 +1819,11 @@ make_external_estate() {
   mkrepo "$TREE/b"
   cd "$TREE"
   "$MGIT" register >/dev/null
-  ! grep -q "repoB-branch-c" "$TREE/.mgit.toml"
+  ! grep -q "repoB-branch-c" "$TREE/.mgit.toml" || false
   run "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"a"* ]]
-  [[ "$output" == *"b"* ]]
+  [[ "$output" == *"a"* ]] || false
+  [[ "$output" == *"b"* ]] || false
 }
 
 @test "--ignore bypasses workspace selection for discovery" {
@@ -1890,7 +1890,7 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsupported TOML table: [symlinks]"* ]]
+  [[ "$output" == *"unsupported TOML table: [symlinks]"* ]] || false
 
   mv "$TREE/.mgit.toml" "$TREE/mixed-workspace.toml"
   printf '%s\n' \
@@ -1902,7 +1902,7 @@ make_external_estate() {
   cd "$TREE/a"
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"repository manifest contains unsupported table: [groups.default]"* ]]
+  [[ "$output" == *"repository manifest contains unsupported table: [groups.default]"* ]] || false
 }
 
 @test "register migrates a legacy structural group to direct members" {
@@ -1924,8 +1924,8 @@ make_external_estate() {
   run "$MGIT" register
   [ "$status" -eq 0 ]
   grep -Fx '[members."a"]' "$TREE/.mgit.toml"
-  ! grep -Fq 'schema =' "$TREE/.mgit.toml"
-  ! grep -Fq '[groups.' "$TREE/.mgit.toml"
+  ! grep -Fq 'schema =' "$TREE/.mgit.toml" || false
+  ! grep -Fq '[groups.' "$TREE/.mgit.toml" || false
 
   run "$MGIT"
   [ "$status" -eq 0 ]
@@ -1947,9 +1947,9 @@ make_external_estate() {
   before=$(cat .mgit.toml)
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *'-schema = 1'* ]]
-  [[ "$output" == *'+[members."a"]'* ]]
-  [[ "$output" == *'preview only'* ]]
+  [[ "$output" == *'-schema = 1'* ]] || false
+  [[ "$output" == *'+[members."a"]'* ]] || false
+  [[ "$output" == *'preview only'* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
   run "$MGIT"
   [ "$status" -eq 0 ]
@@ -1958,11 +1958,11 @@ make_external_estate() {
   [ "$status" -eq 0 ]
   grep -Fx '# Preserve this note' .mgit.toml
   grep -Fx '[members."a"]' .mgit.toml
-  ! grep -Fq 'schema =' .mgit.toml
-  ! grep -Fq '[groups.' .mgit.toml
+  ! grep -Fq 'schema =' .mgit.toml || false
+  ! grep -Fq '[groups.' .mgit.toml || false
   run "$MGIT" repair
   [ "$status" -eq 0 ]
-  [[ "$output" == *'already unversioned'* ]]
+  [[ "$output" == *'already unversioned'* ]] || false
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = a ]
@@ -1978,7 +1978,7 @@ make_external_estate() {
   run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   grep -Fx 'kind = "repository"' .mgit.toml
-  ! grep -Fq 'schema =' .mgit.toml
+  ! grep -Fq 'schema =' .mgit.toml || false
   printf '%s\n' 'schema = 2' 'kind = "repository"' > .mgit.toml
   run "$MGIT" repair --apply
   [ "$status" -eq 1 ]
@@ -1997,7 +1997,7 @@ make_external_estate() {
   before=$(cat .mgit.toml)
   run "$MGIT" repair --apply
   [ "$status" -eq 1 ]
-  [[ "$output" == *'alternative groups need a deliberate manual decision'* ]]
+  [[ "$output" == *'alternative groups need a deliberate manual decision'* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
 }
 
@@ -2022,7 +2022,7 @@ make_external_estate() {
   before=$(cat "$TREE/.mgit.toml")
   run "$MGIT" register
   [ "$status" -eq 1 ]
-  [[ "$output" == *"remove alternative groups before migrating"* ]]
+  [[ "$output" == *"remove alternative groups before migrating"* ]] || false
   [ "$(cat "$TREE/.mgit.toml")" = "$before" ]
 }
 
@@ -2039,7 +2039,7 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsafe workspace member path"* ]]
+  [[ "$output" == *"unsafe workspace member path"* ]] || false
 
   printf '%s\n' \
     'schema = 1' \
@@ -2053,7 +2053,7 @@ make_external_estate() {
     'type = "standard"' > "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"duplicate member path"* ]]
+  [[ "$output" == *"duplicate member path"* ]] || false
 }
 
 @test "workspace selection rejects mixed formats and unsafe workspace cycles" {
@@ -2073,7 +2073,7 @@ make_external_estate() {
   printf '\n[groups.default]\n' >> "$TREE/.mgit.toml"
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unversioned workspace requires direct members and no groups"* ]]
+  [[ "$output" == *"unversioned workspace requires direct members and no groups"* ]] || false
 
   printf '%s\n' \
     'kind = "workspace"' \
@@ -2082,7 +2082,7 @@ make_external_estate() {
 
   run "$MGIT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsafe or missing workspace path"* ]]
+  [[ "$output" == *"unsafe or missing workspace path"* ]] || false
 }
 
 @test "a cross-repo symlink is recorded as a TOML entry" {
@@ -2099,7 +2099,7 @@ make_external_estate() {
   cd "$TREE/a"
   run "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"../b"* ]]
+  [[ "$output" == *"../b"* ]] || false
 }
 
 @test "register records nested and standard structures once" {
@@ -2115,7 +2115,7 @@ make_external_estate() {
   grep -Fx 'type = "nested"' "$TREE/.mgit.toml"
   grep -Fx '[members."repoB"]' "$TREE/.mgit.toml"
   grep -Fx 'type = "standard"' "$TREE/.mgit.toml"
-  ! grep -Fx '[members."main"]' "$TREE/.mgit.toml"
+  ! grep -Fx '[members."main"]' "$TREE/.mgit.toml" || false
 }
 
 @test "workspace members are read" {
@@ -2135,7 +2135,7 @@ make_external_estate() {
   run "$MGIT"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoA"* ]]
+  [[ "$output" == *"repoA"* ]] || false
 }
 
 @test "normal commands use primary checkouts unless all worktrees are requested" {
@@ -2147,33 +2147,33 @@ make_external_estate() {
 
   cd "$TREE"
   "$MGIT" register >/dev/null
-  ! grep -F '[members."repoB-branch-c"]' "$TREE/.mgit.toml"
+  ! grep -F '[members."repoB-branch-c"]' "$TREE/.mgit.toml" || false
   run "$MGIT"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoA/main"* ]]
-  [[ "$output" != *"repoA/branch-b"* ]]
-  [[ "$output" == *"repoB"* ]]
-  [[ "$output" != *"repoB-branch-c"* ]]
-  [[ "$output" != *"repoA/.bare"* ]]
+  [[ "$output" == *"repoA/main"* ]] || false
+  [[ "$output" != *"repoA/branch-b"* ]] || false
+  [[ "$output" == *"repoB"* ]] || false
+  [[ "$output" != *"repoB-branch-c"* ]] || false
+  [[ "$output" != *"repoA/.bare"* ]] || false
 
   run "$MGIT" --all-worktrees
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoA/main"* ]]
-  [[ "$output" == *"repoA/branch-b"* ]]
-  [[ "$output" == *"repoB"* ]]
-  [[ "$output" == *"repoB [branch-c]"* ]]
-  [[ "$output" != *"repoA/.bare"* ]]
+  [[ "$output" == *"repoA/main"* ]] || false
+  [[ "$output" == *"repoA/branch-b"* ]] || false
+  [[ "$output" == *"repoB"* ]] || false
+  [[ "$output" == *"repoB [branch-c]"* ]] || false
+  [[ "$output" != *"repoA/.bare"* ]] || false
 
   run "$MGIT" -W
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoA/branch-b"* ]]
-  [[ "$output" == *"repoB [branch-c]"* ]]
+  [[ "$output" == *"repoA/branch-b"* ]] || false
+  [[ "$output" == *"repoB [branch-c]"* ]] || false
 
   run "$MGIT" worktree list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoA/main"* ]]
-  [[ "$output" == *"repoA/branch-b"* ]]
+  [[ "$output" == *"repoA/main"* ]] || false
+  [[ "$output" == *"repoA/branch-b"* ]] || false
 }
 
 @test "external worktree labels hide storage paths without changing execution targets" {
@@ -2189,27 +2189,27 @@ make_external_estate() {
   "$MGIT" register >/dev/null
   run "$MGIT" -W
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repo A [GOV-104]"* ]]
-  [[ "$output" == *"repoB [GOV-104]"* ]]
-  [[ "$output" == *"repo A [detached:held work@"* ]]
-  [[ "$output" == *"repoB [hidden]"* ]]
-  [[ "$output" != *"company-uuid"* ]]
-  [[ "$output" != *".git/mgit-worktrees"* ]]
+  [[ "$output" == *"repo A [GOV-104]"* ]] || false
+  [[ "$output" == *"repoB [GOV-104]"* ]] || false
+  [[ "$output" == *"repo A [detached:held work@"* ]] || false
+  [[ "$output" == *"repoB [hidden]"* ]] || false
+  [[ "$output" != *"company-uuid"* ]] || false
+  [[ "$output" != *".git/mgit-worktrees"* ]] || false
 
   run "$MGIT" -W -f 'repo A' rev-parse --show-toplevel
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repo A [GOV-104]: git rev-parse --show-toplevel"* ]]
-  [[ "$output" == *"$storage/one"* ]]
-  [[ "$output" != *"$storage/two"* ]]
+  [[ "$output" == *"repo A [GOV-104]: git rev-parse --show-toplevel"* ]] || false
+  [[ "$output" == *"$storage/one"* ]] || false
+  [[ "$output" != *"$storage/two"* ]] || false
 
   run "$MGIT" -W --raw pwd -P
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repoB [GOV-104]: pwd -P"* ]]
-  [[ "$output" == *"$storage/two"* ]]
+  [[ "$output" == *"repoB [GOV-104]: pwd -P"* ]] || false
+  [[ "$output" == *"$storage/two"* ]] || false
 
   run "$MGIT" worktree list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"runtime storage/company-uuid/one"* ]]
+  [[ "$output" == *"runtime storage/company-uuid/one"* ]] || false
 }
 
 @test "structure nested previews then restructures every standard repo in the set" {
@@ -2220,8 +2220,8 @@ make_external_estate() {
   "$MGIT" register >/dev/null
   run "$MGIT" structure nested --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would restructure $TREE/repo A"* ]]
-  [[ "$output" == *"would restructure $TREE/repoB"* ]]
+  [[ "$output" == *"would restructure "*"/tree/repo A ("* ]] || false
+  [[ "$output" == *"would restructure "*"/tree/repoB ("* ]] || false
 
   run "$MGIT" structure nested
   [ "$status" -eq 0 ]
@@ -2233,8 +2233,8 @@ make_external_estate() {
 
   run "$MGIT"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"repo A/main"* ]]
-  [[ "$output" == *"repoB/main"* ]]
+  [[ "$output" == *"repo A/main"* ]] || false
+  [[ "$output" == *"repoB/main"* ]] || false
 }
 
 @test "worktree add uses nested and standard-repository destinations across the set" {
@@ -2269,7 +2269,7 @@ make_external_estate() {
 
   run "$MGIT" worktree remove "$TREE/repoA"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"primary working tree"* ]]
+  [[ "$output" == *"primary working tree"* ]] || false
 }
 
 @test "structure standard restores a nested repository with only main" {
@@ -2280,7 +2280,7 @@ make_external_estate() {
   "$MGIT" register >/dev/null
   run "$MGIT" structure standard --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would restructure $TREE/repoA"* ]]
+  [[ "$output" == *"would restructure "*"/tree/repoA ("* ]] || false
 
   run "$MGIT" structure standard
   [ "$status" -eq 0 ]
@@ -2298,16 +2298,16 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" -f 'mcp-'
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mcp-a"* ]]
-  [[ "$output" == *"mcp-b"* ]]
-  [[ "$output" == *"sub/mcp-c"* ]]
-  [[ "$output" != *"tools-d"* ]]
+  [[ "$output" == *"mcp-a"* ]] || false
+  [[ "$output" == *"mcp-b"* ]] || false
+  [[ "$output" == *"sub/mcp-c"* ]] || false
+  [[ "$output" != *"tools-d"* ]] || false
 
   run "$MGIT" -f 'mcp-a' -f 'tools-'
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mcp-a"* ]]
-  [[ "$output" != *"mcp-b"* ]]
-  [[ "$output" == *"tools-d"* ]]
+  [[ "$output" == *"mcp-a"* ]] || false
+  [[ "$output" != *"mcp-b"* ]] || false
+  [[ "$output" == *"tools-d"* ]] || false
 }
 
 @test "--filter applies to bare commands and requires a pattern" {
@@ -2317,8 +2317,8 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" -f 'mcp-' -R pwd
   [ "$status" -eq 0 ]
-  [[ "$output" == *"$TREE/mcp-a"* ]]
-  [[ "$output" != *"tools-b"* ]]
+  [[ "$output" == *"$TREE/mcp-a"* ]] || false
+  [[ "$output" != *"tools-b"* ]] || false
 
   run "$MGIT" --filter
   [ "$status" -eq 2 ]
@@ -2333,15 +2333,15 @@ make_external_estate() {
   cd "$TREE"
   run "$MGIT" -f 'mcp-'
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mcp-a/main"* ]]
-  [[ "$output" != *"mcp-a/featureA"* ]]
-  [[ "$output" != *"tools-b"* ]]
+  [[ "$output" == *"mcp-a/main"* ]] || false
+  [[ "$output" != *"mcp-a/featureA"* ]] || false
+  [[ "$output" != *"tools-b"* ]] || false
 
   run "$MGIT" -f 'mcp-' --all-worktrees
   [ "$status" -eq 0 ]
-  [[ "$output" == *"mcp-a/main"* ]]
-  [[ "$output" == *"mcp-a/featureA"* ]]
-  [[ "$output" != *"tools-b"* ]]
+  [[ "$output" == *"mcp-a/main"* ]] || false
+  [[ "$output" == *"mcp-a/featureA"* ]] || false
+  [[ "$output" != *"tools-b"* ]] || false
 }
 
 # Helper: run a command, failing the test if it errors (for use inside subshells
@@ -2408,8 +2408,8 @@ make_overview_hygiene() {
   [ "$output" = $'ahead: ahead 1\nbehind: behind 1\ndirty: 1 staged, 1 modified, 1 untracked\nlocal: no upstream\nmgit overview: 6 repositories: 2 clean, 4 need attention, 0 failed' ]
   run "$MGIT" overview --verbose
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\nclean: clean\n'* ]]
-  [[ "$output" == *$'\nstore.git: clean\n'* ]]
+  [[ "$output" == *$'\nclean: clean\n'* ]] || false
+  [[ "$output" == *$'\nstore.git: clean\n'* ]] || false
   run "$MGIT" -f d overview
   [ "$status" -eq 0 ]
   [ "$output" = $'dirty: 1 staged, 1 modified, 1 untracked\nmgit overview: 1 repository: 0 clean, 1 need attention, 0 failed' ]
@@ -2424,17 +2424,17 @@ make_overview_hygiene() {
   [ "${lines[1]}" = '  equivalent (local): equivalent' ]
   [ "${lines[2]}" = '  gone (local): gone' ]
   [ "${lines[3]}" = '  merged (local): merged' ]
-  [[ "${lines[4]}" == '  stale (local): stale, '*' days old' ]]
-  [[ "${lines[5]}" == '  origin/automation/old (remote): stale, '*' days old, automation' ]]
+  [[ "${lines[4]}" == '  stale (local): stale, '*' days old' ]] || false
+  [[ "${lines[5]}" == '  origin/automation/old (remote): stale, '*' days old, automation' ]] || false
   [ "${lines[6]}" = '  origin/merged (remote): merged' ]
   [ "${lines[7]}" = 'mgit overview: 1 repository: 0 clean, 1 need attention, 0 failed' ]
-  [[ "$output" != *fresh* ]]
-  [[ "$output" != *inuse* ]]
+  [[ "$output" != *fresh* ]] || false
+  [[ "$output" != *inuse* ]] || false
 
   run "$MGIT" overview --stale-days 100000
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'hygiene: 4 obsolete branches' ]
-  [[ "$output" != *stale* ]]
+  [[ "$output" != *stale* ]] || false
 }
 
 @test "overview reports stashes, detached checkouts and worktrees once per repository" {
@@ -2453,7 +2453,7 @@ make_overview_hygiene() {
   [ "${lines[1]}" = 'repo: 1 prunable worktree, 1 detached worktree, no upstream, 1 stash' ]
   run "$MGIT" -W overview
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\nrepo [detached:detached@'*']: detached HEAD\n'* ]]
+  [[ "$output" == *$'\nrepo [detached:detached@'*$']: detached HEAD\n'* ]] || false
   [ "$(printf '%s\n' "$output" | grep -c 'stash')" -eq 1 ]
 }
 
@@ -2464,12 +2464,12 @@ make_overview_hygiene() {
   run "$MGIT" overview --json
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -eq 1 ]
-  [[ "$output" == '{"tool":"mgit","command":"overview","version":"'*'","stale_days":30,"repositories":[{"label":"ahead",'* ]]
-  [[ "$output" == *'"upstream":{"state":"tracking","name":"origin/'*'","ahead":1,"behind":0}'* ]]
-  [[ "$output" == *'"changes":{"staged":1,"modified":1,"untracked":1,"conflicted":0}'* ]]
-  [[ "$output" == *'{"name":"origin/automation/old","scope":"remote","reasons":["stale"],"age_days":'*',"automation":true}'* ]]
-  [[ "$output" == *'{"name":"gone","scope":"local","reasons":["gone"],"age_days":0,"automation":false}'* ]]
-  [[ "$output" == *'"summary":{"repositories":6,"clean":1,"attention":5,"failed":0}}' ]]
+  [[ "$output" == '{"tool":"mgit","command":"overview","version":"'*'","stale_days":30,"repositories":[{"label":"ahead",'* ]] || false
+  [[ "$output" == *'"upstream":{"state":"tracking","name":"origin/'*'","ahead":1,"behind":0}'* ]] || false
+  [[ "$output" == *'"changes":{"staged":1,"modified":1,"untracked":1,"conflicted":0}'* ]] || false
+  [[ "$output" == *'{"name":"origin/automation/old","scope":"remote","reasons":["stale"],"age_days":'*',"automation":true}'* ]] || false
+  [[ "$output" == *'{"name":"gone","scope":"local","reasons":["gone"],"age_days":0,"automation":false}'* ]] || false
+  [[ "$output" == *'"summary":{"repositories":6,"clean":1,"attention":5,"failed":0}}' ]] || false
   if command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "$output" | python3 -m json.tool >/dev/null
   fi
@@ -2503,7 +2503,7 @@ make_overview_hygiene() {
   "$MGIT" -W overview --json >/dev/null
   snapshot > "$BATS_TEST_TMPDIR/after"
   cmp "$BATS_TEST_TMPDIR/before" "$BATS_TEST_TMPDIR/after"
-  ! grep -q FETCH_HEAD "$BATS_TEST_TMPDIR/after"
+  ! grep -q FETCH_HEAD "$BATS_TEST_TMPDIR/after" || false
 }
 
 @test "overview fails only for unreadable checkouts and validates its options" {
@@ -2517,22 +2517,22 @@ make_overview_hygiene() {
   [ "${lines[2]}" = 'mgit overview: 2 repositories: 0 clean, 1 need attention, 1 failed' ]
   run "$MGIT" overview --json
   [ "$status" -eq 1 ]
-  [[ "$output" == *'{"label":"broken","path":"'*'","state":"failed","error":"cannot read status"}'* ]]
+  [[ "$output" == *'{"label":"broken","path":"'*'","state":"failed","error":"cannot read status"}'* ]] || false
 
   for value in 0 -1 abc 007 ''; do
     run "$MGIT" overview --stale-days "$value"
     [ "$status" -eq 2 ]
-    [[ "$output" == *"--stale-days requires a positive whole number of days"* ]]
+    [[ "$output" == *"--stale-days requires a positive whole number of days"* ]] || false
   done
   run "$MGIT" overview --stale-days
   [ "$status" -eq 2 ]
   run "$MGIT" overview --fetch
   [ "$status" -eq 2 ]
-  [[ "$output" == *"overview: unexpected argument: --fetch"* ]]
+  [[ "$output" == *"overview: unexpected argument: --fetch"* ]] || false
   run "$MGIT" -R overview
   [ "$status" -eq 2 ]
-  [[ "$output" == *"--raw cannot be used with overview"* ]]
+  [[ "$output" == *"--raw cannot be used with overview"* ]] || false
   run "$MGIT" help overview
   [ "$status" -eq 0 ]
-  [[ "$output" == 'Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]'* ]]
+  [[ "$output" == 'Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]'* ]] || false
 }
