@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T18:35:08Z
+updated_at: 2026-10-18T19:27:33Z
 ---
 
 ## Goal
@@ -88,6 +88,7 @@ The provisional choices accepted as built, each worth a deliberate look:
 Record each finding Kris reports here, with its disposition, before planning.
 
 - **No short letter for `--filter` (fixed here).** Kris, 18 October 2026, CLI-F-FILTER c) in the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) ("owner answer, CLI-F-FILTER; mark"): "I'm thinking we just go with `--filter` and no short version". `--filter` is unchanged; `-f` is a status-`2` usage error that names `--filter` and runs nothing, as `-G` was handled, leaving `-f` free for force or file. Help, Bash and Zsh completions, manual, README, guides, the MGIT-WS-009 specification and the changelog are updated, with the Bats case `-f is not a short filter and runs nothing`; the house form is recorded in the `ki-repo-tools` command-line conventions. The flag-name record this would have joined, [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md), is already pruned.
+- **Command-line convention departures (fix at mgit's next change).** Kris, 18 October 2026, CLI-DEPARTURES a) in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) ("CLI-DEPARTURES"): each departure from the `ki-repo-tools` [command-line conventions](/Users/krisbrown/.local/share/ki/harnesses/knowledgeislands/ki-agentic-harness/skills/repo-structure/ki-repo-tools/references/standards-cli-conventions.md) found by [KI-HARNESS-GOV-218](/Users/krisbrown/workspaces/knowledge-islands/ki-agentic-harness/docs/roadmap/KI-HARNESS-GOV-218-cli-conventions.md) is recorded on the record owning the command, as a fix for the tool's next change, not built now. mgit departs three ways: `-j/--jobs` takes its value only as a separate word, so `--jobs=2` and `-j2` are refused, and short options without arguments do not group, so `-vW` is refused where it should mean `-v -W`; `--dry-run` has no `-n` short letter; and `worktree remove --force` has no `-f` short letter, which the CLI-F-FILTER fix above left free for force. `-f, --filter` is not a departure under CLI-F-FILTER. Each fix carries its Bats case and the help, completion, manual and changelog updates.
 
 ### Adoption
 
