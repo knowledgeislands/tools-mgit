@@ -778,6 +778,41 @@ assert_usage_error() {
   [ "$output" = 'mgit: 1 repository: 1 quiet, 0 with output, 0 failed' ]
 }
 
+@test "a status alias is quiet only for clean checkouts level with an upstream" {
+  local origins="$BATS_TEST_TMPDIR/origins"
+  mkdir -p "$origins"
+  printf '[alias]\n\tst = status -sb\n\tlg = log --oneline\n' > "$BATS_TEST_TMPDIR/gitconfig"
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  make_origin "$TREE/a-clean" "$origins/a.git" a
+  make_origin "$TREE/b-behind" "$origins/b.git" b
+  git -C "$TREE/b-behind" commit -q --allow-empty -m next
+  git -C "$TREE/b-behind" push -q
+  git -C "$TREE/b-behind" reset -q --hard HEAD~1
+  make_origin "$TREE/c-detached" "$origins/c.git" c
+  git -C "$TREE/c-detached" checkout -q --detach
+  make_origin "$TREE/d-untracked" "$origins/d.git" d
+  : > "$TREE/d-untracked/new"
+  mkrepo "$TREE/e-local"
+  cd "$TREE"
+
+  run "$MGIT" st
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 5 repositories: 1 quiet, 4 with output, 0 failed' ]
+  [[ "$output" != *'a-clean: git st'* ]] || false
+  [[ "$output" == *'b-behind: git st'*'[behind 1]'* ]] || false
+  [[ "$output" == *'c-detached: git st'* ]] || false
+  [[ "$output" == *'d-untracked: git st'*'?? new'* ]] || false
+  [[ "$output" == *'e-local: git st'* ]] || false
+
+  run "$MGIT" -f a-clean lg
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'a-clean: git lg' ]
+
+  run "$MGIT" -v -f a-clean st
+  [ "$status" -eq 0 ]
+  [[ "$output" == $'a-clean: git st\n## '*'...origin/'* ]] || false
+}
+
 @test "verbose streams every checkout in turn as before" {
   mkrepo "$TREE/a"
   mkrepo "$TREE/b"

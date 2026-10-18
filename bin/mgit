@@ -3486,16 +3486,21 @@ runner_status() {
   printf '%s' "${status:-1}"
 }
 
-# A pass-through worker. Any `status` is quiet exactly when the checkout has no
-# change entries and is level with an upstream, whatever form was requested.
+# A pass-through worker. Any `status`, or Git alias for one such as
+# `st = status -sb`, is quiet exactly when the checkout has no change entries
+# and is level with an upstream, whatever form was requested.
 dispatch_worker() {
-  local d="${repos[$1]}" line quiet=true level=false
+  local d="${repos[$1]}" line quiet=true level=false alias
   if [ "$runner_raw" = true ]; then
     ( cd "$d" && "${runner_command[@]}" )
     return
   fi
   ( cd "$d" && git "${runner_command[@]}" ) || return
-  [ "${runner_command[0]}" = status ] || return 0
+  if [ "${runner_command[0]}" != status ]; then
+    alias=$(git -C "$d" config --get "alias.${runner_command[0]}" 2>/dev/null) || return 0
+    read -r alias _ <<< "$alias"
+    [ "$alias" = status ] || return 0
+  fi
   while IFS= read -r line; do
     case "$line" in
       '# branch.ab +0 -0') level=true ;;

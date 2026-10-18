@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T08:37:21Z
+updated_at: 2026-10-18T10:10:00Z
 ---
 
 ## Goal
@@ -31,7 +31,9 @@ Under the shared runner of [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-sc
 
 ## Current state
 
-`dispatch_worker` marks a checkout quiet only for `status`; `dispatch_captured` otherwise treats any captured byte on either stream as output. No message is matched, and nothing is configurable.
+`dispatch_worker` marks a checkout quiet only for `status` or a Git alias whose expansion begins with `status` (such as `st = status -sb`); `dispatch_captured` otherwise treats any captured byte on either stream as output. No message is matched, and nothing is configurable.
+
+The status-alias rule landed on 18 October 2026 under Kris's MGIT-ST-QUIET answer in the ways-of-working decisions log, ahead of this record's planning, because `mgit st` counted every clean, level checkout as output; it is folded here rather than opened as a separate record. The no-change message rule above remains to do.
 
 ## Steps
 

@@ -16,7 +16,7 @@ tools-ki: git status --short
 mgit: 54 repositories: 53 quiet, 1 with output, 0 failed
 ```
 
-A checkout that exits `0` without output is quiet. Any `git status` is quiet exactly when the checkout has no changes and is level with an upstream, so a checkout without an upstream is always shown. The invocation exits with status `1` if any checkout command fails, and the closing line names each failed checkout with its exit status, as in `1 failed: tools-ki (exit 128)`.
+A checkout that exits `0` without output is quiet. Any `git status`, or a Git alias for one such as `st = status -sb`, is quiet exactly when the checkout has no changes and is level with an upstream, so a checkout that is ahead, behind, detached or without an upstream is always shown. Pass `-v/--verbose` to see every checkout's status. The invocation exits with status `1` if any checkout command fails, and the closing line names each failed checkout with its exit status, as in `1 failed: tools-ki (exit 128)`.
 
 Commands cannot read the terminal: standard input is empty, Git does not prompt for credentials and `GIT_EDITOR` is `false`, so a command that needs an editor or a prompt fails rather than waiting unseen. Captured output also loses Git's colour. For these commands pass `-v` or `--verbose`, which runs one checkout at a time with the terminal attached and streams every header and all output as before.
 

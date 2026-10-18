@@ -55,7 +55,7 @@ mgit help repair
 
 `mgit sync` fetches every clean tracking branch in parallel, then fast-forwards branches that are only behind and pushes branches that are only ahead, one checkout at a time. Diverged, dirty, detached and untracked branches are named with a warning and left untouched; nothing is merged or rebased. Repositories already current are rolled into one count; pass `-v` for progress on every checkout. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
 
-Ordinary commands run in up to eight checkouts at once (`-j/--jobs N` sets the limit). Only checkouts with output or a failure are shown, in selection order, followed by one line counting the quiet ones and naming each failure. A `git status` that is clean and level with its upstream counts as quiet. Pass `-v/--verbose` for one checkout at a time with all output streamed, as for an interactive command, or `--json` for one document.
+Ordinary commands run in up to eight checkouts at once (`-j/--jobs N` sets the limit). Only checkouts with output or a failure are shown, in selection order, followed by one line counting the quiet ones and naming each failure. A `git status`, or a Git alias for one such as `st = status -sb`, that is clean and level with its upstream counts as quiet. Pass `-v/--verbose` for one checkout at a time with all output streamed, as for an interactive command, or `--json` for one document.
 
 `mgit overview` shows, read-only, what is outstanding across the set: dirty files, ahead and behind counts, stashes, worktrees needing attention, and obsolete branches by the Git clean-down criteria. It names only checkouts that need attention, and `--json` prints one document for tools.
 
