@@ -58,6 +58,9 @@ unknown when provenance cannot be established.
 Update clean tracking branches in the current set and summarize repositories
 that changed or need attention.
 .TP
+.B mgit overview [--json] [-v|--verbose] [--stale-days <days>]
+Show, read-only, what is outstanding across the current set.
+.TP
 .B mgit structure <standard|nested> [--dry-run]
 Convert every eligible repository in the current set between standard and
 nested structures.
@@ -92,6 +95,7 @@ The reserved command tree consists of
 .BR register ,
 .BR repair ,
 .BR sync ,
+.BR overview ,
 .BR structure ,
 .BR worktree ,
 .BR completion ,
@@ -262,8 +266,10 @@ Empty prefixes and zero matches fail before dispatch.
 .TP
 .BR \-W , " \-\-all-worktrees"
 Include every active linked worktree as well as the primary checkout when
-listing repositories or running ordinary commands and
-.BR sync .
+listing repositories or running ordinary commands,
+.B sync
+and
+.BR overview .
 Normal listings and command headers label worktrees outside the repository or
 under its hidden Git storage as repository [branch], without the storage prefix.
 Detached worktrees use their directory name and abbreviated commit.
@@ -288,6 +294,7 @@ Print contextual help for the requested command and exit.
 Print the version and exit.
 Global discovery selectors apply to listing, ordinary commands,
 .BR sync ,
+.BR overview ,
 .BR structure ,
 and
 .BR worktree .
@@ -399,6 +406,37 @@ Repositories that pulled or pushed commits are named. Already-current
 repositories are collapsed into one final count. Bare repositories, detached
 heads, branches without upstreams, divergence, and Git failures are reported
 and make the command exit unsuccessfully without forcing a change.
+.TP
+.B mgit overview
+reads local Git state only, never fetching or changing a ref, the index or a
+stash, and reports for each selected checkout its branch and upstream, ahead
+and behind counts, staged, modified, untracked and conflicted files, stashes,
+prunable or detached linked worktrees, and obsolete branches.
+A local branch is obsolete when it is merged into the default branch
+.RI ( origin/HEAD ,
+else
+.I main
+or
+.IR master ),
+patch-equivalent to it, has a gone upstream, or is unmerged and idle beyond
+.B \-\-stale-days
+(default 30); a remote-tracking branch is obsolete when merged or stale.
+Automation branches are judged alike and marked. A branch checked out in any
+worktree is never obsolete. Stashes, worktrees and branches are reported once
+per repository when
+.B \-W
+lists several of its checkouts.
+.PP
+Only checkouts that need attention are named, each on one line with its
+findings and an indented line per obsolete branch; a closing line counts clean,
+attention and failed checkouts.
+.B \-v
+or
+.B \-\-verbose
+names clean checkouts too, and
+.B \-\-json
+prints one JSON document with every checkout and the counts.
+The command exits 1 only when a checkout cannot be read.
 .TP
 .B mgit structure nested
 converts each eligible clean, attached standard checkout to a nested repository.

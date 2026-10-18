@@ -45,6 +45,7 @@ mgit
 mgit status
 mgit sync
 mgit sync -i
+mgit overview
 mgit -B npm test
 mgit doctor
 mgit diag
@@ -52,6 +53,8 @@ mgit help repair
 ```
 
 `mgit sync` updates clean tracking branches with fast-forward-only pulls and normal pushes. It shows progress before each pull and push, names repositories that changed or need attention, and rolls repositories already current into one count. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
+
+`mgit overview` shows, read-only, what is outstanding across the set: dirty files, ahead and behind counts, stashes, worktrees needing attention, and obsolete branches by the Git clean-down criteria. It names only checkouts that need attention, and `--json` prints one document for tools.
 
 Use `mgit register` to write an unversioned `.mgit.toml` document. It writes `kind = "workspace"` in a non-Git container or `kind = "repository"` in a repository that owns cross-repository symlink metadata.
 

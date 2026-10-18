@@ -53,6 +53,21 @@ mgit --filter 'tools-' sync
 mgit --territory knowledge-islands sync
 ```
 
+## See what is outstanding
+
+Run `mgit overview` for a read-only view of the selected set. It reads local Git state only: nothing is fetched, and no ref, index or stash changes. Each checkout that needs attention gets one line naming its findings, followed by an indented line for each obsolete branch, and a closing line counts the rest:
+
+```text
+tools-ki: 2 modified, ahead 1, 1 stash, 2 obsolete branches
+  feature/done (local): merged
+  origin/automation/old (remote): stale, 95 days old, automation
+mgit overview: 54 repositories: 51 clean, 3 need attention, 0 failed
+```
+
+A checkout needs attention for staged, modified, untracked or conflicted files; a detached HEAD, no upstream or a gone upstream; commits ahead or behind its last-fetched upstream; stashes; prunable or detached linked worktrees; or obsolete branches. A local branch is obsolete when it is merged into the default branch (`origin/HEAD`, else `main` or `master`), patch-equivalent to it, tracks a gone upstream, or is unmerged and idle for more than `--stale-days` days (default 30). A remote-tracking branch is obsolete when merged or stale. `automation/*`, `dependabot/*` and `renovate/*` branches follow the same rules and are marked. Branches checked out in a worktree are never obsolete.
+
+Pass `--verbose` to name clean checkouts too, and `--json` for one JSON document with every checkout and the counts, for tools such as `ki`. Selectors and `--all-worktrees` apply as for listing; with `--all-worktrees`, repository-wide facts (stashes, worktrees and branches) appear once per repository. The command exits with status `1` only when a checkout cannot be read. Ahead and behind counts are as fresh as the last fetch.
+
 ## Limit the set
 
 Use `-f` or `--filter` with a nonempty literal directory-basename prefix. Matching is case-sensitive; repeated prefixes are combined with OR. Characters such as `*` and `[` are literal, not glob syntax. A prefix never matches a parent directory or a linked-worktree name. Zero matches fail before dispatch.

@@ -523,7 +523,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair doctor diag sync structure worktree completion; do
+  for command in register repair doctor diag sync overview structure worktree completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]]
@@ -2043,3 +2043,192 @@ make_external_estate() {
 # Helper: run a command, failing the test if it errors (for use inside subshells
 # where bats' own `run` isn't available).
 run_ok() { "$@"; }
+
+# Overview fixtures keep their origins outside $TREE so discovery never lists
+# them as bare repositories.
+make_overview_estate() {
+  local origins="$BATS_TEST_TMPDIR/origins"
+  mkdir -p "$origins"
+  make_origin "$TREE/clean" "$origins/clean.git" clean
+  make_origin "$TREE/dirty" "$origins/dirty.git" dirty
+  printf 'staged\n' > "$TREE/dirty/staged"
+  git -C "$TREE/dirty" add staged
+  printf 'changed\n' >> "$TREE/dirty/payload"
+  printf 'new\n' > "$TREE/dirty/untracked"
+  make_origin "$TREE/ahead" "$origins/ahead.git" ahead
+  git -C "$TREE/ahead" commit -q --allow-empty -m ahead
+  make_origin "$TREE/behind" "$origins/behind.git" behind
+  git -C "$TREE/behind" commit -q --allow-empty -m behind
+  git -C "$TREE/behind" push -q
+  git -C "$TREE/behind" reset -q --hard HEAD~1
+  mkrepo "$TREE/local"
+}
+
+# A clone with origin/HEAD and one branch of each obsolete kind, plus branches
+# that must not be reported: a recent unmerged one and one checked out in a
+# linked worktree.
+make_overview_hygiene() {
+  local origins="$BATS_TEST_TMPDIR/origins" repo="$TREE/hygiene" base
+  mkdir -p "$origins"
+  make_origin "$BATS_TEST_TMPDIR/seed" "$origins/hygiene.git" seed
+  git clone -q "$origins/hygiene.git" "$repo"
+  base=$(git -C "$repo" branch --show-current)
+  git -C "$repo" branch merged
+  git -C "$repo" checkout -q -b equivalent
+  printf 'equivalent\n' > "$repo/equivalent"
+  git -C "$repo" add equivalent
+  GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' git -C "$repo" commit -q -m equivalent
+  git -C "$repo" checkout -q "$base"
+  git -C "$repo" cherry-pick equivalent >/dev/null
+  git -C "$repo" push -q origin "$base"
+  git -C "$repo" checkout -q -b stale "$base~1"
+  GIT_COMMITTER_DATE='2020-01-01T00:00:00Z' git -C "$repo" commit -q --allow-empty -m stale
+  git -C "$repo" push -q origin stale:refs/heads/automation/old
+  git -C "$repo" checkout -q -b gone "$base"
+  git -C "$repo" commit -q --allow-empty -m gone
+  git -C "$repo" push -q -u origin gone
+  git -C "$repo" push -q origin --delete gone
+  git -C "$repo" push -q origin merged
+  git -C "$repo" checkout -q -b fresh "$base"
+  git -C "$repo" commit -q --allow-empty -m fresh
+  git -C "$repo" checkout -q "$base"
+  git -C "$repo" worktree add -q -b inuse "$BATS_TEST_TMPDIR/inuse" "$base"
+}
+
+@test "overview names only checkouts that need attention and counts the rest" {
+  make_overview_estate
+  mkbare "$TREE/store.git"
+  cd "$TREE"
+  run "$MGIT" overview
+  [ "$status" -eq 0 ]
+  [ "$output" = $'ahead: ahead 1\nbehind: behind 1\ndirty: 1 staged, 1 modified, 1 untracked\nlocal: no upstream\nmgit overview: 6 repositories: 2 clean, 4 need attention, 0 failed' ]
+  run "$MGIT" overview --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\nclean: clean\n'* ]]
+  [[ "$output" == *$'\nstore.git: clean\n'* ]]
+  run "$MGIT" -f d overview
+  [ "$status" -eq 0 ]
+  [ "$output" = $'dirty: 1 staged, 1 modified, 1 untracked\nmgit overview: 1 repository: 0 clean, 1 need attention, 0 failed' ]
+}
+
+@test "overview reports obsolete branches by the clean-down criteria" {
+  make_overview_hygiene
+  cd "$TREE"
+  run "$MGIT" overview
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'hygiene: 6 obsolete branches' ]
+  [ "${lines[1]}" = '  equivalent (local): equivalent' ]
+  [ "${lines[2]}" = '  gone (local): gone' ]
+  [ "${lines[3]}" = '  merged (local): merged' ]
+  [[ "${lines[4]}" == '  stale (local): stale, '*' days old' ]]
+  [[ "${lines[5]}" == '  origin/automation/old (remote): stale, '*' days old, automation' ]]
+  [ "${lines[6]}" = '  origin/merged (remote): merged' ]
+  [ "${lines[7]}" = 'mgit overview: 1 repository: 0 clean, 1 need attention, 0 failed' ]
+  [[ "$output" != *fresh* ]]
+  [[ "$output" != *inuse* ]]
+
+  run "$MGIT" overview --stale-days 100000
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'hygiene: 4 obsolete branches' ]
+  [[ "$output" != *stale* ]]
+}
+
+@test "overview reports stashes, detached checkouts and worktrees once per repository" {
+  mkrepo "$TREE/repo"
+  printf 'stash\n' > "$TREE/repo/stashed"
+  git -C "$TREE/repo" stash -q -u
+  git -C "$TREE/repo" worktree add -q --detach "$BATS_TEST_TMPDIR/detached"
+  git -C "$TREE/repo" worktree add -q "$BATS_TEST_TMPDIR/gone-wt"
+  rm -rf "$BATS_TEST_TMPDIR/gone-wt"
+  mkrepo "$TREE/loose"
+  git -C "$TREE/loose" checkout -q --detach
+  cd "$TREE"
+  run "$MGIT" overview
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'loose: detached HEAD' ]
+  [ "${lines[1]}" = 'repo: 1 prunable worktree, 1 detached worktree, no upstream, 1 stash' ]
+  run "$MGIT" -W overview
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\nrepo [detached:detached@'*']: detached HEAD\n'* ]]
+  [ "$(printf '%s\n' "$output" | grep -c 'stash')" -eq 1 ]
+}
+
+@test "overview prints one JSON document" {
+  make_overview_estate
+  make_overview_hygiene
+  cd "$TREE"
+  run "$MGIT" overview --json
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [[ "$output" == '{"tool":"mgit","command":"overview","version":"'*'","stale_days":30,"repositories":[{"label":"ahead",'* ]]
+  [[ "$output" == *'"upstream":{"state":"tracking","name":"origin/'*'","ahead":1,"behind":0}'* ]]
+  [[ "$output" == *'"changes":{"staged":1,"modified":1,"untracked":1,"conflicted":0}'* ]]
+  [[ "$output" == *'{"name":"origin/automation/old","scope":"remote","reasons":["stale"],"age_days":'*',"automation":true}'* ]]
+  [[ "$output" == *'{"name":"gone","scope":"local","reasons":["gone"],"age_days":0,"automation":false}'* ]]
+  [[ "$output" == *'"summary":{"repositories":6,"clean":1,"attention":5,"failed":0}}' ]]
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "$output" | python3 -m json.tool >/dev/null
+  fi
+}
+
+@test "overview reads Git state without changing it" {
+  make_overview_estate
+  make_overview_hygiene
+  cd "$TREE"
+  snapshot() {
+    local repo
+    for repo in "$TREE"/*/; do
+      (
+        cd "$repo"
+        git for-each-ref --format='%(refname) %(objectname)'
+        git stash list
+        if [ -e "$(git rev-parse --git-path index)" ]; then
+          cksum < "$(git rev-parse --git-path index)"
+        else
+          printf 'no index\n'
+        fi
+        [ ! -e "$(git rev-parse --git-path FETCH_HEAD)" ] || printf 'FETCH_HEAD\n'
+      )
+    done
+  }
+  # A changed timestamp on an unchanged file makes plain git status refresh,
+  # and so rewrite, the index.
+  touch -t 202001010000 "$TREE/clean/payload"
+  snapshot > "$BATS_TEST_TMPDIR/before"
+  "$MGIT" overview >/dev/null
+  "$MGIT" -W overview --json >/dev/null
+  snapshot > "$BATS_TEST_TMPDIR/after"
+  cmp "$BATS_TEST_TMPDIR/before" "$BATS_TEST_TMPDIR/after"
+  ! grep -q FETCH_HEAD "$BATS_TEST_TMPDIR/after"
+}
+
+@test "overview fails only for unreadable checkouts and validates its options" {
+  mkrepo "$TREE/good"
+  mkrepo "$TREE/broken"
+  printf 'garbage\n' > "$TREE/broken/.git/index"
+  cd "$TREE"
+  run "$MGIT" overview
+  [ "$status" -eq 1 ]
+  [ "${lines[0]}" = 'broken: failed: cannot read status' ]
+  [ "${lines[2]}" = 'mgit overview: 2 repositories: 0 clean, 1 need attention, 1 failed' ]
+  run "$MGIT" overview --json
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'{"label":"broken","path":"'*'","state":"failed","error":"cannot read status"}'* ]]
+
+  for value in 0 -1 abc 007 ''; do
+    run "$MGIT" overview --stale-days "$value"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--stale-days requires a positive whole number of days"* ]]
+  done
+  run "$MGIT" overview --stale-days
+  [ "$status" -eq 2 ]
+  run "$MGIT" overview --fetch
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"overview: unexpected argument: --fetch"* ]]
+  run "$MGIT" -B overview
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--bare cannot be used with overview"* ]]
+  run "$MGIT" help overview
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]'* ]]
+}

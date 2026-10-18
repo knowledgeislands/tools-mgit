@@ -5,13 +5,13 @@ title: Estate overview
 kind: deliver
 purpose: capability
 component: cli
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 088c2f4eb94f4af693e517e41a36e9f1d336e242
 created_at: 2026-10-18T04:10:00Z
-updated_at: 2026-10-18T05:46:00Z
+updated_at: 2026-10-18T06:02:00Z
 ---
 
 ## Goal
@@ -35,13 +35,13 @@ No overview exists. `mgit worktree status` prints branch and cleanliness for eve
 
 ## Steps
 
-- [ ] Add a per-checkout collector that writes one result file: branch or detached state, upstream with ahead and behind, gone or none; staged, modified and untracked counts; stash count; linked worktrees with prunable and detached flags; the default branch (`origin/HEAD`, else `main` or `master`); local branches merged into the default branch, patch-equivalent to it (`git cherry`), with a gone upstream, or stale; remote-tracking branches merged or stale; last commit age and last fetch age. Automation branches are judged by the same rules.
-- [ ] Classify each checkout as clean, attention or failed, and render a terminal view that names only attention and failed checkouts, one line each with its findings, then `mgit overview: N repositories: C clean, A need attention, F failed`; `--verbose` names clean checkouts too.
-- [ ] Render `--json` as one document with tool, command, version, stale threshold, one object per checkout and the summary counts, through a JSON string escaper.
-- [ ] Wire `overview` as an owned command: listing selectors and `--all-worktrees` apply, `-B` is rejected, usage and `help overview` exist, completion covers it; exit `0` unless a checkout failed.
-- [ ] Add Bats cases in disposable repositories with isolated configuration: clean, staged, modified and untracked, ahead and behind, gone upstream, merged, patch-equivalent, stale and automation branches, stash, linked and detached worktrees, JSON shape, `--stale-days` validation, and a proof that refs, index, stash and `FETCH_HEAD` are unchanged.
-- [ ] Update the manual, README, running-commands guide, workspace-dispatch specification and changelog.
-- [ ] Run the complete gate.
+- [x] Add a per-checkout collector that writes one result file: branch or detached state, upstream with ahead and behind, gone or none; staged, modified and untracked counts; stash count; linked worktrees with prunable and detached flags; the default branch (`origin/HEAD`, else `main` or `master`); local branches merged into the default branch, patch-equivalent to it (`git cherry`), with a gone upstream, or stale; remote-tracking branches merged or stale; last commit age and last fetch age. Automation branches are judged by the same rules.
+- [x] Classify each checkout as clean, attention or failed, and render a terminal view that names only attention and failed checkouts, one line each with its findings, then `mgit overview: N repositories: C clean, A need attention, F failed`; `--verbose` names clean checkouts too.
+- [x] Render `--json` as one document with tool, command, version, stale threshold, one object per checkout and the summary counts, through a JSON string escaper.
+- [x] Wire `overview` as an owned command: listing selectors and `--all-worktrees` apply, `-B` is rejected, usage and `help overview` exist, completion covers it; exit `0` unless a checkout failed.
+- [x] Add Bats cases in disposable repositories with isolated configuration: clean, staged, modified and untracked, ahead and behind, gone upstream, merged, patch-equivalent, stale and automation branches, stash, linked and detached worktrees, JSON shape, `--stale-days` validation, and a proof that refs, index, stash and `FETCH_HEAD` are unchanged.
+- [x] Update the manual, README, running-commands guide, workspace-dispatch specification and changelog.
+- [x] Run the complete gate.
 
 ## Files touched
 
@@ -73,6 +73,40 @@ Running commands gains an overview section.
 
 KI-TOOL-MGIT-CLI-018 moves the collector onto its runner.
 
+## Review
+
+### Delivered
+
+From the Ready baseline `088c2f4`, `mgit overview [--json] [-v|--verbose] [--stale-days N]` is an owned command over the selected set. A serial collector prints one tab-separated fact per line for each checkout; a classifier and two renderers turn the facts into the terminal view and one JSON document. It reads local Git only, with `GIT_OPTIONAL_LOCKS=0` so `git status` cannot refresh the index, and never fetches. A checkout needs attention for changes, a detached HEAD, a missing or gone upstream, ahead or behind, stashes, prunable or detached linked worktrees, or obsolete branches: local branches merged into the default branch (`origin/HEAD`, else `main` or `master`), patch-equivalent by `git cherry`, with a gone upstream, or unmerged and stale; remote-tracking branches merged or stale. Automation branches follow the same rules and are marked. The command exits `1` only when a checkout cannot be read. No version bump, release or tag.
+
+### Change Summary
+
+The commit `feat(cli): add the KI-TOOL-MGIT-CLI-021 read-only overview` adds the collector, classifier, renderers, JSON string escaper, usage, help, Bash and Zsh completion and selector handling to `bin/mgit`; adds six Bats cases and extends the reserved-command help loop; and updates the manual, README, running-commands guide, changelog, MGIT-WS-022 and a new MGIT-WS-024 in the workspace-dispatch specification.
+
+### Verification
+
+`ki repo audit --repo .` passes with the existing HOOK-1 warning; `shellcheck`, `bash -n`, `mandoc -T lint` and `git diff --check` are clean; `bats tests/` passes 107 of 107. The JSON case parses with `python3 -m json.tool`. The read-only case gives a tracked file a new timestamp so plain `git status` would rewrite the index, then shows refs, stashes, index bytes and the absence of `FETCH_HEAD` unchanged after `overview` and `-W overview --json`; with the `GIT_OPTIONAL_LOCKS=0` guard removed, that case fails. All runs used disposable fixtures with isolated Git configuration.
+
+### Outstanding concerns
+
+Each is provisional, for Kris to confirm:
+
+- **No upstream counts as attention.** A branch without an upstream is named, so a local-only repository is never clean. This follows "work is safe only once it is on a remote".
+- **Several lines for one checkout.** Each checkout prints its findings on one line, then one indented line for each obsolete branch, rather than putting every branch on the first line.
+- **In-use branches are kept.** A branch checked out in any worktree, and its remote-tracking branch, is never called obsolete. This keeps a freshly created branch from showing as merged.
+- **`-W` reports once.** Under `-W`, stashes, worktrees and branches are reported once per repository, on its first selected checkout.
+- **The criteria may move.** They follow the `ki-git` clean-down state, which is still waiting on acceptance of KI-HARNESS-GOV-203.
+
+Human acceptance is outstanding.
+
+### Post-change review
+
+The collector does not render anything, so KI-TOOL-MGIT-CLI-018 can run it per checkout in its pool and capture its output unchanged. Empty values are written as `-` because `read` merges adjacent tab separators; the record lines keep that convention. JSON comes from fixed fields plus escaped strings, with no dependency beyond Bash and Git.
+
+### Mini recap
+
+The estate overview is built serially, read-only, with terminal and JSON views; it is ready for the -018 runner.
+
 ## Discussion
 
 - **Facts per repository:** branch, upstream, ahead and behind, dirty and untracked counts, stashes, worktrees, local and remote branches merged or gone, age of the last commit, and `automation/*` branches.
@@ -82,4 +116,4 @@ KI-TOOL-MGIT-CLI-018 moves the collector onto its runner.
 
 ### Adoption (provisional, for Kris to confirm)
 
-Adopted into Next and planned to Ready on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2, option a), under Kris's KEEP-PUSHING and FABLE-OPINION answers. Building stops at Awaiting review, pure Bash with Bats fixtures only, with no release. Kris confirms or reverses the adoption and plan by editing this record.
+Adopted into Next and planned to Ready on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2, option a), under Kris's KEEP-PUSHING and FABLE-OPINION answers. Building stops at Awaiting review, pure Bash with Bats fixtures only, with no release. Kris confirms or reverses the adoption and plan by editing this record. Built to Awaiting review the same day; the choices in Outstanding concerns are provisional, for Kris to confirm.

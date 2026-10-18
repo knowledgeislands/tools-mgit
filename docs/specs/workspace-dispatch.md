@@ -194,7 +194,7 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` accepts listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts bare execution. `sync` and `overview` accept listing selectors. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 
@@ -211,3 +211,15 @@ _Conformance:_ conforming
 _Verify:_ `MGIT_KI_PRODUCER=/absolute/path/to/committed/ki bats tests/territory-producer.bats tests/territory-protocol.bats`.
 
 _Evidence:_ Real executable fixtures separate registry keys, the Capital key, handle and directory basenames, and prove literal filters, failure atomicity, spaces/newlines, worktree expansion, saved refresh and offline operations.
+
+## Estate overview
+
+### MGIT-WS-024 — Read-only estate overview
+
+`mgit overview` MUST read local Git state only, never fetching or changing refs, the index, stashes or `FETCH_HEAD`. For each selected checkout it MUST report working-tree changes, HEAD and upstream state with ahead and behind counts, stashes, prunable or detached linked worktrees, and obsolete branches by the `ki-git` clean-down criteria: local branches merged into or patch-equivalent to the default branch, with a gone upstream, or unmerged and idle beyond the stale threshold; remote-tracking branches merged or stale. Branches checked out in a worktree MUST NOT be obsolete. The terminal view MUST name only checkouts needing attention unless `--verbose`, and close with clean, attention and failed counts; `--json` MUST print one JSON document. The command MUST exit `1` only when a checkout cannot be read.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `overview names only checkouts that need attention and counts the rest`; `overview reports obsolete branches by the clean-down criteria`; `overview reports stashes, detached checkouts and worktrees once per repository`; `overview prints one JSON document`; `overview reads Git state without changing it`; `overview fails only for unreadable checkouts and validates its options`.
+
+_Evidence:_ The named Bats cases cover each attention state and obsolete-branch kind, JSON shape, a byte-for-byte read-only proof against a stale index, failure and option validation.

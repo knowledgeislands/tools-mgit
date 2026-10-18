@@ -67,6 +67,7 @@ Commands:
   doctor                  evaluate local prerequisites and configuration
   diag                    print share-safe diagnostic facts
   sync                    update clean tracking branches across the current set
+  overview                show what is outstanding across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
   completion              print shell completion setup
@@ -190,6 +191,29 @@ Options:
 EOF
 }
 
+overview_usage() {
+  cat <<'EOF'
+Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]
+
+Show what is outstanding across the current repository set, read-only.
+
+Each selected checkout reports its branch and upstream, ahead and behind
+counts, staged, modified, untracked and conflicted files, stashes, prunable or
+detached worktrees, and obsolete branches: local branches merged into the
+default branch, patch-equivalent to it, with a gone upstream or stale, and
+remote-tracking branches merged or stale. Branches checked out in a worktree
+are never obsolete. Only local Git state is read; nothing is fetched or changed.
+Clean checkouts appear only in the closing count unless --verbose is given.
+The command exits 1 only when a checkout cannot be read.
+
+Options:
+      --json              print one JSON document instead of the terminal view
+  -v, --verbose           name clean checkouts too
+      --stale-days <days> idle days before an unmerged branch is stale (default 30)
+  -h, --help              display help for this command
+EOF
+}
+
 completion_usage() {
   cat <<'EOF'
 Usage: mgit completion <shell>
@@ -222,7 +246,7 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register repair doctor diag sync structure worktree completion help'
+  commands='register repair doctor diag sync overview structure worktree completion help'
   global_options='-P --physical -L --follow-symlinks -B --bare -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
@@ -266,6 +290,12 @@ _mgit() {
     sync)
       COMPREPLY=( $(compgen -W '--interactive -i --help -h' -- "$cur") )
       ;;
+    overview)
+      case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
+        --stale-days) COMPREPLY=() ;;
+        *) COMPREPLY=( $(compgen -W '--json --verbose -v --stale-days --help -h' -- "$cur") ) ;;
+      esac
+      ;;
     structure)
       COMPREPLY=( $(compgen -W 'standard nested --dry-run --help -h' -- "$cur") )
       ;;
@@ -307,6 +337,7 @@ _mgit() {
     'doctor:evaluate local prerequisites and configuration'
     'diag:print share-safe environment facts'
     'sync:update clean tracking branches across the current set'
+    'overview:show what is outstanding across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
     'completion:print shell completion setup'
@@ -327,8 +358,8 @@ _mgit() {
     '--principals[select the territory Capitals in KI order]'
     '-f[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
     '--filter[limit the repo set to paths with a directory-basename prefix]:literal prefix:'
-    '-W[include linked worktrees for listing, ordinary commands, and sync]'
-    '--all-worktrees[include linked worktrees for listing, ordinary commands, and sync]'
+    '-W[include linked worktrees for listing, ordinary commands, sync and overview]'
+    '--all-worktrees[include linked worktrees for listing, ordinary commands, sync and overview]'
     '-h[show help]'
     '--help[show help]'
     '-V[show version]'
@@ -346,6 +377,7 @@ _mgit() {
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
     sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-h[display help for command]' '--help[display help for command]' ;;
+    overview) _arguments '--json[print one JSON document]' '-v[name clean checkouts too]' '--verbose[name clean checkouts too]' '--stale-days[idle days before an unmerged branch is stale]:days:' '-h[display help for command]' '--help[display help for command]' ;;
     structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
       case $words[3] in
@@ -1402,6 +1434,7 @@ help_command() {
     doctor) [ $# -eq 1 ] || { usage_error "help doctor: unexpected argument: $subcommand"; return; }; doctor_usage ;;
     diag) [ $# -eq 1 ] || { usage_error "help diag: unexpected argument: $subcommand"; return; }; diag_usage ;;
     sync) [ $# -eq 1 ] || { usage_error_for sync_usage "help sync: unexpected argument: $subcommand"; return; }; sync_usage ;;
+    overview) [ $# -eq 1 ] || { usage_error_for overview_usage "help overview: unexpected argument: $subcommand"; return; }; overview_usage ;;
     completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
     structure)
       case $# in
@@ -2963,6 +2996,383 @@ sync_command() {
   [ "$failed" = false ]
 }
 
+# Overview is a read-only estate view. The collector prints one tab-separated
+# fact per line for a checkout, with - for an empty value because read
+# collapses adjacent tabs, so it can run wherever its output is captured;
+# the renderers classify those facts and never run Git themselves. Nothing here
+# fetches, writes the index or changes a ref.
+overview_automation() {
+  case "$1" in
+    automation/*|dependabot/*|renovate/*) printf true ;;
+    *) printf false ;;
+  esac
+}
+
+overview_age_days() {
+  if [ -n "$2" ]; then printf '%s' $((($1 - $2) / 86400)); else printf -- -; fi
+}
+
+# Read one collector line into key and fields a to e, restoring empty values.
+overview_read() {
+  IFS=$'\t' read -r key a b c d e || return 1
+  [ "$a" != - ] || a=""
+  [ "$b" != - ] || b=""
+  [ "$c" != - ] || c=""
+  [ "$d" != - ] || d=""
+  [ "$e" != - ] || e=""
+}
+
+# Collect the facts for checkout $1. $2 is the stale threshold in days, $3 the
+# current time in seconds, and $4 is false when another checkout of the same
+# repository has already reported its worktrees and branches.
+overview_collect() {
+  local dir="$1" stale_days="$2" now="$3" branch_facts="$4"
+  local type status_out line head="" upstream="" ab="" ahead=0 behind=0 state=none
+  local staged=0 modified=0 untracked=0 conflicted=0 stashes=0 xy
+  local linked=0 prunable=0 detached_worktrees=0 path="" checkout block_detached=false
+  local block_prunable=false block_branch="" first=true in_use=() item kept
+  local default="" default_local="" merged=() name track stamp symref reasons cherry
+  local fetch_head stamp_fetch
+  export GIT_OPTIONAL_LOCKS=0
+  capture_dir checkout "$dir" || return 1
+  if is_bare_repo "$dir"; then type=bare; else type=checkout; fi
+  printf 'type\t%s\n' "$type"
+  if [ "$type" = checkout ]; then
+    status_out=$(git -C "$dir" status --porcelain=v2 --branch 2>/dev/null) || {
+      printf 'cannot read status\n' >&2
+      return 1
+    }
+    while IFS= read -r line; do
+      case "$line" in
+        '# branch.head '*) head="${line#\# branch.head }" ;;
+        '# branch.upstream '*) upstream="${line#\# branch.upstream }"; state=gone ;;
+        '# branch.ab '*) ab="${line#\# branch.ab }"; state=tracking ;;
+        '1 '*|'2 '*)
+          xy="${line:2:2}"
+          [ "${xy:0:1}" = . ] || staged=$((staged + 1))
+          [ "${xy:1:1}" = . ] || modified=$((modified + 1))
+          ;;
+        'u '*) conflicted=$((conflicted + 1)) ;;
+        '? '*) untracked=$((untracked + 1)) ;;
+      esac
+    done <<< "$status_out"
+    if [ -n "$ab" ]; then
+      ahead="${ab%% *}"; ahead="${ahead#+}"
+      behind="${ab##* }"; behind="${behind#-}"
+    fi
+    [ "$head" != '(detached)' ] || head=""
+    # Stashes, like worktrees and branches, belong to the whole repository.
+    if [ "$branch_facts" = true ]; then
+      stashes=$(git -C "$dir" stash list 2>/dev/null | wc -l)
+      stashes=$((stashes + 0))
+    fi
+  else
+    head=$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || head=""
+  fi
+  printf 'head\t%s\n' "${head:--}"
+  printf 'upstream\t%s\t%s\t%s\t%s\n' "$state" "${upstream:--}" "$ahead" "$behind"
+  printf 'changes\t%s\t%s\t%s\t%s\n' "$staged" "$modified" "$untracked" "$conflicted"
+  printf 'stashes\t%s\n' "$stashes"
+  stamp=$(git -C "$dir" log -1 --format=%ct 2>/dev/null) || stamp=""
+  printf 'commit_age\t%s\n' "$(overview_age_days "$now" "$stamp")"
+  fetch_head=$(git -C "$dir" rev-parse --git-path FETCH_HEAD 2>/dev/null) || fetch_head=""
+  case "$fetch_head" in /*|'') ;; *) fetch_head="$dir/$fetch_head" ;; esac
+  stamp_fetch=""
+  if [ -n "$fetch_head" ] && [ -f "$fetch_head" ]; then
+    stamp_fetch=$(date -r "$fetch_head" +%s 2>/dev/null) || stamp_fetch=""
+  fi
+  printf 'fetch_age\t%s\n' "$(overview_age_days "$now" "$stamp_fetch")"
+  [ "$branch_facts" = true ] || return 0
+
+  # The first worktree entry is the main worktree or the bare store. A branch
+  # checked out in any worktree is in use and never reported as obsolete.
+  while IFS= read -r line; do
+    case "$line" in
+      'worktree '*) path="${line#worktree }"; block_detached=false; block_prunable=false; block_branch="" ;;
+      detached) block_detached=true ;;
+      prunable*) block_prunable=true ;;
+      'branch refs/heads/'*) block_branch="${line#branch refs/heads/}" ;;
+      '')
+        if [ -n "$path" ]; then
+          [ -z "$block_branch" ] || in_use+=("$block_branch")
+          if [ "$first" = false ]; then
+            linked=$((linked + 1))
+            [ "$block_prunable" = false ] || prunable=$((prunable + 1))
+            if [ "$block_detached" = true ] && [ "$block_prunable" = false ] &&
+              [ "$(canon_dir "$path")" != "$checkout" ]; then
+              detached_worktrees=$((detached_worktrees + 1))
+            fi
+          fi
+          first=false
+        fi
+        path=""
+        ;;
+    esac
+  done < <(git -C "$dir" worktree list --porcelain 2>/dev/null; printf '\n')
+  printf 'worktrees\t%s\t%s\t%s\n' "$linked" "$prunable" "$detached_worktrees"
+
+  default=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) || default=""
+  if [ -n "$default" ]; then
+    default_local="${default#*/}"
+  else
+    for name in main master; do
+      if git -C "$dir" show-ref --verify --quiet "refs/heads/$name"; then
+        default="$name"; default_local="$name"; break
+      fi
+    done
+  fi
+  printf 'default\t%s\n' "${default:--}"
+  if [ -n "$default" ]; then
+    while IFS= read -r line; do merged+=("$line"); done < <(
+      git -C "$dir" for-each-ref --merged="$default" --format='%(refname)' refs/heads refs/remotes 2>/dev/null)
+  fi
+  while IFS=$'\t' read -r name stamp track; do
+    [ -n "$name" ] && [ "$name" != "$default_local" ] || continue
+    kept=false
+    for item in "${in_use[@]+"${in_use[@]}"}"; do [ "$item" != "$name" ] || kept=true; done
+    [ "$kept" = false ] || continue
+    reasons=""
+    if [ -n "$default" ]; then
+      if selected_path_seen "refs/heads/$name" "${merged[@]+"${merged[@]}"}"; then
+        reasons=merged
+      else
+        cherry=$(git -C "$dir" cherry "$default" "$name" 2>/dev/null) || cherry=""
+        case $'\n'"$cherry" in
+          *$'\n+'*|$'\n') ;;
+          *) reasons=equivalent ;;
+        esac
+      fi
+    fi
+    [ "$track" != '[gone]' ] || reasons="${reasons:+$reasons,}gone"
+    case "$reasons" in
+      merged*|equivalent*) ;;
+      *) [ -z "$stamp" ] || [ $((now - stamp)) -le $((stale_days * 86400)) ] || reasons="${reasons:+$reasons,}stale" ;;
+    esac
+    [ -n "$reasons" ] || continue
+    printf 'branch\tlocal\t%s\t%s\t%s\t%s\n' "$name" "$reasons" \
+      "$(overview_age_days "$now" "$stamp")" "$(overview_automation "$name")"
+  done < <(git -C "$dir" for-each-ref --format='%(refname:short)%09%(committerdate:unix)%09%(upstream:track)' refs/heads 2>/dev/null)
+  while IFS=$'\t' read -r name stamp symref; do
+    [ -n "$name" ] && [ -z "$symref" ] && [ "${name#*/}" != "$default_local" ] || continue
+    kept=false
+    for item in "${in_use[@]+"${in_use[@]}"}"; do [ "$item" != "${name#*/}" ] || kept=true; done
+    [ "$kept" = false ] || continue
+    reasons=""
+    if [ -n "$default" ] && selected_path_seen "refs/remotes/$name" "${merged[@]+"${merged[@]}"}"; then
+      reasons=merged
+    elif [ -n "$stamp" ] && [ $((now - stamp)) -gt $((stale_days * 86400)) ]; then
+      reasons=stale
+    fi
+    [ -n "$reasons" ] || continue
+    printf 'branch\tremote\t%s\t%s\t%s\t%s\n' "$name" "$reasons" \
+      "$(overview_age_days "$now" "$stamp")" "$(overview_automation "${name#*/}")"
+  done < <(git -C "$dir" for-each-ref --format='%(refname:short)%09%(committerdate:unix)%09%(symref)' refs/remotes 2>/dev/null)
+  return 0
+}
+
+json_string() {
+  local s="$1" out="" c i
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\t'/\\t}
+  s=${s//$'\r'/\\r}
+  case "$s" in
+    *[[:cntrl:]]*)
+      for ((i = 0; i < ${#s}; i++)); do
+        c="${s:i:1}"
+        case "$c" in [[:cntrl:]]) printf -v c '\\u%04x' "'$c" ;; esac
+        out+="$c"
+      done
+      s="$out"
+      ;;
+  esac
+  printf '"%s"' "$s"
+}
+
+json_number() { if [ -n "$1" ]; then printf '%s' "$1"; else printf null; fi; }
+
+plural() { if [ "$1" -eq 1 ]; then printf '%s %s' "$1" "$2"; else printf '%s %s' "$1" "$3"; fi; }
+
+# Turn one checkout's facts into overview_findings and overview_branch_lines,
+# and set overview_state to clean or attention.
+overview_classify() {
+  local facts="$1" key a b c d e line
+  local type="" head="" upstream_state=none ahead=0 behind=0 stashes=0
+  overview_findings=()
+  overview_branch_lines=()
+  while overview_read; do
+    case "$key" in
+      type) type="$a" ;;
+      head) head="$a" ;;
+      upstream) upstream_state="$a"; ahead="$c"; behind="$d" ;;
+      changes)
+        [ "$d" -eq 0 ] || overview_findings+=("$d conflicted")
+        [ "$a" -eq 0 ] || overview_findings+=("$a staged")
+        [ "$b" -eq 0 ] || overview_findings+=("$b modified")
+        [ "$c" -eq 0 ] || overview_findings+=("$c untracked")
+        ;;
+      stashes) stashes="$a" ;;
+      worktrees)
+        [ "$b" -eq 0 ] || overview_findings+=("$(plural "$b" 'prunable worktree' 'prunable worktrees')")
+        [ "$c" -eq 0 ] || overview_findings+=("$(plural "$c" 'detached worktree' 'detached worktrees')")
+        ;;
+      branch)
+        line="$b ($a): ${c//,/, }"
+        case ",$c," in *,stale,*) [ -z "$d" ] || line="$line, $d days old" ;; esac
+        [ "$e" = false ] || line="$line, automation"
+        overview_branch_lines+=("$line")
+        ;;
+    esac
+  done <<< "$facts"
+  if [ "$type" = checkout ]; then
+    if [ -z "$head" ]; then
+      overview_findings=("detached HEAD" "${overview_findings[@]+"${overview_findings[@]}"}")
+    else
+      case "$upstream_state" in
+        none) overview_findings+=("no upstream") ;;
+        gone) overview_findings+=("upstream gone") ;;
+      esac
+    fi
+    [ "$ahead" -eq 0 ] || overview_findings+=("ahead $ahead")
+    [ "$behind" -eq 0 ] || overview_findings+=("behind $behind")
+    [ "$stashes" -eq 0 ] || overview_findings+=("$(plural "$stashes" stash stashes)")
+  fi
+  [ ${#overview_branch_lines[@]} -eq 0 ] ||
+    overview_findings+=("$(plural "${#overview_branch_lines[@]}" 'obsolete branch' 'obsolete branches')")
+  if [ ${#overview_findings[@]} -eq 0 ]; then overview_state=clean; else overview_state=attention; fi
+}
+
+json_optional_string() { if [ -n "$1" ]; then json_string "$1"; else printf null; fi; }
+
+overview_json_repository() {
+  local label="$1" path="$2" state="$3" facts="$4" error="$5" key a b c d e first item type=""
+  local branches=()
+  printf '{"label":%s,"path":%s,"state":"%s"' "$(json_string "$label")" "$(json_string "$path")" "$state"
+  if [ "$state" = failed ]; then
+    printf ',"error":%s}' "$(json_string "$error")"
+    return
+  fi
+  while overview_read; do
+    case "$key" in
+      type)
+        type="$a"
+        if [ "$a" = bare ]; then printf ',"bare":true'; else printf ',"bare":false'; fi ;;
+      head)
+        if [ -n "$a" ] || [ "$type" = bare ]; then
+          printf ',"branch":%s,"detached":false' "$(json_optional_string "$a")"
+        else
+          printf ',"branch":null,"detached":true'
+        fi ;;
+      upstream)
+        printf ',"upstream":{"state":"%s","name":%s,"ahead":%s,"behind":%s}' \
+          "$a" "$(json_optional_string "$b")" "$c" "$d" ;;
+      changes) printf ',"changes":{"staged":%s,"modified":%s,"untracked":%s,"conflicted":%s}' "$a" "$b" "$c" "$d" ;;
+      stashes) printf ',"stashes":%s' "$a" ;;
+      commit_age) printf ',"last_commit_age_days":%s' "$(json_number "$a")" ;;
+      fetch_age) printf ',"last_fetch_age_days":%s' "$(json_number "$a")" ;;
+      worktrees) printf ',"worktrees":{"linked":%s,"prunable":%s,"detached":%s}' "$a" "$b" "$c" ;;
+      default) printf ',"default_branch":%s' "$(json_optional_string "$a")" ;;
+      branch)
+        branches+=("$(printf '{"name":%s,"scope":"%s","reasons":["%s"],"age_days":%s,"automation":%s}' \
+          "$(json_string "$b")" "$a" "${c//,/\",\"}" "$(json_number "$d")" "$e")") ;;
+    esac
+  done <<< "$facts"
+  printf ',"obsolete_branches":['
+  first=true
+  for item in "${branches[@]+"${branches[@]}"}"; do
+    [ "$first" = true ] || printf ','
+    printf '%s' "$item"; first=false
+  done
+  printf '],"findings":['
+  first=true
+  for item in "${overview_findings[@]+"${overview_findings[@]}"}"; do
+    [ "$first" = true ] || printf ','
+    json_string "$item"; first=false
+  done
+  printf ']}'
+}
+
+overview_command() {
+  local json=false verbose=false stale_days=30 i d label path common now facts error status
+  local clean=0 attention=0 failed=0 seen_common=() branch_facts first=true line errfile
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=true ;;
+      -v|--verbose) verbose=true ;;
+      --stale-days)
+        [ $# -ge 2 ] || { usage_error_for overview_usage '--stale-days requires a number of days'; return; }
+        case "$2" in
+          ''|*[!0-9]*|0*) usage_error_for overview_usage "--stale-days requires a positive whole number of days: $2"; return ;;
+        esac
+        stale_days="$2"; shift ;;
+      -h|--help) overview_usage; return 0 ;;
+      *) usage_error_for overview_usage "overview: unexpected argument: $1"; return ;;
+    esac
+    shift
+  done
+  now=$(date +%s)
+  errfile=$(mktemp "${TMPDIR:-/tmp}/mgit-overview.XXXXXX") || return 1
+  if [ "$json" = true ]; then
+    printf '{"tool":"mgit","command":"overview","version":%s,"stale_days":%s,"repositories":[' \
+      "$(json_string "$MGIT_VERSION")" "$stale_days"
+  fi
+  for i in "${!repos[@]}"; do
+    d="${repos[$i]}"
+    label="${repo_labels[$i]}"
+    capture_dir path "$d" || path="$d"
+    branch_facts=true
+    if capture_path git_common_dir "$d"; then
+      common="$captured_path"
+      if selected_path_seen "$common" "${seen_common[@]+"${seen_common[@]}"}"; then
+        branch_facts=false
+      else
+        seen_common+=("$common")
+      fi
+    fi
+    error=""
+    if facts=$(overview_collect "$d" "$stale_days" "$now" "$branch_facts" 2>"$errfile"); then
+      overview_classify "$facts"
+      status="$overview_state"
+    else
+      status=failed
+      IFS= read -r error < "$errfile" || true
+      [ -n "$error" ] || error="cannot read repository"
+    fi
+    case "$status" in
+      clean) clean=$((clean + 1)) ;;
+      attention) attention=$((attention + 1)) ;;
+      failed) failed=$((failed + 1)) ;;
+    esac
+    if [ "$json" = true ]; then
+      [ "$first" = true ] || printf ','
+      first=false
+      overview_json_repository "$label" "$path" "$status" "$facts" "$error"
+      continue
+    fi
+    case "$status" in
+      clean) [ "$verbose" = false ] || printf '%s%s%s%s: clean\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" ;;
+      failed) printf '%s%s%s%s: failed: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "$error" ;;
+      attention)
+        line=$(printf '%s, ' "${overview_findings[@]}")
+        printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "${line%, }"
+        for line in "${overview_branch_lines[@]+"${overview_branch_lines[@]}"}"; do
+          printf '  %s\n' "$line"
+        done
+        ;;
+    esac
+  done
+  rm -f "$errfile"
+  if [ "$json" = true ]; then
+    printf '],"summary":{"repositories":%s,"clean":%s,"attention":%s,"failed":%s}}\n' \
+      "${#repos[@]}" "$clean" "$attention" "$failed"
+  else
+    printf 'mgit overview: %s: %s clean, %s need attention, %s failed\n' \
+      "$(plural "${#repos[@]}" repository repositories)" "$clean" "$attention" "$failed"
+  fi
+  [ "$failed" -eq 0 ]
+}
+
 selected_workspace_dirs=()
 selected_repo_dirs=()
 selected_local_repo_dirs=()
@@ -3222,10 +3632,10 @@ case "${1:-}" in
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
     fi
     ;;
-  sync|structure|worktree)
+  sync|overview|structure|worktree)
     command_name="${1:-}"
     [ "$bare" = false ] || { reject_selector_for "$command_name" --bare; exit $?; }
-    if [ "$command_name" != sync ]; then
+    if [ "$command_name" != sync ] && [ "$command_name" != overview ]; then
       [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
     fi
@@ -3533,6 +3943,11 @@ fi
 
 if [ "${1:-}" = "sync" ]; then
   if [ "$show_help" = true ]; then sync_command "${@:2}" --help; else sync_command "${@:2}"; fi
+  exit $?
+fi
+
+if [ "${1:-}" = "overview" ]; then
+  if [ "$show_help" = true ]; then overview_command "${@:2}" --help; else overview_command "${@:2}"; fi
   exit $?
 fi
 

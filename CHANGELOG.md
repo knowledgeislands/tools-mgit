@@ -37,6 +37,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 #### Repository management
 
 - `mgit sync`
+- `mgit overview [--json] [-v|--verbose] [--stale-days <days>]`
 - `mgit structure standard [--dry-run]`
 - `mgit structure nested [--dry-run]`
 - `mgit worktree list`
@@ -56,6 +57,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, territory-handle, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Repositories outside a workspace are ordinary typed `[members."../PATH"]` entries generated from saved locations, deduplicated by physical path across the recursive set and never cloned by `repair`; one that resolves back inside its own workspace is rejected, and `register` (and `--dry-run`) names each hand-written external member it drops. Legacy `[registered.members]` tables remain readable with one deprecation warning per manifest until `mgit register` rewrites them.
+- `mgit overview` reads local Git state only and names checkouts needing attention: changes, a detached HEAD, a missing or gone upstream, ahead or behind, stashes, prunable or detached worktrees, and obsolete branches by the Git clean-down criteria (merged, patch-equivalent, gone upstream, stale), with `--verbose` and a single-document `--json`.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Territory, estate and principals selectors buffer exact NUL-delimited roots from `ki territory roots --null`, keeping KI's order, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
