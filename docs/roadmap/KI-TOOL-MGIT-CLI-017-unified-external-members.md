@@ -10,7 +10,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 4070e62095da49f79f55e090973a07ac3c163146
 created_at: 2026-10-16T21:10:00Z
-updated_at: 2026-10-18T05:39:00Z
+updated_at: 2026-10-18T17:09:15Z
 ---
 
 # Unified external members
@@ -111,6 +111,8 @@ Accepted 2026-10-18 by the ways-of-working mgit-build run on Fable's opinion, pr
 ### Acceptance (provisional, for Kris to confirm)
 
 Accepted on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2), under Kris's KEEP-PUSHING and FABLE-OPINION answers and taken under ACCEPT-NIGHT's condition: the independent mgit-review run of 17 October passed with no blocking or medium findings. Its four low findings are [KI-TOOL-MGIT-CLI-022](KI-TOOL-MGIT-CLI-022-external-member-review-findings.md). The outstanding consumer-manifest concern is a release and chezmoi matter owned by the dotfiles repository, not triggered by acceptance. Kris confirms or reopens this by editing the record; it is not pruned.
+
+Confirmed 2026-10-18 by Kris in the 17:59 BST owner answers of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (MGIT-017-CONFIRM a)): "The CLI-017 is agreed on the recommendations." The provisional acceptance above stands as human acceptance.
 
 Planning decisions, 16 October 2026:
 
