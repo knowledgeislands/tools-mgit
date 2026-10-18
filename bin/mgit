@@ -54,8 +54,8 @@ Options:
   -L, --follow-symlinks   when discovering repositories, enter symlinked
                           directories too
   -G, --git               run COMMAND as a Git subcommand even when mgit owns the name
+                          (temporary name until -B returns as the Git bypass)
   -R, --raw               run COMMAND directly instead of as a Git subcommand
-  -B, --bare              deprecated alias for --raw
   -j, --jobs <n>          run up to N checkouts at once (default 8)
   -v, --verbose           run checkouts one at a time, streaming every header and output
       --json              print ordinary-command results as one JSON document
@@ -258,7 +258,7 @@ _mgit() {
   local i=1 command_index=0
   local -a commands global_options
   commands='register repair doctor diag sync overview structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -G --git -R --raw -B --bare -j --jobs -v --verbose --json -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
+  global_options='-P --physical -L --follow-symlinks -G --git -R --raw -j --jobs -v --verbose --json -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
@@ -273,7 +273,7 @@ _mgit() {
     word="${COMP_WORDS[i]}"
     case "$word" in
       -t|--territory|-f|--filter|-j|--jobs) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-G|--git|-R|--raw|-B|--bare|-v|--verbose|--json|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-G|--git|-R|--raw|-v|--verbose|--json|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -363,8 +363,6 @@ _mgit() {
     '--git[run a Git subcommand even when mgit owns the name]'
     '-R[run an ordinary command without git prefix]'
     '--raw[run an ordinary command without git prefix]'
-    '-B[deprecated alias for --raw]'
-    '--bare[deprecated alias for --raw]'
     '-j[run up to N checkouts at once]:jobs:'
     '--jobs[run up to N checkouts at once]:jobs:'
     '-v[run checkouts one at a time, streaming all output]'
@@ -3767,7 +3765,6 @@ filter_match() {
 follow_symlinks=false
 discovery_option=false
 bare=false
-bare_option=""
 git_mode=false
 all_worktrees=false
 read_config=true
@@ -3785,8 +3782,10 @@ while [ $# -gt 0 ]; do
     -P|--physical)        follow_symlinks=false; discovery_option=true ;;
     -L|--follow-symlinks) follow_symlinks=true; discovery_option=true ;;
     -G|--git)             git_mode=true ;;
-    -R|--raw)             bare=true; bare_option=--raw ;;
-    -B|--bare)            bare=true; bare_option=--bare ;;
+    -R|--raw)             bare=true ;;
+    -B|--bare)
+      usage_error "$1 has been removed; use -R/--raw to run a command directly"
+      exit $? ;;
     -W|--all-worktrees)   all_worktrees=true ;;
     -I|--ignore)          read_config=false ;;
     -a|--agora)
@@ -3835,7 +3834,7 @@ done
 # With --git every argument goes to Git, so no command name is owned by mgit.
 owned_command="${1:-}"
 if [ "$git_mode" = true ]; then
-  [ "$bare" = false ] || { usage_error "--git cannot be combined with $bare_option"; exit $?; }
+  [ "$bare" = false ] || { usage_error "--git cannot be combined with --raw"; exit $?; }
   [ "$show_help" = false ] || { usage; exit 0; }
   [ $# -gt 0 ] || { usage_error '--git requires a Git command'; exit $?; }
   owned_command=git
@@ -3868,7 +3867,7 @@ case "$owned_command" in
     [ "$read_config" = true ] || { reject_selector_for "$command_name" --ignore; exit $?; }
     [ ${#filters[@]} -eq 0 ] || { reject_selector_for "$command_name" --filter; exit $?; }
     [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
-    [ "$bare" = false ] || { reject_selector_for "$command_name" "$bare_option"; exit $?; }
+    [ "$bare" = false ] || { reject_selector_for "$command_name" --raw; exit $?; }
     reject_runner_options_for "$command_name" || exit $?
     if [ "$command_name" != register ] || [ "$ki_selector" != --territory ]; then
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
@@ -3876,7 +3875,7 @@ case "$owned_command" in
     ;;
   sync|overview|structure|worktree)
     command_name="${1:-}"
-    [ "$bare" = false ] || { reject_selector_for "$command_name" "$bare_option"; exit $?; }
+    [ "$bare" = false ] || { reject_selector_for "$command_name" --raw; exit $?; }
     case "$command_name" in
       overview) ;;
       sync) [ "$runner_json" = false ] || { reject_selector_for sync --json; exit $?; } ;;
@@ -3888,7 +3887,7 @@ case "$owned_command" in
     fi
     ;;
   '')
-    [ "$bare" = false ] || { usage_error "$bare_option requires a command"; exit $?; }
+    [ "$bare" = false ] || { usage_error "--raw requires a command"; exit $?; }
     reject_runner_options_for listing || exit $?
     ;;
   *)
@@ -4221,8 +4220,6 @@ fi
 
 printed_cmd=$(printf '%q ' "$@")
 printed_cmd="${printed_cmd% }"
-
-[ "$bare_option" != --bare ] || printf 'mgit: warning: -B/--bare is deprecated; use -R/--raw\n' >&2
 
 runner_raw="$bare"
 runner_command=("$@")

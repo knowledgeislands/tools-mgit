@@ -124,11 +124,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-014 — Bare command dispatch
 
-With `-R/--raw`, mgit MUST run the supplied argument vector directly in each selected checkout instead of prefixing it with `git`. `-B/--bare` MUST behave identically and print one deprecation warning on standard error. With `-G/--git`, mgit MUST pass every argument to `git`, including command names mgit owns. `--git` with `--raw` or `--bare`, and either without a command, MUST be usage errors.
+With `-R/--raw`, mgit MUST run the supplied argument vector directly in each selected checkout instead of prefixing it with `git`. `-B` and `--bare` MUST be status-`2` usage errors that name `-R/--raw` and run nothing. With `-G/--git`, mgit MUST pass every argument to `git`, including command names mgit owns. `--git` with `--raw`, and either without a command, MUST be usage errors.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter applies to bare commands and requires a pattern`; `--git runs Git subcommands that mgit owns`; `--raw runs the argument vector directly and -B warns as its deprecated alias`; `--git and --raw reject invalid combinations`.
+_Verify:_ `bats tests/mgit.bats` — `--filter applies to bare commands and requires a pattern`; `--git runs Git subcommands that mgit owns`; `--raw runs the argument vector directly`; `-B and --bare are removed and run nothing`; `--git and --raw reject invalid combinations`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -194,7 +194,7 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts `--git`, `--raw` (or `--bare`) and the runner options `--jobs`, `--verbose` and `--json`, but not `--verbose` with `--json`. `sync` and `overview` accept listing selectors; `overview` also accepts the runner options, and `sync` accepts `--jobs` and `--verbose` but not `--json`. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts `--git`, `--raw` and the runner options `--jobs`, `--verbose` and `--json`, but not `--verbose` with `--json`. `sync` and `overview` accept listing selectors; `overview` also accepts the runner options, and `sync` accepts `--jobs` and `--verbose` but not `--json`. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 

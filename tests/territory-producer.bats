@@ -71,14 +71,14 @@ write_registry() {
   } > "$XDG_STATE_HOME/ki/registry.toml"
 }
 assert_no_dispatch() {
-  run "$MGIT" "$@" -B git config pilot.dispatched yes
+  run "$MGIT" "$@" -R git config pilot.dispatched yes
   [ "$status" -ne 0 ]
   ! git -C "$CAPITAL" config --get pilot.dispatched
   ! git -C "$MEMBER" config --get pilot.dispatched
 }
 
 @test "real producer uses literal case-sensitive repeated basename prefixes with excluded missing roots" {
-  run "$MGIT" -t short -f 'Tool [*]' -f absent -f 'Tool [*]' -B git config pilot.proof yes
+  run "$MGIT" -t short -f 'Tool [*]' -f absent -f 'Tool [*]' -R git config pilot.proof yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$MEMBER" config --get pilot.proof)" = yes ]
   ! git -C "$CAPITAL" config --get pilot.proof
@@ -98,7 +98,7 @@ assert_no_dispatch() {
   write_registry
   local linked="$ROOT/runtime checkout"$'\n'
   git -C "$MEMBER" worktree add -qb feature "$linked"
-  run "$MGIT" -t short -f 'Tool [*]' -W -B sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
+  run "$MGIT" -t short -f 'Tool [*]' -W -R sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
   [ "$status" -eq 0 ]
   local first second
   { IFS= read -r -d '' first; IFS= read -r -d '' second; } < "$ROOT/dispatch.nul"
@@ -151,7 +151,7 @@ write_other_capital() {
   run "$MGIT" --principals
   [ "$status" -eq 0 ]
   [ "$output" = $'../Zulu Capital\n../Alpha Capital\n../Capital Space' ] || { printf '%s\n' "$output"; return 1; }
-  run "$MGIT" --principals -f Alpha -f Capital -B git config pilot.principal yes
+  run "$MGIT" --principals -f Alpha -f Capital -R git config pilot.principal yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$ROOT/Alpha Capital" config --get pilot.principal)" = yes ]
   [ "$(git -C "$CAPITAL" config --get pilot.principal)" = yes ]
@@ -198,7 +198,7 @@ write_other_capital() {
   grep -Fx 'locations = ["local", "territory:short"]' .mgit.toml
   # A registry change cannot affect a saved snapshot until explicit refresh.
   mv "$XDG_STATE_HOME/ki/registry.toml" "$ROOT/registry.saved"
-  run "$MGIT" -f 'Tool [*]' -B git config pilot.offline yes
+  run "$MGIT" -f 'Tool [*]' -R git config pilot.offline yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$MEMBER" config --get pilot.offline)" = yes ]
   run "$MGIT" register

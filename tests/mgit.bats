@@ -385,6 +385,9 @@ KI
   [[ "$output" == *"--all-worktrees"* ]] || false
   [[ "$output" != *"bootstrap"* ]] || false
   [[ "$output" != *"convert"* ]] || false
+  [[ "$output" == *"-R --raw -j"* ]] || false
+  [[ "$output" != *"--bare"* ]] || false
+  [[ "$output" != *"|-B|"* ]] || false
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
@@ -397,6 +400,9 @@ KI
   [[ "$output" == *"perform validated repairs"* ]] || false
   [[ "$output" == *"sync:update clean tracking branches"* ]] || false
   [[ "$output" == *"compdef _mgit mgit"* ]] || false
+  [[ "$output" == *"'--raw[run an ordinary command without git prefix]'"* ]] || false
+  [[ "$output" != *"'-B["* ]] || false
+  [[ "$output" != *"'--bare["* ]] || false
   [[ "$output" != *'_mgit "$@"'* ]] || false
 
   run "$MGIT" completion fish
@@ -479,7 +485,7 @@ assert_usage_error() {
 @test "inapplicable global selectors fail before management commands change state" {
   mkrepo "$TREE/repo"
   cd "$TREE"
-  for option in -P -L -R -B -I -W; do
+  for option in -P -L -R -I -W; do
     assert_usage_error "$option" register
     assert_usage_error "$option" repair
   done
@@ -500,10 +506,6 @@ assert_usage_error() {
 @test "command-specific selectors reject ignored combinations" {
   mkrepo "$TREE/repo"
   cd "$TREE"
-  assert_usage_error -B
-  assert_usage_error -B sync
-  assert_usage_error -B structure nested
-  assert_usage_error -B worktree list
   assert_usage_error -R
   assert_usage_error -R sync
   assert_usage_error -R structure nested
@@ -615,7 +617,7 @@ assert_usage_error() {
   [ "$status" -eq 0 ]
 }
 
-@test "--raw runs the argument vector directly and -B warns as its deprecated alias" {
+@test "--raw runs the argument vector directly" {
   mkrepo "$TREE/alpha"
   mkrepo "$TREE/beta"
   cd "$TREE"
@@ -625,16 +627,6 @@ assert_usage_error() {
   run "$MGIT" -R pwd -P
   [ "$status" -eq 0 ]
   [ "$output" = "alpha: pwd -P"$'\n'"$physical/alpha"$'\n'"beta: pwd -P"$'\n'"$physical/beta"$'\n''mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
-  raw="$output"
-
-  run "$MGIT" -B pwd -P
-  [ "$status" -eq 0 ]
-  [ "$output" = 'mgit: warning: -B/--bare is deprecated; use -R/--raw'$'\n'"$raw" ]
-  run "$MGIT" --bare pwd -P
-  [ "$status" -eq 0 ]
-  [ "$output" = 'mgit: warning: -B/--bare is deprecated; use -R/--raw'$'\n'"$raw" ]
-  "$MGIT" -B pwd -P 2>/dev/null > "$BATS_TEST_TMPDIR/out"
-  [ "$(cat "$BATS_TEST_TMPDIR/out")" = "$raw" ]
 
   run "$MGIT" --raw sh -c 'echo a | tr a b'
   [ "$status" -eq 0 ]
@@ -644,25 +636,40 @@ assert_usage_error() {
   [[ "${lines[${#lines[@]} - 1]}" == *'2 failed: alpha (exit 127), beta (exit 127)' ]] || false
 }
 
+@test "-B and --bare are removed and run nothing" {
+  mkrepo "$TREE/alpha"
+  cd "$TREE"
+  for option in -B --bare; do
+    assert_usage_error "$option" touch marker
+    [[ "$output" == *"mgit: error: $option has been removed; use -R/--raw to run a command directly"* ]] || false
+    [[ "$output" != *'alpha'* ]] || false
+    [ ! -e "$TREE/alpha/marker" ]
+    assert_usage_error -G "$option" status
+    [[ "$output" == *"$option has been removed"* ]] || false
+    assert_usage_error "$option" sync
+    [[ "$output" == *"$option has been removed"* ]] || false
+  done
+}
+
 @test "--git and --raw reject invalid combinations" {
   mkrepo "$TREE/repo"
   cd "$TREE"
   assert_usage_error -G
   assert_usage_error -G -R status
   [[ "$output" == *"--git cannot be combined with --raw"* ]] || false
-  assert_usage_error --git --bare status
-  [[ "$output" == *"--git cannot be combined with --bare"* ]] || false
+  assert_usage_error --git --raw status
+  [[ "$output" == *"--git cannot be combined with --raw"* ]] || false
   assert_usage_error -R
   [[ "$output" == *"--raw requires a command"* ]] || false
   assert_usage_error -R overview
   [[ "$output" == *"--raw cannot be used with overview"* ]] || false
-  assert_usage_error -B sync
-  [[ "$output" == *"--bare cannot be used with sync"* ]] || false
-  [[ "$output" != *'warning: -B/--bare is deprecated'* ]] || false
+  assert_usage_error -R sync
+  [[ "$output" == *"--raw cannot be used with sync"* ]] || false
   run "$MGIT" -G -h
   [ "$status" -eq 0 ]
   [[ "$output" == 'Usage: mgit [options] [command]'* ]] || false
-  [[ "$output" == *'-G, --git'*'-R, --raw'*'-B, --bare              deprecated alias for --raw'* ]] || false
+  [[ "$output" == *'-G, --git'*'(temporary name until -B returns as the Git bypass)'*'-R, --raw'* ]] || false
+  [[ "$output" != *'--bare'* ]] || false
   [[ "$output" == *'when discovering repositories'* ]] || false
 }
 

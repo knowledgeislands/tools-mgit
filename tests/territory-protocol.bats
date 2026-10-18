@@ -21,7 +21,7 @@ KI
   cd "$ROOT/workspace"
 }
 assert_atomic() {
-  run "$MGIT" -t short -B git config pilot.dispatched yes
+  run "$MGIT" -t short -R git config pilot.dispatched yes
   [ "$status" -ne 0 ]
   ! git -C "$ROOT/selected" config --get pilot.dispatched
 }
@@ -55,7 +55,7 @@ assert_atomic() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'Tool [*] Space'* ]] && [[ "$output" == *tool-lower* ]]
   for prefix in '' '*' TOOL; do
-    run "$MGIT" -f "$prefix" -B touch "$ROOT/dispatched"
+    run "$MGIT" -f "$prefix" -R touch "$ROOT/dispatched"
     [ "$status" -ne 0 ]
     [ ! -e "$ROOT/dispatched" ]
   done

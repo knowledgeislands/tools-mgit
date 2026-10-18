@@ -37,7 +37,7 @@ mgit -R bun install
 mgit -R sh -c 'git log --oneline | head -1'
 ```
 
-`-B` and `--bare` still work as deprecated aliases for `-R` and print a warning on standard error.
+`-B` and `--bare` have been removed: they are usage errors that name `-R/--raw`, and run nothing.
 
 Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `completion` and `help`. Prefix a command with `-G` (`--git`) to send it to Git anyway:
 
@@ -46,7 +46,7 @@ mgit -G worktree list
 mgit -G help -a
 ```
 
-`-G` cannot be combined with `-R`.
+`-G` cannot be combined with `-R`. `-G` is a temporary name: `-B` returns later as the bypass-to-Git flag in its place.
 
 ## Diagnose the current environment
 

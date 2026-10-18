@@ -5,13 +5,13 @@ title: Escape-hatch flag names
 kind: deliver
 purpose: debt
 component: cli
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 33ab1c55b77d450de0de06a4973b2e4ad3705785
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T08:52:00Z
+updated_at: 2026-10-18T08:57:04Z
 ---
 
 ## Goal
@@ -50,13 +50,13 @@ The confirmed migration repeated the search on 18 October 2026 with the same res
 ## Steps
 
 - [x] Kris confirms the reading above.
-- [ ] In `bin/mgit`, make `-B` and `--bare` a status-`2` usage error naming `-R/--raw`, raised in global option parsing before any discovery, so `mgit -B <command>` runs nothing; drop the deprecation warning and the `bare_option` bookkeeping that only distinguished the alias.
-- [ ] Drop `-B` and `--bare` from usage text and from the Bash and Zsh completion scripts.
-- [ ] Mark `-G/--git` as temporary, until `-B` returns as the bypass-to-Git flag, in usage text, the manual and the running-commands guide.
-- [ ] In `tests/mgit.bats`, replace the alias and warning assertions with a removed-flag case proving both spellings exit `2`, name `-R/--raw` and run nothing; update the help and completion assertions.
-- [ ] Switch `tests/territory-protocol.bats` and `tests/territory-producer.bats` fixture dispatch from `-B` to `-R`.
-- [ ] Update the manual, README, running-commands guide, MGIT-WS-014, MGIT-WS-022 and the changelog baseline.
-- [ ] Run the complete gate.
+- [x] In `bin/mgit`, make `-B` and `--bare` a status-`2` usage error naming `-R/--raw`, raised in global option parsing before any discovery, so `mgit -B <command>` runs nothing; drop the deprecation warning and the `bare_option` bookkeeping that only distinguished the alias.
+- [x] Drop `-B` and `--bare` from usage text and from the Bash and Zsh completion scripts.
+- [x] Mark `-G/--git` as temporary, until `-B` returns as the bypass-to-Git flag, in usage text, the manual and the running-commands guide.
+- [x] In `tests/mgit.bats`, replace the alias and warning assertions with a removed-flag case proving both spellings exit `2`, name `-R/--raw` and run nothing; update the help and completion assertions.
+- [x] Switch `tests/territory-protocol.bats` and `tests/territory-producer.bats` fixture dispatch from `-B` to `-R`.
+- [x] Update the manual, README, running-commands guide, MGIT-WS-014, MGIT-WS-022 and the changelog baseline.
+- [x] Run the complete gate.
 
 ## Files touched
 
@@ -87,6 +87,40 @@ Running commands drops the deprecation note and marks `-G` as temporary.
 ### Roadmap
 
 A later record makes `-B` the bypass-to-Git flag.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, `-B` and `--bare` are no longer an alias of `-R`: both are status-`2` usage errors that name `-R/--raw` and run nothing, raised in global option parsing before discovery. `-R/--raw` is unchanged, and `-G/--git` is marked as a temporary name in usage text, the manual, README, guide and changelog. Excluded as planned: reintroducing `-B` as the Git bypass, renaming `-R`, the chezmoi completion and any release. Baseline `33ab1c55b77d450de0de06a4973b2e4ad3705785`; the delivery commit follows it.
+
+### Change Summary
+
+- `bin/mgit`: `-B|--bare` case is a usage error; the `bare_option` variable and the deprecation warning are gone, and messages name `--raw` directly; usage text drops `-B, --bare` and adds the `-G` temporary note; Bash and Zsh completion drop `-B` and `--bare`.
+- `tests/mgit.bats`: new case `-B and --bare are removed and run nothing` (both spellings, alone, with `-G` and with `sync`); the `--raw` case drops its alias assertions; selector and combination cases use `-R` in place of `-B`; help and completion cases assert the `-G` note and the absence of `-B`/`--bare`.
+- `tests/territory-protocol.bats`, `tests/territory-producer.bats`: fixture dispatch uses `-R`.
+- `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `docs/specs/workspace-dispatch.md` (MGIT-WS-014, MGIT-WS-022), `CHANGELOG.md`: alias removed, removal and the temporary `-G` name documented.
+- Deviation from the captured plan, made at planning: the two territory suites joined the boundary because they still drove fixtures with `-B`.
+
+### Verification
+
+- `ki repo audit --repo .`: pass (FAIL=0; three warnings, all present at baseline: no committed pre-commit hook, and seven non-fatal `[[ ]]` assertions in the two territory suites on lines this change did not touch).
+- `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check`: pass.
+- `MGIT_KI_PRODUCER=/opt/homebrew/bin/ki TMPDIR=<run temp> bats tests/`: 123 of 123 pass, none skipped, all in disposable fixtures with isolated HOME and XDG.
+- Hand check in a disposable repository: `mgit -B pwd` and `mgit --bare pwd` print the `-R/--raw` hint and run nothing; `mgit -R pwd` runs; help and both completion scripts no longer offer `-B` or `--bare`.
+
+### Outstanding concerns
+
+- The territory suites' seven non-fatal `[[ ]]` assertions predate this change and fall under the TEST-FATAL `|| false` rule; they need their own fix.
+- The installed `mgit` links to this checkout, so the removal is live on this machine at once; Kris's interactive shell history was not searched for `mgit -B`.
+
+### Post-change review
+
+The goal holds: `mgit -B <command>` can no longer run anything, so `-B` is free to return as the Git bypass without an old invocation changing meaning. Scope stayed inside the boundary plus the two planned suites. Regression risk is low: `-R` handling is unchanged apart from naming `--raw` literally in its messages, and the full suite, including the real producer proof, passes. Ready for acceptance review.
+
+### Mini recap
+
+Removed the `-B/--bare` alias as a usage error naming `-R/--raw`, marked `-G` as temporary, and updated help, completion, manual, guide, spec, README, changelog and tests; the full gate passes. Learning route proposed, not promoted: the next record that brings `-B` back as the Git bypass should also decide whether the removal error stays for a transition period.
 
 ## Discussion
 

@@ -254,6 +254,9 @@ or
 .BR help .
 It takes the same selectors as an ordinary command and cannot be combined with
 .BR \-R .
+The name is temporary:
+.B \-B
+returns later as the bypass-to-Git flag in its place.
 .sp
 .TP
 .BR \-R , " \-\-raw"
@@ -263,12 +266,6 @@ subcommand.
 The arguments are executed as given, not through a shell; use
 .B sh \-c
 for pipes and redirections.
-.sp
-.TP
-.BR \-B , " \-\-bare"
-Deprecated alias for
-.BR \-R ;
-prints a warning on standard error.
 .sp
 .TP
 .BR \-j , " \-\-jobs " \fIn\fR
@@ -397,10 +394,9 @@ Global discovery selectors apply to listing, ordinary commands,
 and
 .BR worktree .
 Only ordinary command pass-through accepts
-.BR \-G ,
-.B \-R
+.B \-G
 and
-.BR \-B .
+.BR \-R .
 .B register
 accepts
 .B \-a
