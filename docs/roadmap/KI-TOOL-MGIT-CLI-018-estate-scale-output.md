@@ -10,7 +10,7 @@ blocks: []
 blocked_by: []
 baseline_ref: b8e591181c7e60f5f52e8a8a25c132bcb12cbea9
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T08:38:21Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -27,8 +27,8 @@ The reference approach is [Git Almanac](https://github.com/knowledgeislands/tool
 
 ## Boundary
 
-- **In:** one shared runner in `bin/mgit`: a bounded worker pool (`-j/--jobs N`, default 8), captured per-checkout results in a private temporary directory, a single progress line on stderr when stderr is a terminal, and results rendered in selection order once every worker finishes. Ordinary Git pass-through and direct-command dispatch move onto it, as does the `overview` collector from [KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md). Checkouts with nothing to report collapse into one count; `status` counts as quiet when the working tree is clean and level with its upstream. Global `-v/--verbose` restores today's streaming, serial, every-checkout output, and global `--json` prints pass-through results as one document.
-- **Out:** `sync`, which [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md) moves onto the runner; the escape-hatch names of [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md); TypeScript, Bun or any new runtime dependency; any change to repository selection, the `.mgit.toml` model or the exit-status contract (status `1` when any checkout fails). No release.
+- **In:** one shared runner in `bin/mgit`: a bounded worker pool (`-j/--jobs N`, default 8), captured per-checkout results in a private temporary directory, a single progress line on stderr when stderr is a terminal, and results rendered in selection order once every worker finishes. Ordinary Git pass-through and direct-command dispatch move onto it, as does the `overview` collector from [KI-TOOL-MGIT-CLI-021](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-021-estate-overview.md). Checkouts with nothing to report collapse into one count; `status` counts as quiet when the working tree is clean and level with its upstream. Global `-v/--verbose` restores today's streaming, serial, every-checkout output, and global `--json` prints pass-through results as one document.
+- **Out:** `sync`, which [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md) moves onto the runner; the escape-hatch names of [KI-TOOL-MGIT-CLI-019](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md); TypeScript, Bun or any new runtime dependency; any change to repository selection, the `.mgit.toml` model or the exit-status contract (status `1` when any checkout fails). No release.
 
 ## Current state
 
@@ -56,7 +56,7 @@ The [definition of done](../guides/developer/definition-of-done.md) gate passes:
 
 ## Dependencies / blocks
 
-Blocks [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), which builds sync on this runner. Builds after [KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md) in the agreed order, so it adopts that collector rather than waiting for it.
+Blocks [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), which builds sync on this runner. Builds after [KI-TOOL-MGIT-CLI-021](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-021-estate-overview.md) in the agreed order, so it adopts that collector rather than waiting for it.
 
 ## Documentation impact
 
@@ -113,7 +113,7 @@ Ordinary commands now run in parallel and report only what needs attention, with
 
 ## Done
 
-Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Treating normal no-change output such as "Already up to date." as quiet is [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md). Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Treating normal no-change output such as "Already up to date." as quiet is [KI-TOOL-MGIT-CLI-024](https://github.com/knowledgeislands/tools-mgit/blob/c4da60c/docs/roadmap/KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md). Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 
@@ -122,8 +122,8 @@ Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, ba
 The tools-burndown roadmap overview of 17 October proposed an mgit plan that splits this capture three ways. Its MGIT-RECORDS query recommended a), and the tools-burndown run of 18 October took it, with ESTATE-HOME a), ESCAPE-NAMES a) and OVERVIEW-VERB a), under Kris's overnight instruction to take the recommended course on a judgement call ("provisional, for Kris to confirm"):
 
 - **This record:** the shared runner and output. `-j/--jobs N` bounds a worker pool (about 8 by default) in which each worker writes one result file; one progress line goes to stderr on a terminal only; results come at the end, naming only repositories with something to say; `-v/--verbose` shows every repository and `--json` serves tools such as `ki` and git-almanac.
-- **[KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md):** sync's parallel fetch, classification and fast-forward-only action on this runner.
-- **[KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md):** the read-only `mgit overview` estate view on this runner.
+- **[KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md):** sync's parallel fetch, classification and fast-forward-only action on this runner.
+- **[KI-TOOL-MGIT-CLI-021](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-021-estate-overview.md):** the read-only `mgit overview` estate view on this runner.
 
 mgit stays pure Bash, as [AGENTS.md](../../AGENTS.md) requires, borrowing only Git Almanac's adapter, model and renderer separation and its output conventions. Bash 3.2 has no `wait -n`, so the pool is background jobs writing result files with a job-slot poll; if that proves fragile, moving the core to TypeScript/Bun is a separate owner decision. The Implementation route section below records the question this answers.
 
@@ -150,7 +150,7 @@ Kris suggests code "like we did with Git Almanac". [AGENTS.md](../../AGENTS.md) 
 
 ### Relationships
 
-Interacts with [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md): summarised output applies to mgit-owned and pass-through commands, while `--bare` and `--raw` dispatch probably keep raw streaming output.
+Interacts with [KI-TOOL-MGIT-CLI-019](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md): summarised output applies to mgit-owned and pass-through commands, while `--bare` and `--raw` dispatch probably keep raw streaming output.
 
 ### Adoption (provisional, for Kris to confirm)
 

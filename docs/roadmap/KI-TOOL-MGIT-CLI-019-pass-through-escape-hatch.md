@@ -10,7 +10,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 022ce41317e90845af2a45864d6e20f82893ee08
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T08:38:21Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -57,7 +57,7 @@ The [definition of done](../guides/developer/definition-of-done.md) gate passes:
 
 ## Dependencies / blocks
 
-Not blocked. It builds after [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md) in the agreed order, so `--git` and `--raw` use that record's runner and `--verbose` like pass-through.
+Not blocked. It builds after [KI-TOOL-MGIT-CLI-018](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-018-estate-scale-output.md) in the agreed order, so `--git` and `--raw` use that record's runner and `--verbose` like pass-through.
 
 ## Documentation impact
 
@@ -112,7 +112,7 @@ Owned names can now reach Git with `-G`, direct commands use `-R`, and `-B` keep
 
 ## Done
 
-Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Retiring `-B/--bare` now, and `-B` later returning as the bypass-to-Git flag in place of `-G`, is [KI-TOOL-MGIT-CLI-025](KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md), waiting on Kris's confirmation. Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
+Accepted 2026-10-18 by Kris on the review packet above, in the owner answers, batch 5, of the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) (ACCEPT-018 to -022): "as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work ... so we can accept everything." The provisional adoption, plan and choices under Outstanding concerns are confirmed as built. Retiring `-B/--bare` now, and `-B` later returning as the bypass-to-Git flag in place of `-G`, is [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md), waiting on Kris's confirmation. Kris's hands-on check, and any remedial work it finds, is [KI-TOOL-MGIT-CLI-023](KI-TOOL-MGIT-CLI-023-hands-on-behaviour-check.md).
 
 ## Discussion
 
@@ -135,7 +135,7 @@ The tools-burndown roadmap overview of 17 October found that "bare" already has 
 - **Retirement.** `-B/--bare` fails with a usage error that names `--raw`, so an existing `mgit -B npm test` never runs as `git npm test`. The changelog and release notes mark the break.
 - **Raw execution.** Decide whether `--raw` executes argv directly, as `-B` does today, or through a shell string so pipes and redirections work, and how quoting is documented.
 - **Symlink options.** "Clear" options is read as reviewing the names and help for `-P/--physical` and `-L/--follow-symlinks` (for example aligning with `cd -P`/`-L` and stating what is followed); confirm whether a rename is wanted or only clearer documentation.
-- **Selectors and output.** Every selector and `--all-worktrees` should apply to `--git` and `--raw` as they do to pass-through today. Output interacts with [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md).
+- **Selectors and output.** Every selector and `--all-worktrees` should apply to `--git` and `--raw` as they do to pass-through today. Output interacts with [KI-TOOL-MGIT-CLI-018](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-018-estate-scale-output.md).
 - **Coverage.** Help, manual, completion, README, running-commands guide, workspace-dispatch specification, changelog and Bats cases for each dispatch path and the `-B` retirement error.
 
 ### Adoption (provisional, for Kris to confirm)

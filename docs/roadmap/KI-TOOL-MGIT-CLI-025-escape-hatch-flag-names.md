@@ -10,7 +10,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 33ab1c55b77d450de0de06a4973b2e4ad3705785
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T17:15:31Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -25,7 +25,7 @@ Kris confirmed the reading on 18 October 2026 in the ways-of-working decisions l
 
 Kris amended the record on 18 October 2026 in the ways-of-working decisions log ("owner answers, recap batch", MGIT-FLAGS): with every old `-B` use migrated, `-B` becomes the bypass-to-Git flag now, `-G` is dropped and `-R` stays raw; the record is accepted under ACCEPT-AND-PRUNE once the amended criteria pass. `-P/--physical` and `-L/--follow-symlinks` are unchanged; whether `-L` should become a short flag for `--learn` is query MGIT-LEARN-FLAG.
 
-[KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md) delivered `-G/--git`, `-R/--raw` and `-B/--bare` as a deprecated alias of `-R` that warns once on standard error.
+[KI-TOOL-MGIT-CLI-019](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md) delivered `-G/--git`, `-R/--raw` and `-B/--bare` as a deprecated alias of `-R` that warns once on standard error.
 
 ### Uses of `mgit -B` found
 
@@ -98,7 +98,7 @@ None; the amendment brought `-B` back as the bypass-to-Git flag here rather than
 
 Within the approved boundary, `-B` and `--bare` are no longer an alias of `-R`: both are status-`2` usage errors that name `-R/--raw` and run nothing, raised in global option parsing before discovery. `-R/--raw` is unchanged, and `-G/--git` is marked as a temporary name in usage text, the manual, README, guide and changelog. Excluded as planned: reintroducing `-B` as the Git bypass, renaming `-R`, the chezmoi completion and any release. Baseline `33ab1c55b77d450de0de06a4973b2e4ad3705785`; the delivery commit follows it.
 
-Amendment, 18 October 2026, delivered by the ways-of-working mgit-learn run in the same commit as [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md): `-B/--bypass` is the bypass-to-Git flag, `-G` and `--git` are usage errors naming `-B/--bypass`, and `--bare` stays a usage error naming `-R/--raw`.
+Amendment, 18 October 2026, delivered by the ways-of-working mgit-learn run in the same commit as [KI-TOOL-MGIT-CLI-024](https://github.com/knowledgeislands/tools-mgit/blob/c4da60c/docs/roadmap/KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md): `-B/--bypass` is the bypass-to-Git flag, `-G` and `--git` are usage errors naming `-B/--bypass`, and `--bare` stays a usage error naming `-R/--raw`.
 
 ### Change Summary
 
@@ -114,7 +114,7 @@ Amendment, 18 October 2026, delivered by the ways-of-working mgit-learn run in t
 - `ki repo audit --repo .`: pass (FAIL=0; three warnings, all present at baseline: no committed pre-commit hook, and seven non-fatal `[[ ]]` assertions in the two territory suites on lines this change did not touch).
 - `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check`: pass.
 - `MGIT_KI_PRODUCER=/opt/homebrew/bin/ki TMPDIR=<run temp> bats tests/`: 123 of 123 pass, none skipped, all in disposable fixtures with isolated HOME and XDG.
-- Amendment: the complete gate passed again on the delivery commit; see [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md) Verification for the run.
+- Amendment: the complete gate passed again on the delivery commit; see [KI-TOOL-MGIT-CLI-024](https://github.com/knowledgeislands/tools-mgit/blob/c4da60c/docs/roadmap/KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md) Verification for the run.
 - Hand check in a disposable repository: `mgit -B pwd` and `mgit --bare pwd` print the `-R/--raw` hint and run nothing; `mgit -R pwd` runs; help and both completion scripts no longer offer `-B` or `--bare`.
 
 ### Outstanding concerns

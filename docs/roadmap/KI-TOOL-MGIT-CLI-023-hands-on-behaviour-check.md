@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T08:37:21Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -20,14 +20,16 @@ Kris uses the new runner, sync, overview and escape-hatch behaviour on his own e
 
 ## Context
 
-Kris accepted [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md), [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md), [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), [KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md) and [KI-TOOL-MGIT-CLI-022](KI-TOOL-MGIT-CLI-022-external-member-review-findings.md) as built on 18 October 2026, in the ways-of-working decisions log ("owner answers, batch 5"): "I think there's a bunch of probably checks for me to do on Mgate by the looks of things. But as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work with maybe we can have a single roadmap item that's left for MGear, which is to check the behaviors or something like that, so we can accept everything." ("Mgate" and "MGear" are speech-to-text for mgit.)
+Kris accepted [KI-TOOL-MGIT-CLI-018](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-018-estate-scale-output.md), [KI-TOOL-MGIT-CLI-019](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md), [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), [KI-TOOL-MGIT-CLI-021](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-021-estate-overview.md) and [KI-TOOL-MGIT-CLI-022](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-022-external-member-review-findings.md) as built on 18 October 2026, in the ways-of-working decisions log ("owner answers, batch 5"): "I think there's a bunch of probably checks for me to do on Mgate by the looks of things. But as it is, we accept what's there basically, and then anything else I come back with, we can do remedial work with maybe we can have a single roadmap item that's left for MGear, which is to check the behaviors or something like that, so we can accept everything." ("Mgate" and "MGear" are speech-to-text for mgit.)
 
 Every build was verified only in disposable Bats fixtures; none has run against the real estate. On this Mac, `~/.local/bin/mgit` is a symlink to this checkout's `bin/mgit`, so the new behaviour is already live there while it still reports version 0.17.0; other machines see it only after a release.
+
+This record also carries the open concern of [KI-TOOL-MGIT-CLI-017](https://github.com/knowledgeislands/tools-mgit/blob/ff7f44e/docs/roadmap/KI-TOOL-MGIT-CLI-017-unified-external-members.md), folded here on 18 October 2026 under Kris's PRUNE-HELD a) answer: mgit v0.17.0 and earlier reject a manifest with external members as unsafe, so the chezmoi-managed consumer manifest `workspaces/personal/dot_mgit.toml` gains the dotfiles checkout as an external member only after a release carrying unified members reaches every machine that applies it. When that release has landed, the hands-on check confirms it and hands the manifest change to the chezmoi work for Kris's `chezmoi diff` review.
 
 ## Boundary
 
 - **In:** Kris's hands-on use of ordinary pass-through output and the quiet count, `-j/--jobs`, `-v/--verbose`, `--json`, the progress line, `mgit sync` (parallel fetch, fast-forward, push and warnings), `mgit overview`, `-G/--git` and `-R/--raw`, and the provisional choices each record listed under Outstanding concerns; remedial fixes for what he reports, with Bats cases.
-- **Out:** the separately captured follow-ons, [KI-TOOL-MGIT-CLI-024](KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md) (normal no-change output as quiet), [KI-TOOL-MGIT-CLI-025](KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md) (flag names) and [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md) (conflict precheck); a release, which follows [Release mgit](../guides/developer/releasing.md) under its own authority; any agent-run sync against the real estate.
+- **Out:** the separately captured follow-ons, [KI-TOOL-MGIT-CLI-024](https://github.com/knowledgeislands/tools-mgit/blob/c4da60c/docs/roadmap/KI-TOOL-MGIT-CLI-024-quiet-normal-git-output.md) (normal no-change output as quiet), [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md) (flag names) and [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md) (conflict precheck); a release, which follows [Release mgit](../guides/developer/releasing.md) under its own authority; any agent-run sync against the real estate.
 
 ## Current state
 

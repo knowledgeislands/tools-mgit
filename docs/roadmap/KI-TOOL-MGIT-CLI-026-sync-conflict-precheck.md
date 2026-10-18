@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T08:37:21Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -22,7 +22,7 @@ When `mgit sync` finds a branch that has diverged from its upstream, it says whe
 
 Kris asked on 18 October 2026, in the ways-of-working decisions log ("owner answers, batch 5"): "I'm guessing on MD Sync, if it did a fetch, can it work out if it's going to conflict, if it did a merge or not, or does it actually have to try and do a rebase or merge first? Either way, I'm interested to see what's happening." ("MD Sync" is speech-to-text for `mgit sync`.) The thread answered yes, with `git merge-tree --write-tree`, and captured this as MGIT-SYNC-PRECHECK.
 
-Since [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), `sync` fetches in parallel, classifies each checkout against its freshly fetched upstream, and gives a diverged branch a one-line warning and nothing else; it never merges or rebases.
+Since [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), `sync` fetches in parallel, classifies each checkout against its freshly fetched upstream, and gives a diverged branch a one-line warning and nothing else; it never merges or rebases.
 
 `git merge-tree --write-tree [--name-only] [--no-messages] HEAD @{upstream}` computes the merge in memory, writes only unreachable objects, and exits `0` for a clean merge and `1` for conflicts, listing the conflicted paths. A disposable check on 18 October 2026 confirmed both exit statuses and an unchanged working tree with Git 2.56.0.
 

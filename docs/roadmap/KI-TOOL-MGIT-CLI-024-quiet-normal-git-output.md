@@ -10,7 +10,7 @@ blocks: []
 blocked_by: []
 baseline_ref: eb276dd0c57730fd2c6aee004b32151f4c88eea7
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T17:38:11Z
+updated_at: 2026-10-18T18:18:51Z
 ---
 
 ## Goal
@@ -21,7 +21,7 @@ Commands that always print the same "nothing happened" output, such as `git stat
 
 Kris's MGIT-QUIET-NORMAL answer of 18 October 2026 in the ways-of-working decisions log ("owner answers, batch 5") asks for standard no-change output to be treated as quiet. Kris's MGIT-QUIET-RULES and MGIT-QUIET-ROLLOUT answers in the same log ("owner answers, recap batch") replace the planned built-in pattern set with learning: no built-in rules, one template per command after alias resolution under `${XDG_CONFIG_HOME:-~/.config}/mgit/`, the built-in `st` rule moved out of code into a learned seed template, and seed templates learned only from read-only commands.
 
-Under the shared runner of [KI-TOOL-MGIT-CLI-018](KI-TOOL-MGIT-CLI-018-estate-scale-output.md), `dispatch_captured` in `bin/mgit` counted a checkout as quiet only when it exited `0` with empty standard output and standard error, or, for `status` and its aliases, when porcelain status showed a clean, level branch. Git writes some no-change messages to standard error (`git push` writes "Everything up-to-date" there).
+Under the shared runner of [KI-TOOL-MGIT-CLI-018](https://github.com/knowledgeislands/tools-mgit/blob/2ca3a8e/docs/roadmap/KI-TOOL-MGIT-CLI-018-estate-scale-output.md), `dispatch_captured` in `bin/mgit` counted a checkout as quiet only when it exited `0` with empty standard output and standard error, or, for `status` and its aliases, when porcelain status showed a clean, level branch. Git writes some no-change messages to standard error (`git push` writes "Everything up-to-date" there).
 
 ## Boundary
 
@@ -50,7 +50,7 @@ The [definition of done](../guides/developer/definition-of-done.md) gate passes,
 
 ## Dependencies / blocks
 
-None; it builds on the runner already on `main`. [KI-TOOL-MGIT-CLI-025](KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md) landed in the same commit.
+None; it builds on the runner already on `main`. [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md) landed in the same commit.
 
 ## Documentation impact
 
@@ -74,7 +74,7 @@ None.
 
 ### Delivered
 
-Within the approved boundary, mgit has no built-in quiet rules: `mgit learn <command...>` and `mgit --learn <command...>` run a Git command across the selected repositories and write a template under `${XDG_CONFIG_HOME:-~/.config}/mgit/templates/` when every repository's normalised output agrees; later runs hide checkouts whose output matches. `mgit learn --list` and `mgit learn --forget` manage templates. The built-in status rule is removed. Excluded as planned: built-in templates, a short flag for `--learn`, learning by running state-changing commands, the chezmoi source and any release. Baseline `eb276dd0c57730fd2c6aee004b32151f4c88eea7`; the delivery commit follows it. [KI-TOOL-MGIT-CLI-025](KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md)'s `-B/--bypass` amendment landed in the same commit.
+Within the approved boundary, mgit has no built-in quiet rules: `mgit learn <command...>` and `mgit --learn <command...>` run a Git command across the selected repositories and write a template under `${XDG_CONFIG_HOME:-~/.config}/mgit/templates/` when every repository's normalised output agrees; later runs hide checkouts whose output matches. `mgit learn --list` and `mgit learn --forget` manage templates. The built-in status rule is removed. Excluded as planned: built-in templates, a short flag for `--learn`, learning by running state-changing commands, the chezmoi source and any release. Baseline `eb276dd0c57730fd2c6aee004b32151f4c88eea7`; the delivery commit follows it. [KI-TOOL-MGIT-CLI-025](https://github.com/knowledgeislands/tools-mgit/blob/5d23dce/docs/roadmap/KI-TOOL-MGIT-CLI-025-escape-hatch-flag-names.md)'s `-B/--bypass` amendment landed in the same commit.
 
 ### Change Summary
 
