@@ -53,9 +53,9 @@ Options:
                           directories (default)
   -L, --follow-symlinks   when discovering repositories, enter symlinked
                           directories too
-  -G, --git               run COMMAND as a Git subcommand even when mgit owns the name
-                          (temporary name until -B returns as the Git bypass)
+  -B, --bypass            run COMMAND as a Git subcommand even when mgit owns the name
   -R, --raw               run COMMAND directly instead of as a Git subcommand
+      --learn             run a Git command and learn its normal output (as learn)
   -j, --jobs <n>          run up to N checkouts at once (default 8)
   -v, --verbose           run checkouts one at a time, streaming every header and output
       --json              print ordinary-command results as one JSON document
@@ -77,6 +77,7 @@ Commands:
   overview                show what is outstanding across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
+  learn                   learn a Git command's normal output so later runs hide it
   completion              print shell completion setup
   help [command]          display help for a command
 
@@ -225,6 +226,30 @@ Options:
 EOF
 }
 
+learn_usage() {
+  cat <<'EOF'
+Usage: mgit learn <git-command> [argument ...]
+       mgit learn --list
+       mgit learn --forget <git-command> [argument ...]
+
+Run a Git command across the current set as usual, then learn its normal
+output. Each checkout's own details (path, remote URL, upstream, remote,
+branch and repository name) are replaced by placeholders. When every checkout
+then prints the same output, mgit writes it as a template, one file per
+command after Git alias expansion, in ${XDG_CONFIG_HOME:-~/.config}/mgit/templates/;
+otherwise it names the checkouts that differed and writes nothing. Learning
+needs at least two repositories. Later runs of the command count a checkout
+that exits 0 with output matching the template as quiet. With no templates,
+every checkout with output is shown. 'mgit --learn COMMAND' is the same as
+'mgit learn COMMAND'.
+
+Options:
+      --list      list learned templates and their files
+      --forget    remove the template for a command
+  -h, --help      display help for command
+EOF
+}
+
 completion_usage() {
   cat <<'EOF'
 Usage: mgit completion <shell>
@@ -257,8 +282,8 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register repair doctor diag sync overview structure worktree completion help'
-  global_options='-P --physical -L --follow-symlinks -G --git -R --raw -j --jobs -v --verbose --json -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
+  commands='register repair doctor diag sync overview structure worktree learn completion help'
+  global_options='-P --physical -L --follow-symlinks -B --bypass -R --raw -j --jobs -v --verbose --json --learn -I --ignore -t --territory --estate --principals -f --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
       COMPREPLY=( $(compgen -d -- "$cur") )
@@ -273,7 +298,7 @@ _mgit() {
     word="${COMP_WORDS[i]}"
     case "$word" in
       -t|--territory|-f|--filter|-j|--jobs) ((i += 2)); continue ;;
-      -P|--physical|-L|--follow-symlinks|-G|--git|-R|--raw|-v|--verbose|--json|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
+      -P|--physical|-L|--follow-symlinks|-B|--bypass|-R|--raw|-v|--verbose|--json|--learn|-I|--ignore|--estate|--principals|-W|--all-worktrees|-h|--help|-V|--version) ((i += 1)); continue ;;
       --) ((i += 1)); break ;;
       *) command="$word"; command_index=$i; break ;;
     esac
@@ -319,6 +344,9 @@ _mgit() {
         *) COMPREPLY=() ;;
       esac
       ;;
+    learn)
+      COMPREPLY=( $(compgen -W '--list --forget --help -h' -- "$cur") )
+      ;;
     completion)
       COMPREPLY=( $(compgen -W 'bash zsh --help -h' -- "$cur") )
       ;;
@@ -351,6 +379,7 @@ _mgit() {
     'overview:show what is outstanding across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
+    'learn:learn the normal output of a Git command'
     'completion:print shell completion setup'
     'help:display help for a command'
   )
@@ -359,10 +388,11 @@ _mgit() {
     '--physical[when discovering repositories, do not enter symlinked directories]'
     '-L[when discovering repositories, enter symlinked directories too]'
     '--follow-symlinks[when discovering repositories, enter symlinked directories too]'
-    '-G[run a Git subcommand even when mgit owns the name]'
-    '--git[run a Git subcommand even when mgit owns the name]'
+    '-B[run a Git subcommand even when mgit owns the name]'
+    '--bypass[run a Git subcommand even when mgit owns the name]'
     '-R[run an ordinary command without git prefix]'
     '--raw[run an ordinary command without git prefix]'
+    '--learn[learn the normal output of a Git command]'
     '-j[run up to N checkouts at once]:jobs:'
     '--jobs[run up to N checkouts at once]:jobs:'
     '-v[run checkouts one at a time, streaming all output]'
@@ -404,6 +434,7 @@ _mgit() {
         add) _arguments '1:remote branch name:' '-h[display help for command]' '--help[display help for command]' ;;
         remove) _arguments '1:worktree path:_files -/' '--force[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
       esac ;;
+    learn) _arguments '--list[list learned templates]' '--forget[remove the template for a command]' '-h[display help for command]' '--help[display help for command]' ;;
     completion) _arguments '1:shell:(bash zsh)' '-h[display help for command]' '--help[display help for command]' ;;
     help) _describe -t commands command global_commands ;;
     *)
@@ -1454,6 +1485,7 @@ help_command() {
     sync) [ $# -eq 1 ] || { usage_error_for sync_usage "help sync: unexpected argument: $subcommand"; return; }; sync_usage ;;
     overview) [ $# -eq 1 ] || { usage_error_for overview_usage "help overview: unexpected argument: $subcommand"; return; }; overview_usage ;;
     completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
+    learn) [ $# -eq 1 ] || { usage_error_for learn_usage "help learn: unexpected argument: $subcommand"; return; }; learn_usage ;;
     structure)
       case $# in
         1) structure_usage ;;
@@ -3486,33 +3518,202 @@ runner_status() {
   printf '%s' "${status:-1}"
 }
 
-# A pass-through worker. Any `status`, or Git alias for one such as
-# `st = status -sb`, is quiet exactly when the checkout has no change entries
-# and is level with an upstream, whatever form was requested.
+# Learned output templates. A template holds a Git command's normal output with
+# each checkout's own details replaced by placeholders; a checkout whose output
+# matches it exactly, on exit 0, counts as quiet. Nothing is built in.
+template_dir() { printf '%s/mgit/templates' "${XDG_CONFIG_HOME:-$HOME/.config}"; }
+
+# Expand Git aliases as Git would, so `st` and `status -sb` share a template.
+# Shell aliases (`!`) are left as they are.
+resolve_git_aliases() {
+  local expansion depth=0
+  local -a words
+  resolved_command=("$@")
+  while [ "$depth" -lt 10 ]; do
+    expansion=$(git config --get "alias.${resolved_command[0]}" 2>/dev/null) || return 0
+    case "$expansion" in ''|'!'*) return 0 ;; esac
+    read -r -a words <<< "$expansion"
+    resolved_command=("${words[@]}" "${resolved_command[@]:1}")
+    depth=$((depth + 1))
+  done
+}
+
+# One readable file per command: words joined by `_`, and every other
+# character outside [A-Za-z0-9.,=@+-] written as %XX, so names stay distinct.
+template_file() {
+  local LC_ALL=C word name="" separator="" i c
+  for word in "$@"; do
+    name="$name$separator"
+    separator=_
+    i=0
+    while [ "$i" -lt ${#word} ]; do
+      c="${word:i:1}"
+      case "$c" in
+        [A-Za-z0-9.,=@+-]) name="$name$c" ;;
+        *) name="$name$(printf '%%%02X' "'$c")" ;;
+      esac
+      i=$((i + 1))
+    done
+  done
+  printf '%s/%s.template' "$(template_dir)" "$name"
+}
+
+# Read template $1 into template_out and template_err, without trailing newlines.
+template_read() {
+  local line out="" err=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      stdout:*) line="${line#stdout:}"; out="$out${line# }"$'\n' ;;
+      stderr:*) line="${line#stderr:}"; err="$err${line# }"$'\n' ;;
+    esac
+  done < "$1"
+  template_out=$(printf '%s' "$out")
+  template_err=$(printf '%s' "$err")
+}
+
+# Set detail_values and detail_names for checkout $1 of repository root $2,
+# with detail_order listing them longest value first, so a branch name inside
+# a path or URL is never replaced before the path or URL itself.
+checkout_details() {
+  local d="$1" branch="" upstream remote="" url="" path i best
+  branch=$(git -C "$d" symbolic-ref --quiet --short HEAD 2>/dev/null) || branch=""
+  upstream=$(git -C "$d" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) || upstream=""
+  [ -z "$branch" ] || remote=$(git -C "$d" config --get "branch.$branch.remote" 2>/dev/null) || remote=""
+  [ -n "$remote" ] || ! git -C "$d" config --get remote.origin.url >/dev/null 2>&1 || remote=origin
+  [ -z "$remote" ] || url=$(git -C "$d" config --get "remote.$remote.url" 2>/dev/null) || url=""
+  path=$(cd "$d" && pwd -P)
+  detail_values=("$path" "$url" "$upstream" "$remote" "$branch" "${2##*/}")
+  detail_names=('{path}' '{remote-url}' '{upstream}' '{remote}' '{branch}' '{repository}')
+  detail_order=()
+  while [ ${#detail_order[@]} -lt 6 ]; do
+    best=""
+    for i in 0 1 2 3 4 5; do
+      case " ${detail_order[*]-} " in *" $i "*) continue ;; esac
+      [ -n "$best" ] && [ ${#detail_values[i]} -le ${#detail_values[best]} ] || best=$i
+    done
+    detail_order+=("$best")
+  done
+}
+
+# Print $1 with the current checkout's details replaced by their placeholders.
+# Values shorter than two characters are left alone.
+normalise_text() {
+  local text="$1" i value name
+  for i in "${detail_order[@]}"; do
+    value="${detail_values[i]}"
+    name="${detail_names[i]}"
+    [ ${#value} -ge 2 ] || continue
+    text="${text//"$value"/$name}"
+  done
+  printf '%s' "$text"
+}
+
+# A pass-through worker. After a Git command exits 0, its output is normalised
+# for learning, or compared with the command's template.
 dispatch_worker() {
-  local d="${repos[$1]}" line quiet=true level=false alias
+  local d="${repos[$1]}" out err
   if [ "$runner_raw" = true ]; then
     ( cd "$d" && "${runner_command[@]}" )
     return
   fi
   ( cd "$d" && git "${runner_command[@]}" ) || return
-  if [ "${runner_command[0]}" != status ]; then
-    alias=$(git -C "$d" config --get "alias.${runner_command[0]}" 2>/dev/null) || return 0
-    read -r alias _ <<< "$alias"
-    [ "$alias" = status ] || return 0
+  [ "$runner_template" = true ] || [ "$learn_mode" = true ] || return 0
+  checkout_details "$d" "${repo_roots[$1]}"
+  out=$(normalise_text "$(cat "$runner_dir/$1.out")")
+  err=$(normalise_text "$(cat "$runner_dir/$1.err")")
+  if [ "$learn_mode" = true ]; then
+    printf '%s' "$out" > "$runner_dir/$1.learn-out"
+    printf '%s' "$err" > "$runner_dir/$1.learn-err"
   fi
-  while IFS= read -r line; do
-    case "$line" in
-      '# branch.ab +0 -0') level=true ;;
-      '#'*) ;;
-      *) quiet=false ;;
-    esac
-  done < <(GIT_OPTIONAL_LOCKS=0 git -C "$d" status --porcelain=v2 --branch 2>/dev/null || printf 'failed\n')
-  if [ "$quiet" = true ] && [ "$level" = true ]; then
+  if [ "$runner_template" = true ] && [ "$out" = "$template_out" ] && [ "$err" = "$template_err" ]; then
     : > "$runner_dir/$1.quiet"
-  else
-    : > "$runner_dir/$1.loud"
   fi
+}
+
+# Print a learned file's lines with the given prefix.
+learn_lines() {
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -n "$line" ]; then printf '%s: %s\n' "$1" "$line"; else printf '%s:\n' "$1"; fi
+  done < "$2"
+}
+
+# After a learning run: write a template when every checkout's normalised
+# output agrees, else name the checkouts that differ from the most common
+# output and write nothing.
+learn_verdict() {
+  local failed="$1" total=${#repos[@]} i j count best=0 best_count=0 differ="" differing=0 file printed
+  local -a outputs
+  if [ "$failed" -gt 0 ]; then
+    printf 'mgit: not learned: %s failed\n' "$(plural "$failed" repository repositories)"
+    return 1
+  fi
+  for i in "${!repos[@]}"; do
+    outputs[i]="$(cat "$runner_dir/$i.learn-out")"$'\n\001\n'"$(cat "$runner_dir/$i.learn-err")"
+  done
+  for i in "${!repos[@]}"; do
+    count=0
+    for j in "${!repos[@]}"; do
+      [ "${outputs[i]}" != "${outputs[j]}" ] || count=$((count + 1))
+    done
+    [ "$count" -le "$best_count" ] || { best=$i; best_count=$count; }
+    [ "$best_count" -lt "$total" ] || break
+  done
+  if [ "$best_count" -lt "$total" ]; then
+    for i in "${!repos[@]}"; do
+      [ "${outputs[i]}" = "${outputs[best]}" ] && continue
+      differ="$differ, ${repo_labels[i]}"
+      differing=$((differing + 1))
+    done
+    printf 'mgit: not learned: %s of %s differed from the most common output: %s\n' \
+      "$differing" "$(plural "$total" repository repositories)" "${differ#, }"
+    return 1
+  fi
+  if [ ! -s "$runner_dir/$best.learn-out" ] && [ ! -s "$runner_dir/$best.learn-err" ]; then
+    printf 'mgit: not learned: no repository printed anything, which is already quiet\n'
+    return 0
+  fi
+  file=$(template_file "${resolved_command[@]}")
+  printed=$(printf '%q ' "${resolved_command[@]}")
+  printed="${printed% }"
+  if ! mkdir -p "${file%/*}" || ! {
+    printf '# mgit output template, learned with: mgit learn %s\n' "$printed_cmd"
+    printf '# A checkout counts as quiet when this Git command exits 0 and its output,\n'
+    printf '# with the checkout'"'"'s own details replaced by {path}, {remote-url},\n'
+    printf '# {upstream}, {remote}, {branch} and {repository}, matches the stdout and\n'
+    printf '# stderr lines below exactly. Remove it with: mgit learn --forget %s\n' "$printed"
+    printf 'command: %s\n' "$printed"
+    learn_lines stdout "$runner_dir/$best.learn-out"
+    learn_lines stderr "$runner_dir/$best.learn-err"
+  } > "$file.tmp" || ! mv "$file.tmp" "$file"; then
+    rm -f "$file.tmp"
+    printf 'mgit: cannot write %s\n' "$file" >&2
+    return 1
+  fi
+  printf "mgit: learned 'git %s' from %s: %s\n" "$printed" "$(plural "$total" repository repositories)" "$file"
+}
+
+learn_list() {
+  local file line command
+  for file in "$(template_dir)"/*.template; do
+    [ -f "$file" ] || continue
+    command=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in 'command: '*) command="${line#command: }"; break ;; esac
+    done < "$file"
+    printf 'git %s\t%s\n' "$command" "$file"
+  done
+}
+
+learn_forget() {
+  local file printed
+  resolve_git_aliases "$@"
+  file=$(template_file "${resolved_command[@]}")
+  printed=$(printf '%q ' "${resolved_command[@]}")
+  printed="${printed% }"
+  [ -f "$file" ] || { printf "mgit: no template for 'git %s'\n" "$printed" >&2; return 1; }
+  rm -f "$file" || return 1
+  printf "mgit: forgot 'git %s': %s\n" "$printed" "$file"
 }
 
 # Today's dispatch: every checkout in turn, streaming, with a header each.
@@ -3541,7 +3742,7 @@ file_json_string() {
 # Captured dispatch: run every checkout in the pool, then print in selection
 # order only checkouts with output or a failure, and close with the counts.
 dispatch_captured() {
-  local i label status quiet shown=0 quiets=0 failed=0 failures="" first=true header path
+  local i label status quiet shown=0 quiets=0 failed=0 failures="" first=true header path result=0
   if [ "$runner_raw" = true ]; then header="$printed_cmd"; else header="git $printed_cmd"; fi
   runner_start || return 1
   runner_run dispatch_worker
@@ -3555,8 +3756,8 @@ dispatch_captured() {
     if [ "$status" -ne 0 ]; then
       failed=$((failed + 1))
       failures="$failures, $label (exit $status)"
-    elif [ -f "$runner_dir/$i.quiet" ] || { [ ! -f "$runner_dir/$i.loud" ] &&
-      [ ! -s "$runner_dir/$i.out" ] && [ ! -s "$runner_dir/$i.err" ]; }; then
+    elif [ -f "$runner_dir/$i.quiet" ] ||
+      { [ ! -s "$runner_dir/$i.out" ] && [ ! -s "$runner_dir/$i.err" ]; }; then
       quiet=true
       quiets=$((quiets + 1))
     else
@@ -3584,8 +3785,10 @@ dispatch_captured() {
       "$(plural "${#repos[@]}" repository repositories)" "$quiets" "$shown" "$failed" \
       "${failures:+: ${failures#, }}"
   fi
+  [ "$failed" -eq 0 ] || result=1
+  [ "$learn_mode" = false ] || learn_verdict "$failed" || result=1
   runner_cleanup
-  [ "$failed" -eq 0 ]
+  return "$result"
 }
 
 selected_workspace_dirs=()
@@ -3771,6 +3974,7 @@ follow_symlinks=false
 discovery_option=false
 bare=false
 git_mode=false
+learn_mode=false
 all_worktrees=false
 read_config=true
 filters=()
@@ -3786,9 +3990,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -P|--physical)        follow_symlinks=false; discovery_option=true ;;
     -L|--follow-symlinks) follow_symlinks=true; discovery_option=true ;;
-    -G|--git)             git_mode=true ;;
+    -B|--bypass)          git_mode=true ;;
     -R|--raw)             bare=true ;;
-    -B|--bare)
+    --learn)              learn_mode=true ;;
+    -G|--git)
+      usage_error "$1 has been removed; use -B/--bypass to run a Git command"
+      exit $? ;;
+    --bare)
       usage_error "$1 has been removed; use -R/--raw to run a command directly"
       exit $? ;;
     -W|--all-worktrees)   all_worktrees=true ;;
@@ -3836,12 +4044,12 @@ done
 
 [ "$show_version" = false ] || { printf 'mgit %s\n' "$MGIT_VERSION"; exit 0; }
 
-# With --git every argument goes to Git, so no command name is owned by mgit.
+# With --bypass every argument goes to Git, so no command name is owned by mgit.
 owned_command="${1:-}"
 if [ "$git_mode" = true ]; then
-  [ "$bare" = false ] || { usage_error "--git cannot be combined with --raw"; exit $?; }
+  [ "$bare" = false ] || { usage_error "--bypass cannot be combined with --raw"; exit $?; }
   [ "$show_help" = false ] || { usage; exit 0; }
-  [ $# -gt 0 ] || { usage_error '--git requires a Git command'; exit $?; }
+  [ $# -gt 0 ] || { usage_error '--bypass requires a Git command'; exit $?; }
   owned_command=git
 fi
 
@@ -3865,6 +4073,51 @@ reject_runner_options_for() {
   [ "$runner_verbose" = false ] || { reject_selector_for "$1" --verbose; return; }
   [ "$runner_json" = false ] || { reject_selector_for "$1" --json; return; }
 }
+# `learn --list` and `learn --forget` only read or change templates; `learn
+# COMMAND` and `--learn COMMAND` run a Git command as usual and learn from it.
+learn_reject_selectors() {
+  [ "$discovery_option" = false ] || { reject_selector_for "$1" 'discovery traversal options'; return; }
+  [ "$read_config" = true ] || { reject_selector_for "$1" --ignore; return; }
+  [ ${#filters[@]} -eq 0 ] || { reject_selector_for "$1" --filter; return; }
+  [ "$all_worktrees" = false ] || { reject_selector_for "$1" --all-worktrees; return; }
+  [ -z "$ki_selector" ] || { reject_selector_for "$1" "$ki_selector"; return; }
+  [ "$bare" = false ] || { reject_selector_for "$1" --raw; return; }
+  [ "$learn_mode" = false ] || { reject_selector_for "$1" --learn; return; }
+  reject_runner_options_for "$1"
+}
+if [ "$owned_command" = learn ]; then
+  shift
+  case "${1:-}" in
+    -h|--help)
+      [ $# -eq 1 ] || { usage_error_for learn_usage "learn: unexpected argument: $2"; exit $?; }
+      learn_usage
+      exit 0 ;;
+    --list)
+      learn_reject_selectors 'learn --list' || exit $?
+      [ $# -eq 1 ] || { usage_error_for learn_usage "learn --list: unexpected argument: $2"; exit $?; }
+      learn_list
+      exit $? ;;
+    --forget)
+      learn_reject_selectors 'learn --forget' || exit $?
+      shift
+      [ $# -gt 0 ] || { usage_error_for learn_usage 'learn --forget requires a command'; exit $?; }
+      learn_forget "$@"
+      exit $? ;;
+  esac
+  learn_mode=true
+  owned_command="${1:-}"
+fi
+if [ "$learn_mode" = true ]; then
+  [ $# -gt 0 ] || { usage_error_for learn_usage 'learn requires a command'; exit $?; }
+  [ "$bare" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --raw'; exit $?; }
+  [ "$runner_verbose" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --verbose'; exit $?; }
+  [ "$runner_json" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --json'; exit $?; }
+  case "$owned_command" in
+    register|repair|doctor|diag|sync|overview|structure|worktree|learn|completion|help|config)
+      usage_error_for learn_usage "learn: $owned_command is an mgit command; use -B/--bypass to learn the Git command"
+      exit $? ;;
+  esac
+fi
 case "$owned_command" in
   register|repair|doctor|diag|completion)
     command_name="${1:-}"
@@ -4133,6 +4386,7 @@ fi
 
 repos=()
 repo_labels=()
+repo_roots=()
 
 # Keep execution paths separate from labels for runtime-owned worktrees.
 add_checkout() {
@@ -4154,6 +4408,7 @@ add_checkout() {
   esac
   capture_path disp "$checkout"; repos+=("$captured_path")
   repo_labels+=("$label")
+  repo_roots+=("$root")
 }
 
 for r in "${repo_units[@]+"${repo_units[@]}"}"; do
@@ -4228,6 +4483,19 @@ printed_cmd="${printed_cmd% }"
 
 runner_raw="$bare"
 runner_command=("$@")
+runner_template=false
+if [ "$runner_raw" = false ] && [ "$runner_verbose" = false ]; then
+  resolve_git_aliases "$@"
+  template=$(template_file "${resolved_command[@]}")
+  if [ -f "$template" ]; then
+    template_read "$template"
+    runner_template=true
+  fi
+fi
+if [ "$learn_mode" = true ] && [ ${#repos[@]} -lt 2 ]; then
+  printf 'mgit: not learned: learning needs at least two repositories\n' >&2
+  exit 1
+fi
 if [ "$runner_verbose" = true ]; then
   dispatch_streaming
 else

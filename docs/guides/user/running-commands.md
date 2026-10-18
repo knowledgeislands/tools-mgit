@@ -16,7 +16,7 @@ tools-ki: git status --short
 mgit: 54 repositories: 53 quiet, 1 with output, 0 failed
 ```
 
-A checkout that exits `0` without output is quiet. Any `git status`, or a Git alias for one such as `st = status -sb`, is quiet exactly when the checkout has no changes and is level with an upstream, so a checkout that is ahead, behind, detached or without an upstream is always shown. Pass `-v/--verbose` to see every checkout's status. The invocation exits with status `1` if any checkout command fails, and the closing line names each failed checkout with its exit status, as in `1 failed: tools-ki (exit 128)`.
+A checkout that exits `0` without output is quiet, and so is one whose output matches a learned template for the command (see [Learn normal output](#learn-normal-output)). With no templates, every checkout with output is shown. Pass `-v/--verbose` to see every checkout's output. The invocation exits with status `1` if any checkout command fails, and the closing line names each failed checkout with its exit status, as in `1 failed: tools-ki (exit 128)`.
 
 Commands cannot read the terminal: standard input is empty, Git does not prompt for credentials and `GIT_EDITOR` is `false`, so a command that needs an editor or a prompt fails rather than waiting unseen. Captured output also loses Git's colour. For these commands pass `-v` or `--verbose`, which runs one checkout at a time with the terminal attached and streams every header and all output as before.
 
@@ -24,7 +24,7 @@ Commands cannot read the terminal: standard input is empty, Git does not prompt 
 | --- | --- |
 | `-j N`, `--jobs N` | Run up to `N` checkouts at once (default 8; `-j 1` for one at a time). |
 | `-v`, `--verbose` | One checkout at a time, every header and all output streamed, no closing line. |
-| `--json` | One JSON document with each checkout's label, path, exit status, quiet flag, standard output and standard error, and the counts. |
+| `--json` | One JSON document with each checkout's label, path, exit status, quiet flag, standard output and standard error, unfiltered, and the counts. |
 
 The options go before the command, as in `mgit -j 4 fetch`. They apply to ordinary commands and to `overview`, and are a usage error elsewhere. An interrupt removes the run's temporary files.
 
@@ -37,16 +37,47 @@ mgit -R bun install
 mgit -R sh -c 'git log --oneline | head -1'
 ```
 
-`-B` and `--bare` have been removed: they are usage errors that name `-R/--raw`, and run nothing.
+`--bare` has been removed: it is a usage error that names `-R/--raw`, and runs nothing.
 
-Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `completion` and `help`. Prefix a command with `-G` (`--git`) to send it to Git anyway:
+Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `learn`, `completion` and `help`. Prefix a command with `-B` (`--bypass`) to send it to Git anyway:
 
 ```sh
-mgit -G worktree list
-mgit -G help -a
+mgit -B worktree list
+mgit -B help -a
 ```
 
-`-G` cannot be combined with `-R`. `-G` is a temporary name: `-B` returns later as the bypass-to-Git flag in its place.
+`-B` cannot be combined with `-R`. The temporary `-G` and `--git` names have been removed: they are usage errors that name `-B/--bypass`, and run nothing.
+
+## Learn normal output
+
+mgit has no built-in rules about which output is normal. Teach it by running a Git command with `learn` in front, or `--learn` among the options, over a set where every checkout is in its normal state:
+
+```sh
+mgit learn st
+mgit -f tools --learn status -sb
+```
+
+The command runs as usual. mgit then takes each checkout's output and replaces that checkout's own details with placeholders: `{path}` for its directory, `{remote-url}` for its remote's address, `{upstream}` for its upstream branch such as `origin/main`, `{remote}`, `{branch}` and `{repository}` for the repository's directory name, longest value first; values shorter than two characters are left alone. If every checkout then prints the same output, on both standard output and standard error, mgit writes it as a template and names the file. If any checkout failed, or the outputs differ, it names the checkouts that differed from the most common output, writes nothing and exits `1`. Learning needs at least two repositories, and output that is empty everywhere is already quiet, so nothing is written.
+
+Templates live in `${XDG_CONFIG_HOME:-~/.config}/mgit/templates/`, one plain-text file per command after Git alias expansion, so `mgit st` and `mgit status -sb` share `status_-sb.template`. The file name joins the command's words with `_` and writes any other character outside letters, digits and `.,=@+-` as `%XX`. A template reads like this:
+
+```text
+# mgit output template, learned with: mgit learn st
+# ...
+command: status -sb
+stdout: ## {branch}...{upstream}
+```
+
+Lines starting `stdout:` and `stderr:` hold the expected output, one line each after one space; `#` lines are comments, and trailing blank lines are ignored. Later runs of the same command count a checkout as quiet when it exits `0` and its normalised output matches the template exactly, so with the template above a clean `st` level with its upstream is hidden, while a checkout that is ahead, behind, dirty, detached or without an upstream is shown. A failed checkout is always shown. `-v/--verbose` and `--json` keep the raw output, and `-R/--raw` commands never use templates.
+
+Learning runs the command for real, so learn a command that changes state, such as `pull` or `push`, only as part of a run you meant to make anyway; `mgit learn push` over a level set records Git's `Everything up-to-date`.
+
+```sh
+mgit learn --list                # each template's command and file
+mgit learn --forget status -sb   # remove one template
+```
+
+`mgit learn sync` and the other mgit command names are usage errors; use `mgit -B --learn <command>` to learn the Git command of the same name. `--learn` cannot be combined with `-R`, `-v` or `--json`.
 
 ## Diagnose the current environment
 
@@ -108,7 +139,7 @@ mgit -f 'mcp-' -R bun run build
 
 Workspace members are selected before filters are applied. The filter then narrows normal commands, repository listing, `sync`, `structure`, and `worktree` commands. `register` and `repair` reject `--filter` instead of silently ignoring it.
 
-Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--git` and `--raw` apply only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
+Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bypass`, `--raw` and `--learn` apply only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
 `mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` previews recognised config repairs and missing repository clones, and `--apply` performs them explicitly.
 

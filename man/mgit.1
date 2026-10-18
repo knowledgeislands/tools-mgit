@@ -23,11 +23,18 @@ Run a command directly, without prefixing it with
 .BR git ,
 in every repository in the current set.
 .TP
-.B mgit [\fIoptions\fR] \-G \fIgit-command\fR [\fIargument\fR ...]
+.B mgit [\fIoptions\fR] \-B \fIgit-command\fR [\fIargument\fR ...]
 Run a Git subcommand in every selected checkout even when
 .B mgit
 owns the name, as in
-.BR "mgit \-G worktree list" .
+.BR "mgit \-B worktree list" .
+.TP
+.B mgit [\fIoptions\fR] learn \fIgit-command\fR [\fIargument\fR ...]
+Run a Git command as usual, then learn its normal output as a template so
+later runs hide checkouts that match it.
+.TP
+.B mgit learn \-\-list | \-\-forget \fIgit-command\fR [\fIargument\fR ...]
+List learned templates, or remove the template for a command.
 .SS Workspace management
 \&
 .TP
@@ -104,13 +111,10 @@ label and command followed by the captured output for each checkout that
 printed anything or failed, then one summary line counting quiet checkouts,
 checkouts with output and failures, and naming each failed checkout with its
 exit status.
-A checkout that exits 0 without output is quiet.
-Any
-.B git status
-(or a Git alias for one, such as
-.BR "st = status -sb" )
-is quiet exactly when the checkout has no changes and is level with an
-upstream.
+A checkout that exits 0 without output is quiet, and so is one that exits 0
+with output matching a learned template for the command; see
+.BR "Output learning" .
+With no templates, every checkout with output is shown.
 With no command it prints the checkout labels that would be used.
 .PP
 Commands run with standard input from
@@ -244,7 +248,7 @@ repositories.
 A symlink to a repository itself is never followed.
 .sp
 .TP
-.BR \-G , " \-\-git"
+.BR \-B , " \-\-bypass"
 Pass every argument to
 .BR git ,
 even a command name that
@@ -256,9 +260,14 @@ or
 .BR help .
 It takes the same selectors as an ordinary command and cannot be combined with
 .BR \-R .
-The name is temporary:
-.B \-B
-returns later as the bypass-to-Git flag in its place.
+The former
+.BR \-G " and " \-\-git
+names are usage errors that name
+.BR \-B/\-\-bypass ,
+and
+.B \-\-bare
+is a usage error that names
+.BR \-R/\-\-raw .
 .sp
 .TP
 .BR \-R , " \-\-raw"
@@ -268,6 +277,17 @@ subcommand.
 The arguments are executed as given, not through a shell; use
 .B sh \-c
 for pipes and redirections.
+.sp
+.TP
+.B \-\-learn
+The same as putting
+.B learn
+before the command: run the Git command as usual and learn its normal output.
+It cannot be combined with
+.BR \-R ,
+.B \-v
+or
+.BR \-\-json .
 .sp
 .TP
 .BR \-j , " \-\-jobs " \fIn\fR
@@ -396,9 +416,10 @@ Global discovery selectors apply to listing, ordinary commands,
 and
 .BR worktree .
 Only ordinary command pass-through accepts
-.B \-G
+.BR \-B ,
+.B \-R
 and
-.BR \-R .
+.BR \-\-learn .
 .B register
 accepts
 .B \-a
@@ -580,6 +601,54 @@ checkout.
 Pass
 .B \-\-force
 to discard dirty changes in that linked checkout.
+.SS Output learning
+\&
+.TP
+.B mgit learn \fIgit-command\fR [\fIargument\fR ...]
+Run the Git command across the current set as usual, then replace each
+checkout's own details in its standard output and standard error with
+placeholders:
+.B {path}
+for its directory,
+.B {remote-url}
+for its remote's address,
+.B {upstream}
+for its upstream branch,
+.BR {remote} ,
+.B {branch}
+and
+.B {repository}
+for the repository's directory name, longest value first; values shorter than
+two characters are left alone.
+When every checkout succeeded and the results agree, write them as the
+command's template and name the file; otherwise name the checkouts that differ
+from the most common output, write nothing and exit 1.
+Learning needs at least two repositories; output that is empty everywhere is
+already quiet and writes nothing.
+Templates are keyed by the command after Git alias expansion, so
+.B mgit learn st
+with
+.B st = status -sb
+also serves
+.BR "mgit status \-sb" .
+mgit command names are usage errors; use
+.B mgit \-B \-\-learn
+for the Git command of the same name.
+.sp
+Later runs of the command count a checkout as quiet when it exits 0 and its
+normalised output matches the template exactly.
+.B \-v
+and
+.B \-\-json
+keep the raw output, and
+.B \-R
+commands never use templates.
+.TP
+.B mgit learn \-\-list
+Print each template's command and file, separated by a tab.
+.TP
+.B mgit learn \-\-forget \fIgit-command\fR [\fIargument\fR ...]
+Remove the template for the command, after alias expansion.
 .SS Shell integration
 \&
 .TP
@@ -712,6 +781,34 @@ kind = "repository"
 Blank lines and comments beginning with
 .B #
 are ignored.
+.SS Output templates
+\&
+.PP
+Learned templates live in
+.IR ${XDG_CONFIG_HOME:\-~/.config}/mgit/templates/ ,
+one plain-text file per command.
+The file name joins the command's words with
+.B _
+and writes any other character outside letters, digits and
+.B .,=@+\-
+as
+.BR %XX ,
+as in
+.IR status_\-sb.template .
+.PP
+.nf
+# mgit output template, learned with: mgit learn st
+command: status \-sb
+stdout: ## {branch}...{upstream}
+.fi
+.PP
+Lines starting
+.B stdout:
+and
+.B stderr:
+hold the expected output, one line each after one space; lines beginning with
+.B #
+are comments, and trailing blank lines are ignored.
 .SH REPOSITORY STRUCTURES
 \&
 .PP

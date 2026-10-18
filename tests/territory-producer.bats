@@ -98,7 +98,7 @@ assert_no_dispatch() {
   write_registry
   local linked="$ROOT/runtime checkout"$'\n'
   git -C "$MEMBER" worktree add -qb feature "$linked"
-  run "$MGIT" -t short -f 'Tool [*]' -W -R sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
+  run "$MGIT" -j 1 -t short -f 'Tool [*]' -W -R sh -c 'printf "%s\0" "$PWD" >> "$1"' sh "$ROOT/dispatch.nul"
   [ "$status" -eq 0 ]
   local first second
   { IFS= read -r -d '' first; IFS= read -r -d '' second; } < "$ROOT/dispatch.nul"

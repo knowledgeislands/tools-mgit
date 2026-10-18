@@ -27,8 +27,9 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit --territory <handle>`
 - `mgit --estate`
 - `mgit --principals`
-- `mgit --git <git-command>`
+- `mgit --bypass <git-command>`
 - `mgit --raw <command>`
+- `mgit --learn <git-command>`
 - `mgit --jobs <n> <command>`
 - `mgit --verbose <command>`
 - `mgit --json <command>`
@@ -49,6 +50,12 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit worktree add <branch>`
 - `mgit worktree remove <path> [--force]`
 
+#### Output learning
+
+- `mgit learn <git-command>`
+- `mgit learn --list`
+- `mgit learn --forget <git-command>`
+
 #### Shell integration
 
 - `mgit completion bash`
@@ -61,7 +68,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, territory-handle, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Repositories outside a workspace are ordinary typed `[members."../PATH"]` entries generated from saved locations, deduplicated by physical path across the recursive set and never cloned by `repair`; one that resolves back inside its own workspace is rejected, and `register` (and `--dry-run`) names each hand-written external member it drops. Legacy `[registered.members]` tables remain readable with one deprecation warning per manifest until `mgit register` rewrites them.
-- Ordinary commands run in a bounded parallel pool (`--jobs`, default 8) with a terminal-only progress line, then print in selection order only checkouts with output or a failure and one closing count naming each failure; a clean, level `git status`, or a Git alias for one such as `st`, is quiet. Workers cannot prompt, read the terminal or open an editor. `--verbose` restores serial streaming and `--json` prints one document.
+- Ordinary commands run in a bounded parallel pool (`--jobs`, default 8) with a terminal-only progress line, then print in selection order only checkouts with output or a failure and one closing count naming each failure. Nothing is quiet by built-in rule beyond empty output: `mgit learn` learns a Git command's normal output, with each checkout's path, remote, upstream, branch and name set aside, into a template under `~/.config/mgit/templates/`, and later runs count a matching checkout as quiet. Workers cannot prompt, read the terminal or open an editor. `--verbose` restores serial streaming and `--json` prints one document.
 - `mgit overview` reads local Git state only and names checkouts needing attention: changes, a detached HEAD, a missing or gone upstream, ahead or behind, stashes, prunable or detached worktrees, and obsolete branches by the Git clean-down criteria (merged, patch-equivalent, gone upstream, stale), with `--verbose` and a single-document `--json`.
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Territory, estate and principals selectors buffer exact NUL-delimited roots from `ki territory roots --null`, keeping KI's order, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
@@ -74,7 +81,7 @@ This baseline describes the `v0.17.0` release. Separate 0.x release entries are 
 - `mgit sync` fetches in parallel through the shared runner, once per repository and remote, then fast-forwards branches only behind and pushes branches only ahead, one checkout at a time. Diverged, dirty, detached and untracked branches and failed fetches are warned about and left untouched; it never merges or rebases. Only checkouts that changed or need attention are named, and current and bare repositories are counted; `-v` adds per-checkout progress.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
 - Global selectors that a selected command would ignore fail with a namespaced usage error before management work begins; help and version remain available.
-- `-G/--git` sends a command to Git even when mgit owns its name; `-R/--raw` runs a command directly. `-G` is a temporary name until `-B` returns as the bypass-to-Git flag; meanwhile `-B/--bare`, formerly a deprecated alias of `-R`, is a usage error that names `-R/--raw` and runs nothing.
+- `-B/--bypass` sends a command to Git even when mgit owns its name; `-R/--raw` runs a command directly. The temporary `-G/--git` names are usage errors that name `-B/--bypass`, and `--bare`, formerly a deprecated alias of `-R`, is a usage error that names `-R/--raw`; both run nothing.
 - Ordinary Git and `-R` fan-out attempt every selected checkout and return status `1` if any child command fails.
 - Command headers and `sync` use checkout labels consistently; ANSI styling appears only on a terminal unless `NO_COLOR` is set.
 - Old Agora flags, saved `agora:` locations and Agora schema are rejected with explicit migration guidance; no aliases, glob filters or automatic state migration remain.

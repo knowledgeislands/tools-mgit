@@ -124,11 +124,11 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-014 — Bare command dispatch
 
-With `-R/--raw`, mgit MUST run the supplied argument vector directly in each selected checkout instead of prefixing it with `git`. `-B` and `--bare` MUST be status-`2` usage errors that name `-R/--raw` and run nothing. With `-G/--git`, mgit MUST pass every argument to `git`, including command names mgit owns. `--git` with `--raw`, and either without a command, MUST be usage errors.
+With `-R/--raw`, mgit MUST run the supplied argument vector directly in each selected checkout instead of prefixing it with `git`. `--bare` MUST be a status-`2` usage error that names `-R/--raw` and runs nothing. With `-B/--bypass`, mgit MUST pass every argument to `git`, including command names mgit owns; `-G` and `--git` MUST be status-`2` usage errors that name `-B/--bypass` and run nothing. `--bypass` with `--raw`, and either without a command, MUST be usage errors.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `--filter applies to bare commands and requires a pattern`; `--git runs Git subcommands that mgit owns`; `--raw runs the argument vector directly`; `-B and --bare are removed and run nothing`; `--git and --raw reject invalid combinations`.
+_Verify:_ `bats tests/mgit.bats` — `--filter applies to bare commands and requires a pattern`; `--bypass runs Git subcommands that mgit owns`; `--raw runs the argument vector directly`; `--bare, -G and --git are removed and run nothing`; `--bypass and --raw reject invalid combinations`.
 
 _Evidence:_ The named source and Bats checks implement this requirement and pass in the repository CI gate.
 
@@ -194,7 +194,7 @@ _Evidence:_ The named Bats cases cover preview output, unchanged state, and defa
 
 ### MGIT-WS-022 — Global selector applicability
 
-mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts `--git`, `--raw` and the runner options `--jobs`, `--verbose` and `--json`, but not `--verbose` with `--json`. `sync` and `overview` accept listing selectors; `overview` also accepts the runner options, and `sync` accepts `--jobs` and `--verbose` but not `--json`. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
+mgit MUST reject a global selector that the selected command would ignore with a namespaced status-`2` usage error before repository discovery or mutation. Listing accepts discovery, territory, estate or principals, filtering, and all-worktrees selectors. Ordinary pass-through additionally accepts `--bypass`, `--raw`, `--learn` and the runner options `--jobs`, `--verbose` and `--json`, but not `--verbose` with `--json`. `sync` and `overview` accept listing selectors; `overview` also accepts the runner options, and `sync` accepts `--jobs` and `--verbose` but not `--json`. `structure` and `worktree` accept discovery and filtering selectors. `register` accepts only territory as a saved-location shorthand; `repair` and `completion` accept no global selector. Help and version MUST remain available with selectors.
 
 _Conformance:_ conforming
 
@@ -228,10 +228,20 @@ _Evidence:_ The named Bats cases cover each attention state and obsolete-branch 
 
 ### MGIT-WS-025 — Bounded parallel runner and concise output
 
-Ordinary Git and `-R` dispatch, and `overview` collection, MUST run selected checkouts in a pool of at most `--jobs` workers (default 8), each with standard input from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR` and `GIT_SEQUENCE_EDITOR` set to `false`, capturing output in a private temporary directory removed on exit or interrupt. Progress MUST go to standard error only when it is a terminal. Ordinary dispatch MUST then print, in selection order, the header and captured output of each checkout with output or a non-zero status, counting the rest as quiet; any `git status`, or Git alias whose expansion begins with `status`, MUST be quiet exactly when the checkout has no change entries and is level with an upstream; one closing line MUST give the quiet, output and failed counts. `--verbose` MUST restore serial streaming dispatch with no closing line, and `--json` MUST print one JSON document.
+Ordinary Git and `-R` dispatch, and `overview` collection, MUST run selected checkouts in a pool of at most `--jobs` workers (default 8), each with standard input from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR` and `GIT_SEQUENCE_EDITOR` set to `false`, capturing output in a private temporary directory removed on exit or interrupt. Progress MUST go to standard error only when it is a terminal. Ordinary dispatch MUST then print, in selection order, the header and captured output of each checkout with output or a non-zero status, counting the rest, and any checkout quiet under MGIT-WS-026, as quiet, with no built-in rule for any command; one closing line MUST give the quiet, output and failed counts. `--verbose` MUST restore serial streaming dispatch with no closing line, and `--json` MUST print one JSON document.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `the runner prints results in selection order and counts quiet checkouts`; `the runner runs checkouts concurrently up to the job limit`; `status is quiet only for clean checkouts level with an upstream`; `a status alias is quiet only for clean checkouts level with an upstream`; `verbose streams every checkout in turn as before`; `json prints ordinary-command results as one document`; `workers cannot prompt, open an editor or read the terminal`; `the runner draws no progress off a terminal and removes its files`; `overview runs on the pool and takes the global output options`.
+_Verify:_ `bats tests/mgit.bats` — `the runner prints results in selection order and counts quiet checkouts`; `the runner runs checkouts concurrently up to the job limit`; `with no templates every checkout with output is shown`; `verbose streams every checkout in turn as before`; `json prints ordinary-command results as one document`; `workers cannot prompt, open an editor or read the terminal`; `the runner draws no progress off a terminal and removes its files`; `overview runs on the pool and takes the global output options`.
 
 _Evidence:_ The named Bats cases prove ordering against reversed finishing times, concurrency by shared markers, the quiet rules, failure naming, the streaming and JSON alternatives, the input and editor guards, and temporary-file removal on success and on a termination signal.
+
+### MGIT-WS-026 — Learned output templates
+
+`mgit learn COMMAND`, and `--learn` before a Git command, MUST run the command through the runner as an ordinary Git command, then replace each checkout's path, remote URL, upstream, remote, branch and repository name in its standard output and standard error with `{path}`, `{remote-url}`, `{upstream}`, `{remote}`, `{branch}` and `{repository}`, longest value first and ignoring values shorter than two characters. When at least two checkouts all exit `0` with the same non-empty normalised output, mgit MUST write it as a plain-text template, one file per command after Git alias expansion, in `${XDG_CONFIG_HOME:-~/.config}/mgit/templates/`; otherwise it MUST write nothing and, unless every output was empty, exit `1` naming the failed checkouts or those differing from the most common output. A later captured run of the same command after alias expansion MUST count a checkout as quiet when it exits `0` and its normalised output equals the template; `--verbose`, `--json` output and `-R` commands MUST remain unfiltered. `learn --list` MUST print each template's command and file, and `learn --forget COMMAND` MUST remove one. mgit-owned command names, and `--learn` with `--raw`, `--verbose` or `--json`, MUST be usage errors.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `learn writes a template that later runs count as quiet`; `learn normalises remotes, paths and repository names`; `learn names the repositories that differ and writes nothing`; `a learned standard-error message is quiet only while it matches`; `a template never quiets a failed checkout`; `learn lists and forgets templates`; `learn file names encode every argument readably`; `learn options are validated before anything runs`.
+
+_Evidence:_ The named Bats cases learn templates in disposable repositories with local bare origins and an isolated configuration directory, and prove alias sharing, normalisation, refusal on difference, failure and single repositories, standard-error matching, the raw views and the template file names.

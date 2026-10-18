@@ -8,6 +8,7 @@ setup() {
   mkdir -p "$TREE"
   # Quiet, hermetic git — no user config, no signing, no hints.
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/config"
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t \
          GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 }
@@ -385,9 +386,13 @@ KI
   [[ "$output" == *"--all-worktrees"* ]] || false
   [[ "$output" != *"bootstrap"* ]] || false
   [[ "$output" != *"convert"* ]] || false
-  [[ "$output" == *"-R --raw -j"* ]] || false
+  [[ "$output" == *"-B --bypass -R --raw -j"* ]] || false
+  [[ "$output" == *"--learn"* ]] || false
+  [[ "$output" == *"overview structure worktree learn completion"* ]] || false
+  [[ "$output" == *"--list --forget --help -h"* ]] || false
   [[ "$output" != *"--bare"* ]] || false
-  [[ "$output" != *"|-B|"* ]] || false
+  [[ "$output" != *"-G"* ]] || false
+  [[ "$output" != *"--git "* ]] || false
 
   run "$MGIT" completion zsh
   [ "$status" -eq 0 ]
@@ -401,7 +406,12 @@ KI
   [[ "$output" == *"sync:update clean tracking branches"* ]] || false
   [[ "$output" == *"compdef _mgit mgit"* ]] || false
   [[ "$output" == *"'--raw[run an ordinary command without git prefix]'"* ]] || false
-  [[ "$output" != *"'-B["* ]] || false
+  [[ "$output" == *"'-B[run a Git subcommand even when mgit owns the name]'"* ]] || false
+  [[ "$output" == *"'--bypass[run a Git subcommand even when mgit owns the name]'"* ]] || false
+  [[ "$output" == *"'--learn[learn the normal output of a Git command]'"* ]] || false
+  [[ "$output" == *"'learn:learn the normal output of a Git command'"* ]] || false
+  [[ "$output" != *"'-G["* ]] || false
+  [[ "$output" != *"'--git["* ]] || false
   [[ "$output" != *"'--bare["* ]] || false
   [[ "$output" != *'_mgit "$@"'* ]] || false
 
@@ -529,7 +539,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair doctor diag sync overview structure worktree completion; do
+  for command in register repair doctor diag sync overview structure worktree learn completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]] || false
@@ -579,6 +589,7 @@ assert_usage_error() {
 
 @test "ordinary Git command options remain pass-through" {
   mkrepo "$TREE/repo"
+  : > "$TREE/repo/new"
   cd "$TREE/repo"
 
   run "$MGIT" status --short
@@ -587,33 +598,33 @@ assert_usage_error() {
   [[ "$output" == *"git status --short"* ]] || false
 }
 
-@test "--git runs Git subcommands that mgit owns" {
+@test "--bypass runs Git subcommands that mgit owns" {
   mkrepo "$TREE/alpha"
   mkrepo "$TREE/beta"
   cd "$TREE"
 
-  run "$MGIT" --git worktree list --porcelain
+  run "$MGIT" --bypass worktree list --porcelain
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'alpha: git worktree list --porcelain' ]
   [[ "${lines[1]}" == "worktree "*/alpha ]] || false
   [[ "$output" == *$'\nbeta: git worktree list --porcelain\nworktree '*/beta$'\n'* ]] || false
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
 
-  run "$MGIT" -G help
+  run "$MGIT" -B help
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'alpha: git help' ]
   [[ "$output" != *"Usage: mgit"* ]] || false
 
-  run "$MGIT" -G -f b -j 1 -v structure
+  run "$MGIT" -B -f b -j 1 -v structure
   [ "$status" -eq 1 ]
   [ "${lines[0]}" = 'beta: git structure' ]
   [[ "$output" == *"'structure' is not a git command"* ]] || false
 
-  run "$MGIT" -G --json rev-parse --is-inside-work-tree
+  run "$MGIT" -B --json rev-parse --is-inside-work-tree
   [ "$status" -eq 0 ]
   [[ "$output" == *'"command":"git rev-parse --is-inside-work-tree"'* ]] || false
 
-  run "$MGIT" -G -W status --short
+  run "$MGIT" -B -W status --short
   [ "$status" -eq 0 ]
 }
 
@@ -636,40 +647,50 @@ assert_usage_error() {
   [[ "${lines[${#lines[@]} - 1]}" == *'2 failed: alpha (exit 127), beta (exit 127)' ]] || false
 }
 
-@test "-B and --bare are removed and run nothing" {
+@test "--bare, -G and --git are removed and run nothing" {
   mkrepo "$TREE/alpha"
   cd "$TREE"
-  for option in -B --bare; do
-    assert_usage_error "$option" touch marker
-    [[ "$output" == *"mgit: error: $option has been removed; use -R/--raw to run a command directly"* ]] || false
-    [[ "$output" != *'alpha'* ]] || false
-    [ ! -e "$TREE/alpha/marker" ]
-    assert_usage_error -G "$option" status
-    [[ "$output" == *"$option has been removed"* ]] || false
+  assert_usage_error --bare touch marker
+  [[ "$output" == *"mgit: error: --bare has been removed; use -R/--raw to run a command directly"* ]] || false
+  [[ "$output" != *'alpha'* ]] || false
+  for option in -G --git; do
+    assert_usage_error "$option" status
+    [[ "$output" == *"mgit: error: $option has been removed; use -B/--bypass to run a Git command"* ]] || false
     assert_usage_error "$option" sync
     [[ "$output" == *"$option has been removed"* ]] || false
   done
+  assert_usage_error -B --bare status
+  [ ! -e "$TREE/alpha/marker" ]
+
+  run "$MGIT" -B rev-parse --is-inside-work-tree
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'alpha: git rev-parse --is-inside-work-tree' ]
 }
 
-@test "--git and --raw reject invalid combinations" {
+@test "--bypass and --raw reject invalid combinations" {
   mkrepo "$TREE/repo"
   cd "$TREE"
-  assert_usage_error -G
-  assert_usage_error -G -R status
-  [[ "$output" == *"--git cannot be combined with --raw"* ]] || false
-  assert_usage_error --git --raw status
-  [[ "$output" == *"--git cannot be combined with --raw"* ]] || false
+  assert_usage_error -B
+  [[ "$output" == *"--bypass requires a Git command"* ]] || false
+  assert_usage_error -B -R status
+  [[ "$output" == *"--bypass cannot be combined with --raw"* ]] || false
+  assert_usage_error --bypass --raw status
+  [[ "$output" == *"--bypass cannot be combined with --raw"* ]] || false
   assert_usage_error -R
   [[ "$output" == *"--raw requires a command"* ]] || false
   assert_usage_error -R overview
   [[ "$output" == *"--raw cannot be used with overview"* ]] || false
   assert_usage_error -R sync
   [[ "$output" == *"--raw cannot be used with sync"* ]] || false
-  run "$MGIT" -G -h
+  run "$MGIT" -B -h
   [ "$status" -eq 0 ]
   [[ "$output" == 'Usage: mgit [options] [command]'* ]] || false
-  [[ "$output" == *'-G, --git'*'(temporary name until -B returns as the Git bypass)'*'-R, --raw'* ]] || false
+  [[ "$output" == *'-B, --bypass'*'-R, --raw'* ]] || false
+  [[ "$output" == *'    --learn '* ]] || false
+  [[ "$output" == *'  learn '* ]] || false
   [[ "$output" != *'--bare'* ]] || false
+  [[ "$output" != *'-G'* ]] || false
+  [[ "$output" != *'temporary'* ]] || false
   [[ "$output" == *'when discovering repositories'* ]] || false
 }
 
@@ -758,59 +779,216 @@ assert_usage_error() {
   [ "${lines[6]}" = 'mgit: 3 repositories: 0 quiet, 3 with output, 0 failed' ]
 }
 
-@test "status is quiet only for clean checkouts level with an upstream" {
-  local origins="$BATS_TEST_TMPDIR/origins"
-  mkdir -p "$origins"
-  make_origin "$TREE/clean" "$origins/clean.git" clean
-  make_origin "$TREE/dirty" "$origins/dirty.git" dirty
-  printf 'changed\n' >> "$TREE/dirty/payload"
-  make_origin "$TREE/ahead" "$origins/ahead.git" ahead
-  git -C "$TREE/ahead" commit -q --allow-empty -m ahead
-  mkrepo "$TREE/local"
-  cd "$TREE"
-
-  run "$MGIT" status --short
-  [ "$status" -eq 0 ]
-  [ "$output" = $'ahead: git status --short\ndirty: git status --short\n M payload\nlocal: git status --short\nmgit: 4 repositories: 1 quiet, 3 with output, 0 failed' ]
-
-  run "$MGIT" -f c status
-  [ "$status" -eq 0 ]
-  [ "$output" = 'mgit: 1 repository: 1 quiet, 0 with output, 0 failed' ]
-}
-
-@test "a status alias is quiet only for clean checkouts level with an upstream" {
+# Clean checkouts level with an upstream, on differing branch names.
+make_level_pair() {
   local origins="$BATS_TEST_TMPDIR/origins"
   mkdir -p "$origins"
   printf '[alias]\n\tst = status -sb\n\tlg = log --oneline\n' > "$BATS_TEST_TMPDIR/gitconfig"
   export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
-  make_origin "$TREE/a-clean" "$origins/a.git" a
-  make_origin "$TREE/b-behind" "$origins/b.git" b
-  git -C "$TREE/b-behind" commit -q --allow-empty -m next
-  git -C "$TREE/b-behind" push -q
-  git -C "$TREE/b-behind" reset -q --hard HEAD~1
-  make_origin "$TREE/c-detached" "$origins/c.git" c
-  git -C "$TREE/c-detached" checkout -q --detach
-  make_origin "$TREE/d-untracked" "$origins/d.git" d
-  : > "$TREE/d-untracked/new"
-  mkrepo "$TREE/e-local"
+  make_origin "$TREE/alpha" "$origins/alpha.git" alpha
+  make_origin "$TREE/beta" "$origins/beta.git" beta
+  git -C "$TREE/beta" branch -q -m trunk
+  git -C "$TREE/beta" push -q -u origin trunk
+}
+
+@test "with no templates every checkout with output is shown" {
+  make_level_pair
   cd "$TREE"
 
   run "$MGIT" st
   [ "$status" -eq 0 ]
+  [[ "$output" == *'alpha: git st'$'\n''## '*'...origin/'* ]] || false
+  [[ "$output" == *'beta: git st'$'\n''## trunk...origin/trunk'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+}
+
+@test "learn writes a template that later runs count as quiet" {
+  local template="$XDG_CONFIG_HOME/mgit/templates/status_-sb.template"
+  make_level_pair
+  cd "$TREE"
+
+  run "$MGIT" learn st
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 1]}" = "mgit: learned 'git status -sb' from 2 repositories: $template" ]
+  [ -f "$template" ]
+  grep -qx 'command: status -sb' "$template"
+  grep -qx 'stdout: ## {branch}...{upstream}' "$template"
+  ! grep -q 'trunk\|alpha\|beta' "$template" || false
+
+  git -C "$TREE/beta" commit -q --allow-empty -m ahead
+  make_origin "$TREE/delta" "$BATS_TEST_TMPDIR/origins/delta.git" delta
+  : > "$TREE/delta/new"
+  make_origin "$TREE/gamma" "$BATS_TEST_TMPDIR/origins/gamma.git" gamma
+  git -C "$TREE/gamma" checkout -q --detach
+  mkrepo "$TREE/local"
+
+  run "$MGIT" st
+  [ "$status" -eq 0 ]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: 5 repositories: 1 quiet, 4 with output, 0 failed' ]
-  [[ "$output" != *'a-clean: git st'* ]] || false
-  [[ "$output" == *'b-behind: git st'*'[behind 1]'* ]] || false
-  [[ "$output" == *'c-detached: git st'* ]] || false
-  [[ "$output" == *'d-untracked: git st'*'?? new'* ]] || false
-  [[ "$output" == *'e-local: git st'* ]] || false
+  [[ "$output" != *'alpha: git st'* ]] || false
+  [[ "$output" == *'beta: git st'*'[ahead 1]'* ]] || false
+  [[ "$output" == *'delta: git st'*'?? new'* ]] || false
+  [[ "$output" == *'gamma: git st'* ]] || false
+  [[ "$output" == *'local: git st'* ]] || false
 
-  run "$MGIT" -f a-clean lg
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = 'a-clean: git lg' ]
+  run "$MGIT" status -sb
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 5 repositories: 1 quiet, 4 with output, 0 failed' ]
+  run "$MGIT" status
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 5 repositories: 0 quiet, 5 with output, 0 failed' ]
 
-  run "$MGIT" -v -f a-clean st
+  run "$MGIT" -v -f alpha st
   [ "$status" -eq 0 ]
-  [[ "$output" == $'a-clean: git st\n## '*'...origin/'* ]] || false
+  [[ "$output" == $'alpha: git st\n## '*'...origin/'* ]] || false
+  run "$MGIT" --json -f alpha st
+  [[ "$output" == *'"quiet":true,"stdout":"## '*'...origin/'* ]] || false
+}
+
+@test "learn normalises remotes, paths and repository names" {
+  make_level_pair
+  cd "$TREE"
+
+  run "$MGIT" --learn remote -v
+  [ "$status" -eq 0 ]
+  grep -qx 'stdout: {remote}	{remote-url} (fetch)' "$XDG_CONFIG_HOME/mgit/templates/remote_-v.template"
+  run "$MGIT" -R git remote -v
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 2 with output, 0 failed' ]
+  run "$MGIT" remote -v
+  [ "$output" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
+
+  run "$MGIT" learn rev-parse --show-toplevel
+  [ "$status" -eq 0 ]
+  grep -qx 'stdout: {path}' "$XDG_CONFIG_HOME/mgit/templates/rev-parse_--show-toplevel.template"
+}
+
+@test "learn names the repositories that differ and writes nothing" {
+  make_level_pair
+  make_origin "$TREE/gamma" "$BATS_TEST_TMPDIR/origins/gamma.git" gamma
+  : > "$TREE/gamma/new"
+  cd "$TREE"
+
+  run "$MGIT" learn st
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'gamma: git st'*'?? new'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 1 of 3 repositories differed from the most common output: gamma' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit/templates/status_-sb.template" ]
+
+  run "$MGIT" learn rev-parse --verify trunk
+  [ "$status" -eq 1 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 repositories failed' ]
+
+  run "$MGIT" learn status --short
+  [ "$status" -eq 1 ]
+  run "$MGIT" -f alpha -f beta learn status --short
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: no repository printed anything, which is already quiet' ]
+
+  run "$MGIT" -f alpha learn st
+  [ "$status" -eq 1 ]
+  [ "$output" = 'mgit: not learned: learning needs at least two repositories' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+}
+
+@test "a learned standard-error message is quiet only while it matches" {
+  make_level_pair
+  cd "$TREE"
+
+  run "$MGIT" learn push
+  [ "$status" -eq 0 ]
+  grep -qx 'stderr: Everything up-to-date' "$XDG_CONFIG_HOME/mgit/templates/push.template"
+
+  git -C "$TREE/alpha" commit -q --allow-empty -m ahead
+  run "$MGIT" push
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'alpha: git push'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 1 quiet, 1 with output, 0 failed' ]
+}
+
+@test "a template never quiets a failed checkout" {
+  make_level_pair
+  mkdir -p "$XDG_CONFIG_HOME/mgit/templates"
+  printf '%s\n' '# hand-written' 'command: rev-parse --verify missing' 'stderr: fatal: Needed a single revision' \
+    > "$XDG_CONFIG_HOME/mgit/templates/rev-parse_--verify_missing.template"
+  cd "$TREE"
+
+  run "$MGIT" rev-parse --verify missing
+  [ "$status" -eq 1 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 2 repositories: 0 quiet, 0 with output, 2 failed: alpha (exit 128), beta (exit 128)' ]
+}
+
+@test "learn lists and forgets templates" {
+  local dir="$XDG_CONFIG_HOME/mgit/templates"
+  make_level_pair
+  cd "$TREE"
+
+  run "$MGIT" learn --list
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+
+  "$MGIT" learn st >/dev/null
+  "$MGIT" learn remote >/dev/null
+  run "$MGIT" learn --list
+  [ "$status" -eq 0 ]
+  [ "$output" = "git remote	$dir/remote.template"$'\n'"git status -sb	$dir/status_-sb.template" ]
+
+  run "$MGIT" learn --forget status -sb
+  [ "$status" -eq 0 ]
+  [ "$output" = "mgit: forgot 'git status -sb': $dir/status_-sb.template" ]
+  [ ! -e "$dir/status_-sb.template" ]
+  run "$MGIT" learn --forget st
+  [ "$status" -eq 1 ]
+  [ "$output" = "mgit: no template for 'git status -sb'" ]
+}
+
+@test "learn file names encode every argument readably" {
+  local dir="$XDG_CONFIG_HOME/mgit/templates"
+  make_level_pair
+  cd "$TREE"
+  run "$MGIT" learn log -1 --format=%s_x HEAD
+  [ "$status" -eq 0 ]
+  [ -f "$dir/log_-1_--format=%25s%5Fx_HEAD.template" ]
+  grep -qx 'stdout: payload_x' "$dir/log_-1_--format=%25s%5Fx_HEAD.template"
+  run "$MGIT" learn log -1 '--format=tformat:a b/c' HEAD
+  [ "$status" -eq 0 ]
+  [ -f "$dir/log_-1_--format=tformat%3Aa%20b%2Fc_HEAD.template" ]
+  run "$MGIT" -B --learn config --get remote.origin.fetch
+  [ "$status" -eq 0 ]
+  grep -qx 'stdout: +refs/heads/\*:refs/remotes/{remote}/\*' "$dir/config_--get_remote.origin.fetch.template"
+}
+
+@test "learn options are validated before anything runs" {
+  make_level_pair
+  cd "$TREE"
+  assert_usage_error learn
+  [[ "$output" == *'learn requires a command'* ]] || false
+  assert_usage_error --learn
+  [[ "$output" == *'learn requires a command'* ]] || false
+  assert_usage_error learn sync
+  [[ "$output" == *'learn: sync is an mgit command; use -B/--bypass to learn the Git command'* ]] || false
+  assert_usage_error --learn overview
+  [[ "$output" == *'learn: overview is an mgit command'* ]] || false
+  assert_usage_error --learn -R pwd
+  [[ "$output" == *'--learn cannot be combined with --raw'* ]] || false
+  assert_usage_error --learn -v status
+  [[ "$output" == *'--learn cannot be combined with --verbose'* ]] || false
+  assert_usage_error --learn --json status
+  [[ "$output" == *'--learn cannot be combined with --json'* ]] || false
+  assert_usage_error -f alpha learn --list
+  [[ "$output" == *'--filter cannot be used with learn --list'* ]] || false
+  assert_usage_error learn --list extra
+  assert_usage_error learn --forget
+  [[ "$output" == *'learn --forget requires a command'* ]] || false
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  run "$MGIT" learn --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit learn'* ]] || false
+  run "$MGIT" help learn
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit learn'* ]] || false
+
+  run "$MGIT" -B --learn -f alpha -f beta config --get branch.trunk.remote
+  [ "$status" -eq 1 ]
 }
 
 @test "verbose streams every checkout in turn as before" {
