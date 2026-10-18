@@ -5,13 +5,12 @@ title: Quiet normal Git output
 kind: deliver
 purpose: capability
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: eb276dd0c57730fd2c6aee004b32151f4c88eea7
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T17:20:00Z
+updated_at: 2026-10-18T17:38:11Z
 ---
 
 ## Goal
@@ -105,6 +104,10 @@ The goal holds: a clean, level estate under `mgit st` prints nothing once `st` i
 
 Replaced the built-in status rule with learned output templates, added `learn`, `--learn`, `--list` and `--forget`, and documented the template format; the full gate passes. Learning route proposed, not promoted: if templates prove brittle across Git versions, a later record could add line-level placeholders for counts and hashes.
 
+## Done
+
+Accepted 2026-10-18 by Kris Brown on the review packet above.
+
 ## Discussion
 
 ### Superseded plan
@@ -114,3 +117,7 @@ The record was first captured with a conservative built-in pattern set (`pull`, 
 ### Adoption
 
 Captured and adopted into Next on 18 October 2026 by the ways-of-working accept-mgit run, under Kris's MGIT-QUIET-NORMAL answer. Not planned.
+
+### Acceptance
+
+Accepted on 18 October 2026 by the `accept-prune` run of the ways-of-working Project work, under Kris Brown's standing grant recorded in the ki-principal ways-of-working decisions log, entry "2026-10-18 17:59 BST - owner answers, recap batch" (ACCEPT-AND-PRUNE): "I think anything which is awaiting acceptance can be accepted, and then we can prune anything which is in a state of done". Re-check against `main` at `5d23dce` before closure: `bats tests/` passes 131 of 131 in disposable fixtures; `shellcheck`, `bash -n` and `mandoc -T lint` pass; `ki repo audit --repo .` has no failure. The short-flag concern is settled: Kris answered MGIT-LEARN-FLAG a) at 18:04 BST, learning stays the subcommand `mgit learn <command>` with no short flag, and `-L` and `-P` keep their symbolic-link meanings.
