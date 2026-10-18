@@ -2,12 +2,16 @@
 id: KI-TOOL-MGIT-CLI-018
 area: CLI
 title: Estate-scale output
-status: triage
+kind: deliver
+purpose: capability
+component: cli
+horizon: next
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-17T21:31:16Z
-updated_at: 2026-10-18T04:10:00Z
+updated_at: 2026-10-18T05:46:00Z
 ---
 
 ## Goal
@@ -24,7 +28,54 @@ The reference approach is [Git Almanac](https://github.com/knowledgeislands/tool
 
 ## Boundary
 
-This capture does not adopt, schedule, implement or release anything. It does not change the repository-selection boundary, `.mgit.toml` model or exit-status contract, and grants no authority to add a runtime dependency or toolchain.
+- **In:** one shared runner in `bin/mgit`: a bounded worker pool (`-j/--jobs N`, default 8), captured per-checkout results in a private temporary directory, a single progress line on stderr when stderr is a terminal, and results rendered in selection order once every worker finishes. Ordinary Git pass-through and direct-command dispatch move onto it, as does the `overview` collector from [KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md). Checkouts with nothing to report collapse into one count; `status` counts as quiet when the working tree is clean and level with its upstream. Global `-v/--verbose` restores today's streaming, serial, every-checkout output, and global `--json` prints pass-through results as one document.
+- **Out:** `sync`, which [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md) moves onto the runner; the escape-hatch names of [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md); TypeScript, Bun or any new runtime dependency; any change to repository selection, the `.mgit.toml` model or the exit-status contract (status `1` when any checkout fails). No release.
+
+## Current state
+
+Pass-through and `-B` dispatch run one checkout at a time in the main loop at the end of `bin/mgit`, streaming a bold header and the child's output for every checkout, and return `1` if any child failed. Nothing is captured, so a 54-repository `mgit status` scrolls off screen. `overview` (KI-TOOL-MGIT-CLI-021) runs its collector serially. Bash 3.2 has no `wait -n`.
+
+## Steps
+
+- [ ] Add the runner: launch one background worker per checkout up to the job limit, freeing a slot by waiting on the oldest running worker; each worker runs with stdin from `/dev/null`, `GIT_TERMINAL_PROMPT=0` and `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR` set to `false`, so nothing interactive can hang or proceed unseen, and writes its stdout, stderr and exit status to files in a private `mktemp -d` directory removed on exit or interrupt.
+- [ ] Draw one progress line on stderr only when stderr is a terminal, `[#####-----] 27/54 label`, and clear it before results print.
+- [ ] Add global `-j/--jobs N` (positive integer) and `-v/--verbose`, and global `--json` for pass-through, each rejected as a usage error where it does not apply.
+- [ ] Render pass-through results in selection order: a checkout with output or a non-zero status prints its header and captured output as today; a checkout with exit `0` and no output, or a quiet `git status`, counts only; then one summary line, naming each failed checkout with its exit status. Exit `1` when any failed.
+- [ ] Keep `-v/--verbose` byte-for-byte today's serial streaming dispatch.
+- [ ] Move the `overview` collector onto the runner.
+- [ ] Add Bats cases: results in selection order under parallel workers, quiet collapse and count, the `status` quiet rule, failure naming and exit status, `-j` validation and `-j 1`, verbose streaming, JSON shape, no progress when stderr is not a terminal, editor and prompt guards, and overview under the pool.
+- [ ] Update help, manual, completion, README, running-commands guide, workspace-dispatch specification and changelog.
+- [ ] Run the complete gate.
+
+## Files touched
+
+`bin/mgit`, `tests/mgit.bats`, `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `docs/specs/workspace-dispatch.md`, `CHANGELOG.md` and this record.
+
+## Verify
+
+The [definition of done](../guides/developer/definition-of-done.md) gate passes: `ki repo audit --repo .`, `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `bats tests/`, `mandoc -T lint man/mgit.1` and `git diff --check`, all in disposable fixtures.
+
+## Dependencies / blocks
+
+Blocks [KI-TOOL-MGIT-CLI-020](KI-TOOL-MGIT-CLI-020-safe-parallel-sync.md), which builds sync on this runner. Builds after [KI-TOOL-MGIT-CLI-021](KI-TOOL-MGIT-CLI-021-estate-overview.md) in the agreed order, so it adopts that collector rather than waiting for it.
+
+## Documentation impact
+
+### Decision Records
+
+None. The route keeps the pure-Bash rule [AGENTS.md](../../AGENTS.md) already sets and borrows only Git Almanac's adapter, model and renderer separation; moving to TypeScript/Bun would need a Decision Record, and is not taken.
+
+### Specifications
+
+MGIT-WS-013, MGIT-WS-014, MGIT-WS-019, MGIT-WS-020 and MGIT-WS-022 change to the captured, summarised dispatch with the verbose escape and the new global options.
+
+### Guides
+
+Running commands describes progress, the quiet count, `--verbose`, `--jobs` and `--json`, and that interactive commands need `--verbose`.
+
+### Roadmap
+
+Unblocks KI-TOOL-MGIT-CLI-020.
 
 ## Discussion
 
@@ -62,3 +113,7 @@ Kris suggests code "like we did with Git Almanac". [AGENTS.md](../../AGENTS.md) 
 ### Relationships
 
 Interacts with [KI-TOOL-MGIT-CLI-019](KI-TOOL-MGIT-CLI-019-pass-through-escape-hatch.md): summarised output applies to mgit-owned and pass-through commands, while `--bare` and `--raw` dispatch probably keep raw streaming output.
+
+### Adoption (provisional, for Kris to confirm)
+
+Adopted into Next and planned to Ready on 18 October 2026 by the ways-of-working mgit-build run, provisionally on Fable's opinion of 18 October (fable-opinion-2, option a), under Kris's KEEP-PUSHING and FABLE-OPINION answers. Building stops at Awaiting review, pure Bash with Bats fixtures only, with no release. Kris confirms or reverses the adoption and plan by editing this record. The Implementation route is settled as keep Bash, so no Decision Record is needed; the runner design in the plan is provisional, for Kris to confirm.
