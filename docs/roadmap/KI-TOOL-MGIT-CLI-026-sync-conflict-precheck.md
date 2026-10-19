@@ -5,13 +5,14 @@ title: Sync conflict precheck
 kind: deliver
 purpose: capability
 component: cli
+size: m
 horizon: next
 status: draft
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T18:18:51Z
+updated_at: 2026-10-19T23:13:40Z
 ---
 
 ## Goal
