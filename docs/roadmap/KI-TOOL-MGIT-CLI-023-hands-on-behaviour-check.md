@@ -5,13 +5,13 @@ title: Hands-on behaviour check
 kind: audit
 purpose: corrective
 component: cli
-horizon: next
-status: draft
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 713bc3618c48136fc88f7277c8df6512cceb4e02
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-18T19:27:33Z
+updated_at: 2026-10-19T18:18:08Z
 ---
 
 ## Goal
@@ -33,13 +33,13 @@ This record also carries the open concern of [KI-TOOL-MGIT-CLI-017](https://gith
 
 ## Current state
 
-The five records are done and their code is on `main`. One finding, the `--filter` short letter, is fixed; the hands-on check itself is still to come.
+The five records are done and their code is on `main`. One finding, the `--filter` short letter, is fixed. Kris ran the hands-on check on 19 October 2026 and it passed with no further findings.
 
 ## Steps
 
-- [ ] Kris uses the behaviour on his estate and reports findings.
-- [ ] Record each finding under Remedial findings with its disposition: fix here, capture separately, or keep as is.
-- [ ] Plan the fixes to Ready with `ki-plan`, then build them with Bats cases in disposable fixtures.
+- [x] Kris uses the behaviour on his estate and reports findings.
+- [x] Record each finding under Remedial findings with its disposition: fix here, capture separately, or keep as is.
+- [x] Plan the fixes to Ready with `ki-plan`, then build them with Bats cases in disposable fixtures. The one fix, the `--filter` short letter, was built in `781973e`; the passed check raised nothing more to plan.
 
 ## Files touched
 
@@ -70,6 +70,37 @@ Running commands, where a fix changes what users see.
 ### Roadmap
 
 Findings outside this boundary become their own records.
+
+## Review
+
+### Delivered
+
+Within the boundary, Kris used the runner, sync, overview and escape-hatch behaviour on his own estate and the check passed: Kris, 19 October 2026, in the [ways-of-working decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.ways-of-working/decisions.md) ("owner answers, push, mgit check, DESK-CAM"): "pushed, mgit checked", read back as MGIT-RELEASE a) now due because the hands-on check passed. The check raised no finding beyond the two already recorded under Remedial findings. Excluded as planned: the release, which follows [Release mgit](../guides/developer/releasing.md) under its own authority, and any agent-run sync against the real estate. Baseline `713bc3618c48136fc88f7277c8df6512cceb4e02`.
+
+### Change Summary
+
+- This record only: the check recorded as passed, its steps completed, and this review. No code changed; the one remedial fix, the `--filter` short letter, landed earlier in `781973e`.
+- Approved deviation: the record goes from `draft` to `awaiting-review` without a separate Ready step, because the passed check left nothing to plan or build; the tools-burndown mgitrel run brief, under MGIT-RELEASE a), authorises recording the check and bringing the record to Awaiting review.
+
+### Verification
+
+- Kris's hands-on check on his estate: passed, 19 October 2026.
+- `MGIT_KI_PRODUCER=<ki> TMPDIR=<run temp> bats tests/` under macOS Bash 3.2: 135 of 135 pass, none skipped.
+- `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check`: pass.
+- `ki repo audit --repo .`: FAIL=0, the same 7 warnings as at baseline.
+
+### Outstanding concerns
+
+- **Command-line convention departures.** The CLI-DEPARTURES finding under Remedial findings is a fix for mgit's next change and is not built: `-j/--jobs` refuses `--jobs=2` and `-j2`, short options do not group, `--dry-run` lacks `-n`, and `worktree remove --force` lacks `-f`. It lives only on this record, so it needs a home of its own before this record is pruned.
+- **External members in the consumer manifest (from KI-TOOL-MGIT-CLI-017).** The chezmoi-managed `workspaces/personal/dot_mgit.toml` gains the dotfiles checkout as an external member only after a release carrying unified members reaches every machine that applies it. That release is prepared but not cut; the manifest change follows it as CONSUMER-MIGRATE, the chezmoi work's, for Kris's `chezmoi diff` review.
+
+### Post-change review
+
+The goal holds: Kris has used the behaviour on his estate and confirmed it works the way he wants, and the one finding he raised for a fix here is built. Scope held: nothing was built beyond the earlier `--filter` fix. No regression risk from this change, which touches only the record. Ready for acceptance review once the convention-departure finding has a home.
+
+### Mini recap
+
+Recorded Kris's passed hands-on check of mgit's runner, sync, overview and escape-hatch behaviour and brought the record to Awaiting review. Two concerns carry forward: the convention departures need their own record before pruning, and the consumer-manifest migration follows the release.
 
 ## Discussion
 
