@@ -21,7 +21,7 @@ The `locations` list defaults to `local`, which scans the current workspace and 
 
 Plain `mgit register` refreshes all saved locations. It resolves territory handles through `ki territory roots --null --territory HANDLE` and validates repository paths before writing. Each location root outside the workspace becomes an ordinary external member; a root that local discovery already records is not written again. Ordinary commands use the generated members without invoking `ki`. A repository is identified by its physical path, so one reached from several workspaces, or through a navigation symlink, is dispatched once. `mgit repair` validates present external members but never clones a missing one.
 
-Use `mgit register --dry-run` to preview manifest writes and removals. It also works with `add` and `rm`, and leaves both local manifests and Chezmoi source state untouched. Registration still validates saved locations before the preview.
+Use `mgit register --dry-run`, or `-n`, to preview manifest writes and removals. It also works with `add` and `rm`, and leaves both local manifests and Chezmoi source state untouched. Registration still validates saved locations before the preview.
 
 When Chezmoi is configured, `mgit register` synchronizes generated manifests below Chezmoi target directory into source state. Manifests outside target directory, and manifests generated inside Chezmoi source directory, remain local only.
 

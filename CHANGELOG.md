@@ -36,19 +36,19 @@ This baseline describes the `v0.18.0` release. Separate 0.x release entries are 
 
 #### Workspace management
 
-- `mgit register [add|rm] [--territory <handle>] [--repo <path>] [--dry-run]`
+- `mgit register [add|rm] [--territory <handle>] [--repo <path>] [-n|--dry-run]`
 - `mgit repair [--apply]`
 
 #### Repository management
 
 - `mgit sync [-i|--interactive] [-v|--verbose]`
 - `mgit overview [--json] [-v|--verbose] [--stale-days <days>]`
-- `mgit structure standard [--dry-run]`
-- `mgit structure nested [--dry-run]`
+- `mgit structure standard [-n|--dry-run]`
+- `mgit structure nested [-n|--dry-run]`
 - `mgit worktree list`
 - `mgit worktree status`
 - `mgit worktree add <branch>`
-- `mgit worktree remove <path> [--force]`
+- `mgit worktree remove <path> [-f|--force]`
 
 #### Output learning
 
@@ -80,6 +80,7 @@ This baseline describes the `v0.18.0` release. Separate 0.x release entries are 
 - Repository structure and worktree commands operate consistently across standard and nested layouts.
 - `mgit sync` fetches every remote-tracking branch, clean or dirty, in parallel through the shared runner, once per repository and remote, then fast-forwards branches only behind and pushes branches only ahead, one checkout at a time. Diverged, dirty, detached and untracked branches and failed fetches are warned about and left untouched; it never merges or rebases. A diverged branch's warning predicts, in memory with `git merge-tree`, whether merging its upstream would be clean or conflict in N files, listing the files under `-v`. It ends with one tally on standard output, `N repositories: N in sync, N pulled, N pushed, N skipped, N failed`, then one indented line per skipped or failed checkout with its reason and ahead and behind counts, marked stale after a failed fetch; skips, warnings, progress and prompts go to standard error, and `-v` adds per-checkout progress without changing the tally.
 - Owned syntax reports namespaced usage errors, while ordinary Git options and command arguments pass through unchanged.
+- mgit's own options follow the command-line conventions: short options group (`-vW`), a short option's value may be attached (`-j4`, `-vj4`) and a long option's value may follow `=` (`--jobs=4`), for the global options and every mgit command's own; `-n` is the short form of `--dry-run` on `register` and `structure`, and `-f` of `worktree remove --force`. Words after the command are never rewritten.
 - Global selectors that a selected command would ignore fail with a namespaced usage error before management work begins; help and version remain available.
 - `-B/--bypass` sends a command to Git even when mgit owns its name; `-R/--raw` runs a command directly. The temporary `-G/--git` names are usage errors that name `-B/--bypass`, and `--bare`, formerly a deprecated alias of `-R`, is a usage error that names `-R/--raw`; both run nothing.
 - `--filter` has no short letter: `-f` is a usage error that names `--filter` and runs nothing, leaving `-f` free for force or file.

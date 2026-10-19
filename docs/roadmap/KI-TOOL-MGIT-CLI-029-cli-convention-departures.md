@@ -8,13 +8,13 @@ project: tools-burndown
 component: cli
 priority: medium
 size: m
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 4dff1a4a90e26a2e648c9386d1f65c381d8a615e
 created_at: 2026-10-19T18:26:00Z
-updated_at: 2026-10-20T00:55:00Z
+updated_at: 2026-10-20T01:30:00Z
 ---
 
 # CLI Convention Departures
@@ -65,11 +65,11 @@ The top-level loop in [`bin/mgit`](../../bin/mgit) stops at the first word that 
 
 ## Steps
 
-- [ ] Add `split_options` to `bin/mgit`: given a mode, the short flag letters, the short value letters and the long value options, it rewrites the words into `split_args`. A short group expands letter by letter; a value letter takes the rest of the word as its value, or the next word whole when it ends the group; a letter that is neither is passed on as its own `-x`, so the existing loop names it. `--name=value` splits for a long value option and is passed on unchanged otherwise, so the loop refuses it. `--` and every word after it pass through untouched; in top-level mode so does the first word that is not an option, with everything after it, so pass-through arguments are never rewritten.
-- [ ] Run it before the top-level loop and before the loops of `register`, `structure standard`, `structure nested`, `worktree add`, `worktree remove`, `sync`, `overview`, `doctor`, `diag` and `repair`.
-- [ ] Add `-n` as the short form of `--dry-run` on `register` and both `structure` forms, and `-f` as the short form of `--force` on `worktree remove`.
-- [ ] Bats cases in disposable fixtures: `--jobs=2`, `-j2` and `-vj2` run as `-j 2`; `-vW` as `-v -W`; `-jv` refused as a non-numeric job count; `--verbose=x` refused; `mgit -v log -n1 --format=%s` passes `-n1` and `--format=%s` to Git unchanged; `--filter=PREFIX` and `-tHANDLE` select as their separate forms; `sync -iv`; `overview --stale-days=N`; `register -n`; `structure standard -n` and `structure nested -n`; `worktree remove -f` on a dirty worktree.
-- [ ] Update the usage text of the four touched commands, the Bash and Zsh completions, `man/mgit.1`, the running-commands, repository-sets and worktrees guides, a new option-syntax requirement in `docs/specs/workspace-dispatch.md`, MGIT-WS-021's `-n` wording, and `CHANGELOG.md`.
+- [x] Add `split_options` to `bin/mgit`: given a mode, the short flag letters, the short value letters and the long value options, it rewrites the words into `split_args`. A short group expands letter by letter; a value letter takes the rest of the word as its value, or the next word whole when it ends the group; a letter that is neither is passed on as its own `-x`, so the existing loop names it. `--name=value` splits for a long value option and is passed on unchanged otherwise, so the loop refuses it. `--` and every word after it pass through untouched; in top-level mode so does the first word that is not an option, with everything after it, so pass-through arguments are never rewritten.
+- [x] Run it before the top-level loop and before the loops of `register`, `structure standard`, `structure nested`, `worktree add`, `worktree remove`, `sync`, `overview`, `doctor`, `diag` and `repair`.
+- [x] Add `-n` as the short form of `--dry-run` on `register` and both `structure` forms, and `-f` as the short form of `--force` on `worktree remove`.
+- [x] Bats cases in disposable fixtures: `--jobs=2`, `-j2` and `-vj2` run as `-j 2`; `-vW` as `-v -W`; `-jv` refused as a non-numeric job count; `--verbose=x` refused; `mgit -v log -n1 --format=%s` passes `-n1` and `--format=%s` to Git unchanged; `--filter=PREFIX` and `-tHANDLE` select as their separate forms; `sync -iv`; `overview --stale-days=N`; `register -n`; `structure standard -n` and `structure nested -n`; `worktree remove -f` on a dirty worktree.
+- [x] Update the usage text of the four touched commands, the Bash and Zsh completions, `man/mgit.1`, the running-commands, repository-sets and worktrees guides, a new option-syntax requirement in `docs/specs/workspace-dispatch.md`, MGIT-WS-021's `-n` wording, and `CHANGELOG.md`.
 
 ## Files touched
 
@@ -100,6 +100,32 @@ The running-commands guide gains the option syntax; the repository-sets and work
 ### Roadmap
 
 None.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, from baseline `4dff1a4`: one shared pre-pass, `split_options`, runs before the global option loop and before the loops of `register`, `structure standard`, `structure nested`, `worktree add`, `worktree remove`, `sync`, `overview`, `doctor`, `diag` and `repair`. Short options group, short values attach, a value letter takes the rest of its group, and `--name=value` splits for value options. Global parsing stops at the command word, so pass-through words are never rewritten. `-n` is the short form of `--dry-run` on `register` and both `structure` forms, and `-f` of `--force` on `worktree remove`. No top-level `-f` and no other departure was added.
+
+### Change Summary
+
+`bin/mgit`: `split_options` and its eleven call sites, the `-n` and `-f` cases, the `structure` mode fixed to `--dry-run` whichever form is given, a usage note on option syntax, the four usage lines, and the Bash and Zsh completions (`-n`, `-f`, and `_arguments -s` for the commands with short flags). `tests/mgit.bats`: two new cases, grouped and attached forms and untouched pass-through words, and short or attached forms added to the existing `sync -i`, `overview --stale-days`, `register` dry-run, both `structure` and `worktree remove` cases; the completion and `-f`-filter assertions follow the new letters. MGIT-WS-027 is new and MGIT-WS-021 names `-n` in `docs/specs/workspace-dispatch.md`; `man/mgit.1`, `README.md`, the running-commands, repository-sets and worktrees guides and `CHANGELOG.md` describe the forms. A small audit fix rode along: the manual said `register` accepts the retired `-a` as its saved-location shorthand, now `-t`.
+
+### Verification
+
+`ki repo audit --repo .` FAIL=0, its two warnings unrelated (`.rumdl.toml` template drift, Claude Desktop binding); `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1`, `rumdl check .` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 141 passed, none failed or skipped, the one completion assertion updated after the first run.
+
+### Outstanding concerns
+
+A word after a subcommand that starts with a hyphen is now split as options, so `worktree remove -odd-path` is refused letter by letter rather than whole; `--` before such a path still works. The spec area's preamble excludes structure and worktree mutation, yet MGIT-WS-027 names their `-n` and `-f`, as the only option-syntax home.
+
+### Post-change review
+
+The goal is met: `--jobs=2`, `-j2`, `-vW`, `-n` and `worktree remove -f` work as conventional tools do, every form shares its separate form's parsing path and messages, and Git's own `-n` after the command is untouched. Ready for acceptance.
+
+### Mini recap
+
+One option pre-pass for all of mgit's own options, two short letters added, no departures left on the conventions. No learning to route.
 
 ## Discussion
 

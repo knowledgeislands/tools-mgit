@@ -84,6 +84,8 @@ Commands:
 Run 'mgit help <command>' for detailed help on a command.
 Global selectors that do not apply to a command cause a usage error.
 Discovery options apply only without a workspace manifest or with --ignore.
+Short options group (-vW) and take attached values (-j4); a long option's
+value may follow an equals sign (--jobs=4).
 EOF
 }
 
@@ -102,7 +104,7 @@ generated manifest, its source state is updated too.
 Options:
   -t, --territory <handle> add or remove a territory location (repeatable)
       --repo <path>   add or remove a Git repository location (repeatable)
-      --dry-run       preview manifest writes and removals without changing files
+  -n, --dry-run       preview manifest writes and removals without changing files
   -h, --help  display help for command
 EOF
 }
@@ -132,10 +134,10 @@ diag_usage() {
 
 structure_usage() {
   cat <<'EOF'
-Usage: mgit structure <standard|nested> [--dry-run]
+Usage: mgit structure <standard|nested> [-n|--dry-run]
 
 Convert eligible repositories in the current set between standard and nested
-structures. Apply changes by default; use --dry-run to preview them.
+structures. Apply changes by default; use -n or --dry-run to preview them.
 
 Commands:
   nested    convert standard repositories to nested structure
@@ -170,14 +172,14 @@ EOF
 
 worktree_remove_usage() {
   cat <<'EOF'
-Usage: mgit worktree remove <path> [--force]
+Usage: mgit worktree remove <path> [-f|--force]
 
 Remove a linked worktree from the repository containing the current directory.
 The primary checkout and a nested repository's required main/ checkout cannot
 be removed.
 
 Options:
-  --force  discard changes in a dirty linked worktree
+  -f, --force  discard changes in a dirty linked worktree
 EOF
 }
 
@@ -281,6 +283,53 @@ usage_error_for() {
   return 2
 }
 
+# Expand the option forms the CLI conventions allow into separate words before
+# an option loop reads them: short groups (-vW), attached short values (-j2)
+# and long values after an equals sign (--jobs=2). Arguments: a mode, the
+# letters of short options that take a value, the long options that take a
+# value separated by spaces, then the words. Mode top stops at the first
+# operand, the command whose words go to Git untouched. A value letter takes
+# the rest of its word, or the next word. Anything else passes on unchanged for
+# the option loop to accept or refuse. The result is left in split_args.
+split_options() {
+  local mode="$1" values="$2" long_values=" $3 " word letter rest
+  shift 3
+  split_args=()
+  while [ $# -gt 0 ]; do
+    word="$1"; shift
+    case "$word" in
+      --) split_args+=(--); break ;;
+      --*=*)
+        case "$long_values" in
+          *" ${word%%=*} "*) split_args+=("${word%%=*}" "${word#*=}") ;;
+          *) split_args+=("$word") ;;
+        esac ;;
+      --*)
+        split_args+=("$word")
+        case "$long_values" in
+          *" $word "*) [ $# -eq 0 ] || { split_args+=("$1"); shift; } ;;
+        esac ;;
+      -?*)
+        rest="${word#-}"
+        while [ -n "$rest" ]; do
+          letter="${rest:0:1}"; rest="${rest:1}"
+          split_args+=("-$letter")
+          case "$values" in
+            *"$letter"*)
+              if [ -n "$rest" ]; then split_args+=("$rest")
+              elif [ $# -gt 0 ]; then split_args+=("$1"); shift
+              fi
+              rest="" ;;
+          esac
+        done ;;
+      *)
+        split_args+=("$word")
+        [ "$mode" != top ] || break ;;
+    esac
+  done
+  [ $# -eq 0 ] || split_args+=("$@")
+}
+
 completion_script() {
   case "${1:-}" in
     bash)
@@ -316,9 +365,9 @@ _mgit() {
   case "$command" in
     register)
       if (( COMP_CWORD == command_index + 1 )); then
-        COMPREPLY=( $(compgen -W 'add rm --territory -t --repo --dry-run --help -h' -- "$cur") )
+        COMPREPLY=( $(compgen -W 'add rm --territory -t --repo --dry-run -n --help -h' -- "$cur") )
       else
-        COMPREPLY=( $(compgen -W '--territory -t --repo --dry-run --help -h' -- "$cur") )
+        COMPREPLY=( $(compgen -W '--territory -t --repo --dry-run -n --help -h' -- "$cur") )
       fi
       ;;
     repair)
@@ -340,14 +389,14 @@ _mgit() {
       esac
       ;;
     structure)
-      COMPREPLY=( $(compgen -W 'standard nested --dry-run --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W 'standard nested --dry-run -n --help -h' -- "$cur") )
       ;;
     worktree)
       case "$subcommand" in
         '') COMPREPLY=( $(compgen -W 'list status add remove --help -h' -- "$cur") ) ;;
         list|status) COMPREPLY=( $(compgen -W '--help -h' -- "$cur") ) ;;
         add) COMPREPLY=() ;;
-        remove) COMPREPLY=( $(compgen -W '--force --help -h' -- "$cur") ) ;;
+        remove) COMPREPLY=( $(compgen -W '--force -f --help -h' -- "$cur") ) ;;
         *) COMPREPLY=() ;;
       esac
       ;;
@@ -426,19 +475,19 @@ _mgit() {
     'remove:remove a worktree'
   )
   case $words[2] in
-    register) _arguments -s '1:action:(add rm)' '*--territory[add or remove a territory location]:territory name:' '*-t[add or remove a territory location]:territory name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
+    register) _arguments -s '1:action:(add rm)' '*--territory[add or remove a territory location]:territory name:' '*-t[add or remove a territory location]:territory name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-n[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
     repair) _arguments '--apply[perform validated repairs]' '-h[display help for command]' '--help[display help for command]' ;;
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
-    sync) _arguments '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
-    overview) _arguments '--json[print one JSON document]' '-v[name clean checkouts too]' '--verbose[name clean checkouts too]' '--stale-days[idle days before an unmerged branch is stale]:days:' '-h[display help for command]' '--help[display help for command]' ;;
-    structure) _arguments '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
+    sync) _arguments -s '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
+    overview) _arguments -s '--json[print one JSON document]' '-v[name clean checkouts too]' '--verbose[name clean checkouts too]' '--stale-days[idle days before an unmerged branch is stale]:days:' '-h[display help for command]' '--help[display help for command]' ;;
+    structure) _arguments -s '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-n[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
       case $words[3] in
         '') _describe -t commands 'worktree command' worktree_commands ;;
         list|status) _arguments '-h[display help for command]' '--help[display help for command]' ;;
         add) _arguments '1:remote branch name:' '-h[display help for command]' '--help[display help for command]' ;;
-        remove) _arguments '1:worktree path:_files -/' '--force[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
+        remove) _arguments -s '1:worktree path:_files -/' '--force[discard dirty changes]' '-f[discard dirty changes]' '-h[display help for command]' '--help[display help for command]' ;;
       esac ;;
     learn) _arguments '--list[list learned templates]' '--forget[remove the template for a command]' '-h[display help for command]' '--help[display help for command]' ;;
     completion) _arguments '1:shell:(bash zsh)' '-h[display help for command]' '--help[display help for command]' ;;
@@ -2210,6 +2259,8 @@ repair_tree() {
 repair_command() {
   local help=false apply=false kind
   repair_dry_run=true
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --apply) [ "$apply" = false ] || { usage_error_for repair_usage 'repair: repeated --apply'; return; }; apply=true ;;
@@ -2316,6 +2367,8 @@ print_diagnostic_context() {
 
 doctor_command() {
   local help=false pass=0 warn=0 fail=0
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
@@ -2360,6 +2413,8 @@ doctor_command() {
 
 diag_command() {
   local full=false help=false
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --full) [ "$full" = false ] || { usage_error 'diag: repeated --full'; return; }; full=true ;;
@@ -2544,6 +2599,8 @@ worktree_default_path() {
 
 worktree_add() {
   local branch="" unit root kind destination count=0 failed=false help=false
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
@@ -2598,9 +2655,11 @@ worktree_add() {
 
 worktree_remove() {
   local target="" force=false help=false source source_kind canonical i found=false path gitdir common
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --force) force=true ;;
+      -f|--force) force=true ;;
       -h|--help) help=true ;;
       -*) usage_error_for worktree_remove_usage "worktree remove: unknown option: $1"; return ;;
       *)
@@ -2713,11 +2772,13 @@ structure_nested_repository() {
 
 structure_nested() {
   local mode="" unit root kind branch failed=false help=false
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run)
+      -n|--dry-run)
         [ -z "$mode" ] || { usage_error_for structure_usage "structure nested: unexpected argument: $1"; return; }
-        mode="$1" ;;
+        mode=--dry-run ;;
       -h|--help) help=true ;;
       *) usage_error_for structure_usage "structure nested: unexpected argument: $1"; return ;;
     esac
@@ -2785,11 +2846,13 @@ structure_standard_repository() {
 
 structure_standard() {
   local mode="" unit root kind failed=false help=false
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run)
+      -n|--dry-run)
         [ -z "$mode" ] || { usage_error_for structure_usage "structure standard: unexpected argument: $1"; return; }
-        mode="$1" ;;
+        mode=--dry-run ;;
       -h|--help) help=true ;;
       *) usage_error_for structure_usage "structure standard: unexpected argument: $1"; return ;;
     esac
@@ -2920,6 +2983,8 @@ sync_command() {
   local dirty held not_reached=0 line
   local fetch_keys=()
 
+  split_options sub '' '' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help) help=true ;;
@@ -3397,6 +3462,8 @@ overview_worker() {
 overview_command() {
   local json=false verbose=false stale_days=30 i d label path common facts error status
   local clean=0 attention=0 failed=0 seen_common=() first=true line
+  split_options sub '' --stale-days "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=true ;;
@@ -4061,6 +4128,8 @@ jobs_option=false
 runner_verbose=false
 runner_json=false
 
+split_options top tj '--territory --filter --jobs' "$@"
+set -- "${split_args[@]+"${split_args[@]}"}"
 while [ $# -gt 0 ]; do
   case "$1" in
     -P|--physical)        follow_symlinks=false; discovery_option=true ;;
@@ -4285,9 +4354,11 @@ if [ "$owned_command" = register ]; then
       shift
       ;;
   esac
+  split_options sub t '--territory --repo' "$@"
+  set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run) register_dry_run=true ;;
+      -n|--dry-run) register_dry_run=true ;;
       -a|--agora)
         usage_error_for register_usage 'Agora selectors are retired; use --territory HANDLE and preview with --dry-run'; exit $? ;;
       -t|--territory)

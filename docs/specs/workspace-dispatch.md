@@ -184,7 +184,7 @@ _Evidence:_ The named Bats case covers standard, nested, and external worktree o
 
 ### MGIT-WS-021 — Management previews
 
-`register --dry-run` MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair` MUST preview recognised config repairs and missing clone targets without changing them. `register`, and `register --dry-run` before it, MUST name each hand-written external member that no saved location reproduces and that registration therefore drops. Both commands MUST retain preflight validation; `repair` may mutate the selected workspace only with `--apply`, and MUST NOT clone a missing external member.
+`register --dry-run`, or `-n`, MUST report proposed manifest writes and removals without changing local manifests or Chezmoi source state, including with location additions and removals. `repair` MUST preview recognised config repairs and missing clone targets without changing them. `register`, and `register --dry-run` before it, MUST name each hand-written external member that no saved location reproduces and that registration therefore drops. Both commands MUST retain preflight validation; `repair` may mutate the selected workspace only with `--apply`, and MUST NOT clone a missing external member.
 
 _Conformance:_ conforming
 
@@ -245,3 +245,13 @@ _Conformance:_ conforming
 _Verify:_ `bats tests/mgit.bats` — `learn writes a template that later runs count as quiet`; `learn normalises remotes, paths and repository names`; `learn names the repositories that differ and writes nothing`; `learn asks before writing a majority output`; `learn never asks without a terminal`; `learn learns from a single repository`; `a learned standard-error message is quiet only while it matches`; `a template never quiets a failed checkout`; `learn lists and forgets templates`; `learn file names encode every argument readably`; `learn options are validated before anything runs`.
 
 _Evidence:_ The named Bats cases learn templates in disposable repositories with local bare origins and an isolated configuration directory, and prove alias sharing, normalisation, refusal on difference, confirmation of unanimous and majority output on a terminal and refusal without one, failure, learning from a single repository, standard-error matching, the raw views and the template file names.
+
+### MGIT-WS-027 — Option syntax
+
+mgit MUST accept its global options, and each mgit-owned command's options, in the forms the command-line conventions allow: short options without a value group, so `-vW` means `-v -W`; a short option's value MAY be attached, so `-j4` means `-j 4`, and a value letter inside a group takes the rest of the word, so `-vj4` means `-v -j 4`; and a long option's value MAY follow an equals sign, so `--jobs=4` means `--jobs 4`. Each form MUST behave exactly as its separate form, including its usage errors, and an equals sign after a long option that takes no value MUST be a usage error. Global option parsing MUST stop at the command word or `--`, and words after it MUST reach Git, or the command `-R` runs, unchanged. `-n` MUST be the short form of `--dry-run` on `register` and `structure`, and `-f` of `--force` on `worktree remove`; neither is a global option.
+
+_Conformance:_ conforming
+
+_Verify:_ `bats tests/mgit.bats` — `short options group and take attached values as their separate forms`; `words after the command reach Git without option expansion`; `sync interactive mode confirms each pull and push`; `register dry-run previews add and rm without changing manifests or Chezmoi`; `structure nested previews then restructures every standard repo in the set`; `structure standard restores a nested repository with only main`; `worktree remove supports a standard sibling and protects the primary checkout`; `overview reports obsolete branches by the clean-down criteria`.
+
+_Evidence:_ The named Bats cases run grouped, attached and equals forms against disposable repositories and show each matches its separate form or usage error, that `mgit -v log -n1 --format=%s` reaches Git unchanged, and that `-n` previews and `-f` removes a dirty linked worktree.

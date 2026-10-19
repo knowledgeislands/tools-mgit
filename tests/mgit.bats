@@ -383,7 +383,7 @@ KI
   [[ "$output" == *"diag"* ]] || false
   [[ "$output" == *"sync"* ]] || false
   [[ "$output" == *"--estate --principals"* ]] || false
-  [[ "$output" == *"add rm --territory -t --repo --dry-run --help -h"* ]] || false
+  [[ "$output" == *"add rm --territory -t --repo --dry-run -n --help -h"* ]] || false
   [[ "$output" == *"--apply"* ]] || false
   [[ "$output" == *"--all-worktrees"* ]] || false
   [[ "$output" != *"bootstrap"* ]] || false
@@ -560,7 +560,7 @@ assert_usage_error() {
 
   run "$MGIT" help worktree remove
   [ "$status" -eq 0 ]
-  [[ "$output" == "Usage: mgit worktree remove <path> [--force]"* ]] || false
+  [[ "$output" == "Usage: mgit worktree remove <path> [-f|--force]"* ]] || false
 }
 
 @test "reserved command trees reject unknown subcommands" {
@@ -1348,8 +1348,9 @@ make_majority_trio() {
   [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$before" ]
   [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$behind_before" ]
 
-  run bash -c 'printf "y\ny\n" | "$1" sync --interactive' _ "$MGIT"
+  run bash -c 'printf "y\ny\n" | "$1" sync -iv' _ "$MGIT"
   [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: [1/3] ahead: checking"* ]] || false
   [[ "$output" == *"mgit sync: ahead: pushed 1 commit"* ]] || false
   [[ "$output" == *"mgit sync: behind: pulled 1 commit"* ]] || false
   [[ "$output" != *"skipped by user"* ]] || false
@@ -2336,6 +2337,11 @@ make_external_estate() {
   [[ "$output" == *"would write ./.mgit.toml"* ]] || false
   [ ! -e "$TREE/.mgit.toml" ]
   [ ! -e "$CHEZMOI_LOG" ]
+  run "$MGIT" register add --repo="$BATS_TEST_TMPDIR/external" -n
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would write ./.mgit.toml"* ]] || false
+  [ ! -e "$TREE/.mgit.toml" ]
+  [ ! -e "$CHEZMOI_LOG" ]
   "$MGIT" register add --repo "$BATS_TEST_TMPDIR/external" >/dev/null
   cp "$TREE/.mgit.toml" "$TREE/saved.toml"
   : > "$CHEZMOI_LOG"
@@ -2809,6 +2815,10 @@ make_external_estate() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"would restructure "*"/tree/repo A ("* ]] || false
   [[ "$output" == *"would restructure "*"/tree/repoB ("* ]] || false
+  run "$MGIT" structure nested -n
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would restructure "*"/tree/repoB ("* ]] || false
+  [ ! -e "$TREE/repoB/.bare" ]
 
   run "$MGIT" structure nested
   [ "$status" -eq 0 ]
@@ -2857,6 +2867,15 @@ make_external_estate() {
   run "$MGIT" worktree remove "$TREE/repoA"
   [ "$status" -eq 1 ]
   [[ "$output" == *"primary working tree"* ]] || false
+
+  git -C "$TREE/repoA" worktree add -q -b featureB "$TREE/repoA-featureB"
+  printf 'draft\n' > "$TREE/repoA-featureB/draft"
+  run "$MGIT" worktree remove "$TREE/repoA-featureB"
+  [ "$status" -ne 0 ]
+  [ -e "$TREE/repoA-featureB/draft" ]
+  run "$MGIT" worktree remove -f "$TREE/repoA-featureB"
+  [ "$status" -eq 0 ]
+  [ ! -e "$TREE/repoA-featureB" ]
 }
 
 @test "structure standard restores a nested repository with only main" {
@@ -2868,6 +2887,10 @@ make_external_estate() {
   run "$MGIT" structure standard --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"would restructure "*"/tree/repoA ("* ]] || false
+  run "$MGIT" structure standard -n
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would restructure "*"/tree/repoA ("* ]] || false
+  [ -d "$TREE/repoA/.bare" ]
 
   run "$MGIT" structure standard
   [ "$status" -eq 0 ]
@@ -2930,7 +2953,62 @@ make_external_estate() {
   [[ "$output" != *'-f|--filter'* ]] || false
   run "$MGIT" completion zsh
   [[ "$output" == *"'--filter["* ]] || false
-  [[ "$output" != *"'-f["* ]] || false
+  [[ "$output" != *"'-f[limit"* ]] || false
+}
+
+@test "short options group and take attached values as their separate forms" {
+  mkrepo "$TREE/a"
+  mkrepo "$TREE/b"
+  git -C "$TREE/a" worktree add -q -b side "$TREE/a-side"
+  cd "$TREE"
+
+  run "$MGIT" -vW -R pwd
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 6 ]
+  [ "${lines[0]}" = 'a: pwd' ]
+  [ "${lines[2]}" = 'a [side]: pwd' ]
+  [[ "${lines[3]}" == *'/a-side' ]] || false
+  [ "${lines[4]}" = 'b: pwd' ]
+
+  run "$MGIT" -vj2 -R true
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a: true\nb: true' ]
+
+  for form in -j0 --jobs=0; do
+    assert_usage_error "$form" -R true
+    [[ "$output" == *"--jobs requires a positive whole number: 0"* ]] || false
+  done
+  assert_usage_error -jv -R true
+  [[ "$output" == *"--jobs requires a positive whole number: v"* ]] || false
+  assert_usage_error -vx -R true
+  [[ "$output" == *"unknown option: -x"* ]] || false
+  assert_usage_error --verbose=yes -R true
+  [[ "$output" == *"unknown option: --verbose=yes"* ]] || false
+
+  run "$MGIT" --filter=a -R pwd
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$TREE/a"* ]] || false
+  [[ "$output" != *"$TREE/b"* ]] || false
+  assert_usage_error --filter= -R pwd
+  [[ "$output" == *"--filter requires a nonempty literal prefix"* ]] || false
+  assert_usage_error -thome --estate
+  [[ "$output" == *"--territory, --estate and --principals cannot be combined"* ]] || false
+  assert_usage_error --territory= -R pwd
+  [[ "$output" == *"--territory requires a nonempty handle"* ]] || false
+}
+
+@test "words after the command reach Git without option expansion" {
+  mkrepo "$TREE/a"
+  git -C "$TREE/a" commit -q --allow-empty -m second
+  cd "$TREE"
+
+  run "$MGIT" -v log -n1 --format=%s
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a: git log -n1 --format=%s\nsecond' ]
+
+  run "$MGIT" -v -- log -n1 --format=%s
+  [ "$status" -eq 0 ]
+  [ "$output" = $'a: git log -n1 --format=%s\nsecond' ]
 }
 
 @test "--filter selects whole repos before optional worktree expansion" {
@@ -3040,7 +3118,7 @@ make_overview_hygiene() {
   [[ "$output" != *fresh* ]] || false
   [[ "$output" != *inuse* ]] || false
 
-  run "$MGIT" overview --stale-days 100000
+  run "$MGIT" overview --stale-days=100000
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'hygiene: 4 obsolete branches' ]
   [[ "$output" != *stale* ]] || false

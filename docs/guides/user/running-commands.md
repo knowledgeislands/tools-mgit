@@ -28,6 +28,8 @@ Commands cannot read the terminal: standard input is empty, Git does not prompt 
 
 The options go before the command, as in `mgit -j 4 fetch`. They apply to ordinary commands and to `overview`, and are a usage error elsewhere. An interrupt removes the run's temporary files.
 
+mgit's options, and each mgit command's own options, follow the usual command-line forms: short options group, so `-vW` means `-v -W`; a short option's value may be attached, as in `-j4`; and a long option's value may follow an equals sign, as in `--jobs=4` or `--filter=mcp-`. A value letter takes the rest of its group, so `-vj4` means `-v -j 4`. Words after the command reach Git, or the command `-R` runs, unchanged, so `mgit log -n1` keeps Git's `-n`.
+
 Command headers and `sync` progress use the same checkout labels. A linked worktree outside its repository is shown as `repository [branch]`, while Git still runs at the real checkout path. Color appears only on a terminal; captured output contains plain text. Set `NO_COLOR` to a non-empty value to disable color on a terminal.
 
 Prefix a command with `-R` (`--raw`) to run it directly rather than as a Git subcommand. The arguments run as given, not through a shell, so use `sh -c` for pipes and redirections:

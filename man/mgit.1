@@ -75,7 +75,7 @@ current set, and summarize repositories that changed or need attention.
 .B mgit overview [--json] [-v|--verbose] [--stale-days <days>]
 Show, read-only, what is outstanding across the current set.
 .TP
-.B mgit structure <standard|nested> [--dry-run]
+.B mgit structure <standard|nested> [-n|--dry-run]
 Convert every eligible repository in the current set between standard and
 nested structures.
 .TP
@@ -86,7 +86,7 @@ List worktrees or show their branch and cleanliness.
 Add a linked checkout for an existing remote branch in every structured
 repository.
 .TP
-.B mgit worktree remove <path> [--force]
+.B mgit worktree remove <path> [-f|--force]
 Remove one linked worktree.
 .SS Shell integration
 \&
@@ -232,6 +232,17 @@ as an exact-version environment alias. A positional version takes precedence;
 with neither input, the installer discovers the latest release.
 .SH OPTIONS
 \&
+.PP
+Short options group, so
+.B \-vW
+means
+.BR "\-v \-W" .
+A short option's value may be attached, as in
+.BR \-j4 ,
+and a long option's value may follow an equals sign, as in
+.BR \-\-jobs=4 .
+Each command's own options follow the same rules.
+Words after the command are passed on unchanged.
 .TP
 .BR \-P , " \-\-physical"
 When discovering repositories, do not enter symlinked directories.
@@ -426,7 +437,7 @@ and
 .BR \-\-learn .
 .B register
 accepts
-.B \-a
+.B \-t
 as a saved-location shorthand;
 .B repair
 accept no global selector. Inapplicable selectors produce a usage error
@@ -481,6 +492,8 @@ again. A repository reached from several workspaces is dispatched once.
 .B mgit repair
 validates present external members but never clones a missing one.
 .B mgit register \-\-dry\-run
+(or
+.BR \-n )
 previews manifest writes and removals, including location changes,
 without changing local files or Chezmoi source state. Registration still
 validates locations before the preview.
@@ -614,6 +627,8 @@ checkout and no other linked worktrees.
 .PP
 Both forms apply changes by default.
 Pass
+.B \-n
+or
 .B \-\-dry-run
 to preview changes instead.
 .TP
@@ -636,6 +651,8 @@ removes one linked checkout and never removes the primary or required
 .I main/
 checkout.
 Pass
+.B \-f
+or
 .B \-\-force
 to discard dirty changes in that linked checkout.
 .SS Output learning
