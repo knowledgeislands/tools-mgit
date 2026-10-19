@@ -8,12 +8,12 @@ project: tools-burndown
 priority: medium
 size: s
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T17:10:05Z
-updated_at: 2026-10-19T22:23:07Z
+updated_at: 2026-10-19T23:24:00Z
 ---
 
 # Fatal Bats Assertions
@@ -43,7 +43,7 @@ The `ki-repo-tools` audit on 19 October 2026 confirmed the capture's counts: `SH
 ## Steps
 
 - [ ] Add `|| false` to each of the seven assertions the audit names.
-- [ ] Run both suites; for any test that now fails, decide whether the fault is in the test or in the producer or protocol, fix a test fault here and capture a real defect as its own record.
+- [ ] Run both suites, the producer suite with `MGIT_KI_PRODUCER` naming the local `ki`; for any test that now fails, decide whether the fault is in the test or in the producer or protocol, fix a test fault here, and raise a real defect to the coordinator, since CAPTURE-GATE lets this run create no record.
 - [ ] Run the complete gate and confirm `SHELL-FATAL` no longer warns.
 
 ## Files touched
@@ -83,3 +83,7 @@ Origin: the ways-of-working bats-rule run of 18 October 2026. The line counts ar
 ### Adoption
 
 Adopted into Next on 19 October 2026 by the tools-burndown trimga run, under Kris's instruction of 19 October 2026, 23:21 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "There are 23 tickets across triage for the tool projects, can we get those triaged immediately?" Not planned. `priority: medium` and `size: s`: seven assertions in two suites, one commit unless an exposed fault needs its own record.
+
+### Planning
+
+Planned to Ready on 20 October 2026 by the tools-burndown burnmgit run. The audit re-count on 20 October matches Current state. No design choice was open; the one judgement, how an exposed real defect is routed, was decided under HIGH-APPLY, 20 October: report it to the coordinator rather than capture a record, under CAPTURE-GATE.
