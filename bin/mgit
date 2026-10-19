@@ -189,14 +189,17 @@ Update clean tracking branches across the current repository set.
 
 Primary checkouts are selected by default; pass -W or --all-worktrees to
 include linked worktrees.
-Every clean branch with an upstream is fetched first, in parallel. Then, one
-checkout at a time, a branch only behind its upstream is fast-forwarded and a
-branch only ahead is pushed. Diverged, dirty, detached and untracked branches,
-and failed fetches, are named with a warning and left untouched; nothing is
-merged or rebased. A diverged branch's warning says whether merging its
-upstream would be clean or conflict, computed in memory; -v lists the
-conflicting files. Only checkouts that pulled, pushed, warned or failed are
-named; the rest are counted.
+Every branch with a remote upstream is fetched first, in parallel, even with
+local changes. Then, one checkout at a time, a branch only behind its upstream
+is fast-forwarded and a branch only ahead is pushed. Diverged, dirty, detached
+and untracked branches, and failed fetches, are named with a warning and left
+untouched; nothing is merged or rebased. A diverged branch's warning says
+whether merging its upstream would be clean or conflict, computed in memory;
+-v lists the conflicting files. Pulls and pushes are named on standard output;
+skips, warnings, progress and prompts go to standard error. The run ends with
+one tally of every checkout - in sync, pulled, pushed, skipped and failed -
+then one indented line per skipped or failed checkout with its reason and
+ahead and behind counts, marked (stale) after a failed fetch.
 
 Options:
  -i, --interactive       confirm each pull and push; an empty answer skips
@@ -2868,7 +2871,7 @@ sync_commit_noun() {
 sync_confirm_action() {
   local answer
   while true; do
-    printf 'mgit sync: %s: %s? [y/N]\n' "$1" "$2"
+    printf 'mgit sync: %s: %s? [y/N]\n' "$1" "$2" >&2
     if ! IFS= read -r answer; then
       printf 'mgit sync: interactive input ended\n' >&2
       return 2
@@ -2888,15 +2891,33 @@ sync_fetch_worker() {
   git -C "${repos[$1]}" fetch --quiet "${sync_remote[$1]}"
 }
 
+# Results go to standard output; skips, warnings, progress and prompts to
+# standard error.
 sync_report() {
   printf 'mgit sync: %s: %s\n' "$1" "$2"
   [ -z "${3:-}" ] || sync_print_detail "$3"
 }
 
+sync_warn() {
+  sync_report "$@" >&2
+}
+
+# Count a checkout left behind and keep its reason for the closing detail.
+# A user's -i refusal is skipped but, unlike the rest, does not fail sync.
+sync_outcome() {
+  case "$2" in
+    failed) sync_failed=$((sync_failed + 1)); failed=true ;;
+    skipped) sync_skipped=$((sync_skipped + 1)); failed=true ;;
+    refused) sync_skipped=$((sync_skipped + 1)) ;;
+  esac
+  sync_details+=("$1: $3")
+}
+
 sync_command() {
   local help=false interactive=false verbose=false d label index branch upstream remote key
-  local status_output counts ahead behind output owner detail synced=0 skipped=0 bare_count=0
+  local status_output counts ahead behind output owner detail synced=0 pulled=0 pushed=0
   local failed=false current=0 total=${#repos[@]} answer_status j common prediction conflicts
+  local dirty held not_reached=0 line
   local fetch_keys=()
 
   while [ $# -gt 0 ]; do
@@ -2909,6 +2930,9 @@ sync_command() {
     shift
   done
   [ "$help" = false ] || { sync_usage; return 0; }
+  sync_skipped=0
+  sync_failed=0
+  sync_details=()
 
   # Decide serially which checkouts fetch, so the pool never runs two
   # fetches into the same repository and remote.
@@ -2943,55 +2967,61 @@ sync_command() {
   done
   runner_start || return 1
   runner_run sync_fetch_worker
-
   for index in "${!repos[@]}"; do
     d="${repos[$index]}"
     label="${repo_labels[$index]}"
     branch="${sync_branch[index]}"
     current=$((current + 1))
-    [ "$verbose" = false ] || printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$label"
+    [ "$verbose" = false ] || printf 'mgit sync: [%d/%d] %s: checking\n' "$current" "$total" "$label" >&2
     if [ "${sync_kind[index]}" = bare ]; then
-      [ "$verbose" = false ] || sync_report "$label" 'bare repository (skipped)'
-      bare_count=$((bare_count + 1))
-      failed=true
+      [ "$verbose" = false ] || sync_warn "$label" 'bare repository (skipped)'
+      sync_outcome "$label" skipped 'bare repository'
       continue
     fi
     if ! status_output=$(git -C "$d" status --short 2>&1); then
-      sync_report "$label" 'status failed' "$status_output"
-      failed=true
+      sync_warn "$label" 'status failed' "$status_output"
+      sync_outcome "$label" failed 'status failed'
       continue
     fi
+    # A dirty checkout is never changed, but its counts are still reported,
+    # so commits it holds are not stranded silently.
+    dirty=""
     if [ -n "$status_output" ]; then
-      sync_report "$label" 'local changes (skipped)' "$status_output"
-      failed=true
-      continue
+      sync_warn "$label" 'local changes (skipped)' "$status_output"
+      dirty='local changes, '
     fi
     if [ -z "$branch" ]; then
-      sync_report "$label" 'detached HEAD (skipped)'
-      failed=true
+      [ -n "$dirty" ] || sync_warn "$label" 'detached HEAD (skipped)'
+      sync_outcome "$label" skipped "${dirty}detached HEAD"
       continue
     fi
     if ! upstream=$(git -C "$d" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
-      sync_report "$label" "branch $branch has no upstream (skipped)"
-      failed=true
+      [ -n "$dirty" ] || sync_warn "$label" "branch $branch has no upstream (skipped)"
+      sync_outcome "$label" skipped "${dirty}branch $branch has no upstream"
       continue
+    fi
+    held=""
+    if counts=$(git -C "$d" rev-list --left-right --count 'HEAD...@{upstream}' 2>/dev/null); then
+      ahead="${counts%%[[:space:]]*}"
+      behind="${counts##*[[:space:]]}"
+      held=", $ahead ahead, $behind behind"
     fi
     owner="${sync_fetch_owner[index]}"
     if [ "$owner" -ge 0 ] && [ "$(runner_status "$owner")" -ne 0 ]; then
       detail=$(cat "$runner_dir/$owner.err")
-      sync_report "$label" "fetch from ${sync_remote[index]} failed (skipped)" "$detail"
-      failed=true
+      sync_warn "$label" "fetch from ${sync_remote[index]} failed" "$detail"
+      [ -z "$held" ] || held="$held (stale)"
+      sync_outcome "$label" failed "${dirty}fetch from ${sync_remote[index]} failed$held"
       continue
     fi
-    if ! counts=$(git -C "$d" rev-list --left-right --count 'HEAD...@{upstream}' 2>/dev/null); then
-      sync_report "$label" "cannot compare with upstream $upstream"
-      failed=true
+    if [ -z "$held" ]; then
+      sync_warn "$label" "cannot compare with upstream $upstream"
+      sync_outcome "$label" failed "${dirty}cannot compare with upstream $upstream"
       continue
     fi
-    ahead="${counts%%[[:space:]]*}"
-    behind="${counts##*[[:space:]]}"
-
-    if [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
+    if [ -n "$dirty" ]; then
+      sync_outcome "$label" skipped "local changes$held"
+    elif [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
       # Predict the merge in memory; any status but 0 or 1, as from a Git
       # older than 2.38, leaves the plain warning.
       prediction="" detail=""
@@ -3005,64 +3035,62 @@ sync_command() {
         prediction=", merge would conflict in $(plural "$conflicts" file files)"
         [ "$verbose" = true ] || detail=""
       fi
-      sync_report "$label" "diverged from $upstream, $ahead ahead and $behind behind$prediction (skipped)" "$detail"
-      failed=true
+      sync_warn "$label" "diverged from $upstream, $ahead ahead and $behind behind$prediction (skipped)" "$detail"
+      sync_outcome "$label" skipped "diverged from $upstream$prediction$held"
     elif [ "$behind" -gt 0 ]; then
       if [ "$interactive" = true ]; then
         sync_confirm_action "$label" "pull $behind $(sync_commit_noun "$behind") into $branch from $upstream"
         answer_status=$?
         case "$answer_status" in
-          1) sync_report "$label" 'pull skipped'; skipped=$((skipped + 1)); continue ;;
-          2) runner_cleanup; return 1 ;;
+          1) sync_warn "$label" 'pull skipped'; sync_outcome "$label" refused "pull skipped by user$held"; continue ;;
+          2) not_reached=$((total - current + 1)); break ;;
         esac
       fi
-      [ "$verbose" = false ] || sync_report "$label" pulling
+      [ "$verbose" = false ] || sync_warn "$label" pulling
       if ! output=$(git -C "$d" merge --ff-only --quiet '@{upstream}' 2>&1); then
-        sync_report "$label" 'pull failed' "$output"
-        failed=true
+        sync_warn "$label" 'pull failed' "$output"
+        sync_outcome "$label" failed "pull failed$held"
         continue
       fi
       sync_report "$label" "pulled $behind $(sync_commit_noun "$behind")"
+      pulled=$((pulled + 1))
     elif [ "$ahead" -gt 0 ]; then
       if [ "$interactive" = true ]; then
         sync_confirm_action "$label" "push $ahead $(sync_commit_noun "$ahead")"
         answer_status=$?
         case "$answer_status" in
           1)
-            sync_report "$label" "push skipped ($ahead $(sync_commit_noun "$ahead") ahead)"
-            skipped=$((skipped + 1))
+            sync_warn "$label" "push skipped ($ahead $(sync_commit_noun "$ahead") ahead)"
+            sync_outcome "$label" refused "push skipped by user$held"
             continue
             ;;
-          2) runner_cleanup; return 1 ;;
+          2) not_reached=$((total - current + 1)); break ;;
         esac
       fi
-      [ "$verbose" = false ] || sync_report "$label" pushing
+      [ "$verbose" = false ] || sync_warn "$label" pushing
       if ! output=$(git -C "$d" push --quiet 2>&1); then
-        sync_report "$label" 'push failed' "$output"
-        failed=true
+        sync_warn "$label" 'push failed' "$output"
+        sync_outcome "$label" failed "push failed$held"
         continue
       fi
       sync_report "$label" "pushed $ahead $(sync_commit_noun "$ahead")"
+      pushed=$((pushed + 1))
     else
       synced=$((synced + 1))
     fi
   done
   runner_cleanup
 
-  if [ "$synced" -eq 1 ]; then
-    printf 'mgit sync: 1 repository already in sync\n'
-  else
-    printf 'mgit sync: %d repositories already in sync\n' "$synced"
-  fi
-  if [ "$skipped" -eq 1 ]; then
-    printf 'mgit sync: 1 action skipped by user\n'
-  elif [ "$skipped" -gt 1 ]; then
-    printf 'mgit sync: %d actions skipped by user\n' "$skipped"
-  fi
-  if [ "$verbose" = false ] && [ "$bare_count" -gt 0 ]; then
-    printf 'mgit sync: %s skipped\n' "$(plural "$bare_count" 'bare repository' 'bare repositories')"
-  fi
-  [ "$failed" = false ]
+  # One tally that always sums to the selection, then each checkout left
+  # behind, so a skip early in a long run is repeated where it is seen.
+  local tally
+  tally="$synced in sync, $pulled pulled, $pushed pushed, $sync_skipped skipped, $sync_failed failed"
+  [ "$not_reached" -eq 0 ] || tally="$tally, $not_reached not reached"
+  printf 'mgit sync: %s: %s\n' "$(plural "$total" repository repositories)" "$tally"
+  for line in "${sync_details[@]+"${sync_details[@]}"}"; do
+    printf '  %s\n' "$line"
+  done
+  [ "$failed" = false ] && [ "$not_reached" -eq 0 ]
 }
 
 # Overview is a read-only estate view. The collector prints one tab-separated

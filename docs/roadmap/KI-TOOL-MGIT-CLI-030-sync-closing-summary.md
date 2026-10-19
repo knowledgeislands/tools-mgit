@@ -8,13 +8,13 @@ project: tools-burndown
 component: cli
 priority: high
 size: m
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 72d38213fb1611f0d4b6b6dfaa68118d0282e9d2
 created_at: 2026-10-19T21:10:01Z
-updated_at: 2026-10-20T00:20:00Z
+updated_at: 2026-10-20T00:45:00Z
 ---
 
 # Sync Closing Summary
@@ -63,13 +63,13 @@ Under `-i`, any answer other than yes or no, `q` included, reprompts; only the e
 
 ## Steps
 
-- [ ] Give every selected checkout exactly one outcome in `sync_command` - in sync, pulled, pushed, skipped or failed - recording each skipped or failed checkout's label and reason. Local changes, detached HEAD, no upstream, divergence, bare repositories and `-i` refusals are skipped; a failed status, fetch, comparison, pull or push is failed; a dirty checkout whose fetch also failed is failed with both reasons, `local changes, fetch from R failed`.
-- [ ] For a skipped checkout on a branch whose upstream resolves, compute ahead and behind of the checked-out branch against `@{upstream}`; mark the counts `stale` where that checkout's fetch failed, and give a detached HEAD or a branch without an upstream no counts, saying so rather than printing zeros. Which checkouts are pulled, pushed or skipped does not change.
-- [ ] Replace the closing count lines with `mgit sync: N repositories: N in sync, N pulled, N pushed, N skipped, N failed`, zero counts included, counting selected checkouts (linked worktrees under `-W` too), then one indented line per skipped or failed checkout, such as `ki-agentic-harness: local changes, 5 ahead, 0 behind` indented two spaces. Print it identically with and without `-v`, bare repositories always counted as skipped; `-v` adds only progress lines.
-- [ ] When interactive input ends, print the tally and detail for the checkouts reached, with `N not reached` added to the tally so it still sums to the selection, and exit `1`. Keep every other exit status as it is.
-- [ ] Send skip, warning and failure lines with their indented detail, `-v` progress and `-i` prompts to standard error; keep `pulled` and `pushed` lines, the tally and its detail on standard output.
-- [ ] Update every `sync` Bats case and add cases for a dirty checkout ahead of and behind its upstream, a failed fetch with stale counts, a detached HEAD, an `-i` refusal, interactive input ending, and a mixed run whose tally sums to the selected set, against local bare origins in disposable repositories.
-- [ ] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`; correct the clean-branch wording to say every branch with a remote upstream is fetched, and that a branch tracking a local branch (remote `.`) needs no fetch.
+- [x] Give every selected checkout exactly one outcome in `sync_command` - in sync, pulled, pushed, skipped or failed - recording each skipped or failed checkout's label and reason. Local changes, detached HEAD, no upstream, divergence, bare repositories and `-i` refusals are skipped; a failed status, fetch, comparison, pull or push is failed; a dirty checkout whose fetch also failed is failed with both reasons, `local changes, fetch from R failed`.
+- [x] For a skipped checkout on a branch whose upstream resolves, compute ahead and behind of the checked-out branch against `@{upstream}`; mark the counts `stale` where that checkout's fetch failed, and give a detached HEAD or a branch without an upstream no counts, saying so rather than printing zeros. Which checkouts are pulled, pushed or skipped does not change.
+- [x] Replace the closing count lines with `mgit sync: N repositories: N in sync, N pulled, N pushed, N skipped, N failed`, zero counts included, counting selected checkouts (linked worktrees under `-W` too), then one indented line per skipped or failed checkout, such as `ki-agentic-harness: local changes, 5 ahead, 0 behind` indented two spaces. Print it identically with and without `-v`, bare repositories always counted as skipped; `-v` adds only progress lines.
+- [x] When interactive input ends, print the tally and detail for the checkouts reached, with `N not reached` added to the tally so it still sums to the selection, and exit `1`. Keep every other exit status as it is.
+- [x] Send skip, warning and failure lines with their indented detail, `-v` progress and `-i` prompts to standard error; keep `pulled` and `pushed` lines, the tally and its detail on standard output.
+- [x] Update every `sync` Bats case and add cases for a dirty checkout ahead of and behind its upstream, a failed fetch with stale counts, a detached HEAD, an `-i` refusal, interactive input ending, and a mixed run whose tally sums to the selected set, against local bare origins in disposable repositories.
+- [x] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`; correct the clean-branch wording to say every branch with a remote upstream is fetched, and that a branch tracking a local branch (remote `.`) needs no fetch.
 
 ## Files touched
 
@@ -100,6 +100,32 @@ The running-commands guide's `sync` section describes the new tally and skipped 
 ### Roadmap
 
 None beyond the KI-TOOL-MGIT-CLI-026 wording interaction and any departure routed to KI-TOOL-MGIT-CLI-029. `sync --json`, deferred under choice 7, is offered to the coordinator as an idea, not captured, under CAPTURE-GATE.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, from baseline `72d3821`: `mgit sync` gives every selected checkout one of five outcomes and closes with `mgit sync: N repositories: N in sync, N pulled, N pushed, N skipped, N failed`, adding `N not reached` when interactive input ends, then one line indented two spaces per skipped or failed checkout with its reason and its ahead and behind counts, marked `stale` after a failed fetch and omitted for a detached HEAD or a branch without an upstream. Skip, warning, progress and prompt lines now go to standard error; `pulled` and `pushed` lines and the tally stay on standard output. Which checkouts are pulled, pushed or skipped is unchanged, as is the exit status.
+
+### Change Summary
+
+`bin/mgit`: `sync_warn` and `sync_outcome` helpers, the outcome counters and detail list, ahead and behind computed before the fetch-failure, local-changes and divergence skips, the closing tally, prompts on standard error and the reflowed `sync_usage`. `tests/mgit.bats`: every `sync` case updated to the tally, and two new cases, held commits with separated streams and prompts on standard error. MGIT-WS-018 in `docs/specs/workspace-dispatch.md`, `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md` and `CHANGELOG.md` describe the tally, streams and the corrected fetch wording: every branch with a remote upstream is fetched.
+
+### Verification
+
+`ki repo audit --repo .` FAIL=0, its two warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding); `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1`, `rumdl check` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 139 passed, none failed or skipped. The cases assert the exact tally lines, sums to the selection, a dirty checkout's held commits, `stale` counts after a failed fetch, a detached HEAD without counts, and `not reached` when input ends.
+
+### Outstanding concerns
+
+Moving skip and warning lines to standard error changes what a caller capturing only standard output sees; the changelog says so. `sync --json`, deferred under SYNC-JSON, is offered to the coordinator as an idea.
+
+### Post-change review
+
+The goal is met: the SYNC-SUMMARY case, a dirty checkout five commits ahead, is now named after the tally with `5 ahead`, and the tally sums to the selection. The interaction with [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md) is resolved: its merge prediction is carried in the divergence detail. Ready for acceptance.
+
+### Mini recap
+
+One closing tally for `sync`, held commits named, streams split per SYNC-STREAMS b). No learning to route.
 
 ## Discussion
 

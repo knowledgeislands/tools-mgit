@@ -2,6 +2,8 @@
 # Smoke tests for mgit. No network; every test builds a throwaway tree of git
 # repos under a temp dir and runs the script against it.
 
+bats_require_minimum_version 1.5.0
+
 setup() {
   MGIT="$BATS_TEST_DIRNAME/../bin/mgit"
   TREE="$BATS_TEST_TMPDIR/tree"
@@ -1268,7 +1270,8 @@ make_majority_trio() {
   [[ "$output" != *"current"* ]] || false
   [[ "$output" == *"mgit sync: dirty: local changes (skipped)"* ]] || false
   [[ "$output" == *" M payload"* ]] || false
-  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]] || false
+  [ "${lines[${#lines[@]} - 2]}" = 'mgit sync: 2 repositories: 1 in sync, 0 pulled, 0 pushed, 1 skipped, 0 failed' ]
+  [ "${lines[${#lines[@]} - 1]}" = '  dirty: local changes, 0 ahead, 0 behind' ]
 
   run "$MGIT" sync --verbose
   [ "$status" -eq 1 ]
@@ -1307,7 +1310,7 @@ make_majority_trio() {
   [[ "$output" != *"pulling"* ]] || false
   [[ "$output" != *"pushing"* ]] || false
   [[ "$output" != *"[y/N]"* ]] || false
-  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 2 repositories: 0 in sync, 1 pulled, 1 pushed, 0 skipped, 0 failed' ]
   [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
 }
@@ -1338,9 +1341,10 @@ make_majority_trio() {
   [ "${lines[1]}" = 'mgit sync: ahead: push skipped (1 commit ahead)' ]
   [ "${lines[2]}" = "mgit sync: behind: pull 1 commit into $branch from origin/$branch? [y/N]" ]
   [ "${lines[3]}" = 'mgit sync: behind: pull skipped' ]
-  [[ "$output" != *"level"* ]] || false
-  [[ "$output" == *"mgit sync: 1 repository already in sync"* ]] || false
-  [[ "$output" == *"mgit sync: 2 actions skipped by user"* ]] || false
+  [ "${lines[4]}" = 'mgit sync: 3 repositories: 1 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed' ]
+  [ "${lines[5]}" = '  ahead: push skipped by user, 1 ahead, 0 behind' ]
+  [ "${lines[6]}" = '  behind: pull skipped by user, 0 ahead, 1 behind' ]
+  [ "${#lines[@]}" -eq 7 ]
   [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$before" ]
   [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$behind_before" ]
 
@@ -1349,6 +1353,7 @@ make_majority_trio() {
   [[ "$output" == *"mgit sync: ahead: pushed 1 commit"* ]] || false
   [[ "$output" == *"mgit sync: behind: pulled 1 commit"* ]] || false
   [[ "$output" != *"skipped by user"* ]] || false
+  [[ "$output" == *"mgit sync: 3 repositories: 1 in sync, 1 pulled, 1 pushed, 0 skipped, 0 failed"* ]] || false
   [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$(git -C "$TREE/ahead" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse HEAD)" ]
 }
@@ -1365,7 +1370,8 @@ make_majority_trio() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]] || false
   [[ "$output" == *"mgit sync: interactive input ended"* ]] || false
-  [[ "$output" != *"pushed"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 1 repository: 0 in sync, 0 pulled, 0 pushed, 0 skipped, 0 failed, 1 not reached' ]
+  [[ "$output" != *": pushed"* ]] || false
   [ "$(git --git-dir="$origin" rev-parse HEAD)" != "$(git -C "$TREE/repo" rev-parse HEAD)" ]
 }
 
@@ -1389,11 +1395,10 @@ make_majority_trio() {
   run "$MGIT" sync
 
   [ "$status" -eq 1 ]
-  [[ "$output" != *"archive.git"* ]] || false
+  [[ "$output" != *"archive.git: bare repository (skipped)"* ]] || false
   [[ "$output" == *"mgit sync: diverged: diverged from origin/$branch, 1 ahead and 1 behind, merge would be clean (skipped)"* ]] || false
   [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]] || false
-  [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 1 bare repository skipped' ]
+  [[ "$output" == *'mgit sync: 3 repositories: 0 in sync, 0 pulled, 0 pushed, 3 skipped, 0 failed'$'\n''  archive.git: bare repository'$'\n'"  diverged: diverged from origin/$branch, merge would be clean, 1 ahead, 1 behind"$'\n''  no-upstream: branch '* ]] || false
   [ "$(git -C "$TREE/diverged" rev-parse HEAD)" = "$before" ]
   [ ! -e "$TREE/diverged/.git/rebase-merge" ]
   [ ! -e "$TREE/diverged/.git/rebase-apply" ]
@@ -1402,7 +1407,7 @@ make_majority_trio() {
   run "$MGIT" sync --verbose
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]] || false
-  [[ "$output" != *"bare repository skipped"* ]] || false
+  [[ "$output" == *'mgit sync: 3 repositories: 0 in sync, 0 pulled, 0 pushed, 3 skipped, 0 failed'$'\n''  archive.git: bare repository'* ]] || false
 }
 
 @test "sync predicts a conflicting merge without touching the checkout" {
@@ -1429,6 +1434,7 @@ make_majority_trio() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: conflict: diverged from origin/$branch, 1 ahead and 1 behind, merge would conflict in 2 files (skipped)"* ]] || false
   [[ "$output" != *"  payload"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = "  conflict: diverged from origin/$branch, merge would conflict in 2 files, 1 ahead, 1 behind" ]
 
   run "$MGIT" sync -v
   [ "$status" -eq 1 ]
@@ -1462,6 +1468,72 @@ make_majority_trio() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: old: diverged from origin/$branch, 1 ahead and 1 behind (skipped)"* ]] || false
   [[ "$output" != *"merge would"* ]] || false
+}
+
+@test "sync names held commits after the tally and keeps streams apart" {
+  local seed="$BATS_TEST_TMPDIR/held-seed"
+  local origin="$BATS_TEST_TMPDIR/held.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/a-current"
+  git clone -q "$origin" "$TREE/b-held"
+  git clone -q "$origin" "$TREE/c-lost"
+  git clone -q "$origin" "$TREE/d-ahead"
+  mkbare "$TREE/e-archive.git"
+  git -C "$TREE/b-held" commit -q --allow-empty -m held-1
+  git -C "$TREE/b-held" commit -q --allow-empty -m held-2
+  printf 'dirty\n' >> "$TREE/b-held/payload"
+  git -C "$TREE/c-lost" commit -q --allow-empty -m lost-1
+  printf 'dirty\n' >> "$TREE/c-lost/payload"
+  git -C "$TREE/c-lost" remote set-url origin "$BATS_TEST_TMPDIR/missing.git"
+  git -C "$TREE/d-ahead" commit -q --allow-empty -m ahead-1
+  git -C "$seed" commit -q --allow-empty -m remote-update
+  git -C "$seed" push -q
+  git -C "$TREE/a-current" pull -q
+  git -C "$TREE/d-ahead" pull -q --rebase
+
+  cd "$TREE"
+  run --separate-stderr "$MGIT" sync
+  [ "$status" -eq 1 ]
+  [ "${lines[0]}" = 'mgit sync: d-ahead: pushed 1 commit' ]
+  [ "${lines[1]}" = 'mgit sync: 5 repositories: 1 in sync, 0 pulled, 1 pushed, 2 skipped, 1 failed' ]
+  [ "${lines[2]}" = '  b-held: local changes, 2 ahead, 1 behind' ]
+  [ "${lines[3]}" = '  c-lost: local changes, fetch from origin failed, 1 ahead, 0 behind (stale)' ]
+  [ "${lines[4]}" = '  e-archive.git: bare repository' ]
+  [ "${#lines[@]}" -eq 5 ]
+  [[ "$stderr" == *"mgit sync: b-held: local changes (skipped)"* ]] || false
+  [[ "$stderr" == *"mgit sync: c-lost: local changes (skipped)"* ]] || false
+  [[ "$stderr" == *"mgit sync: c-lost: fetch from origin failed"* ]] || false
+  [[ "$stderr" != *"pushed"* ]] || false
+  [ -n "$(git -C "$TREE/b-held" status --short)" ]
+  [ "$(git -C "$TREE/b-held" rev-list --count '@{upstream}..HEAD')" -eq 2 ]
+
+  # d-ahead's push moved origin, so a-current now pulls; the tally and
+  # detail keep their shape with -v, which adds only progress on stderr.
+  run --separate-stderr "$MGIT" sync -v
+  [ "$status" -eq 1 ]
+  [ "${lines[0]}" = 'mgit sync: a-current: pulled 1 commit' ]
+  [ "${lines[1]}" = 'mgit sync: 5 repositories: 1 in sync, 1 pulled, 0 pushed, 2 skipped, 1 failed' ]
+  [ "${lines[2]}" = '  b-held: local changes, 2 ahead, 2 behind' ]
+  [ "${lines[4]}" = '  e-archive.git: bare repository' ]
+  [ "${#lines[@]}" -eq 5 ]
+  [[ "$stderr" == *"mgit sync: [5/5] e-archive.git: checking"* ]] || false
+  [[ "$stderr" == *"mgit sync: e-archive.git: bare repository (skipped)"* ]] || false
+  [[ "$stderr" == *"mgit sync: a-current: pulling"* ]] || false
+}
+
+@test "sync interactive prompts go to standard error" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/first"
+  git clone -q "$origin" "$TREE/second"
+  git -C "$TREE/first" commit -q --allow-empty -m local-update
+
+  cd "$TREE"
+  run --separate-stderr bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
+  [ "$status" -eq 1 ]
+  [ "$output" = 'mgit sync: 2 repositories: 0 in sync, 0 pulled, 0 pushed, 0 skipped, 0 failed, 2 not reached' ]
+  [[ "$stderr" == *"mgit sync: first: push 1 commit? [y/N]"$'\n'"mgit sync: interactive input ended"* ]] || false
 }
 
 @test "sync honors repository filters" {
@@ -1500,7 +1572,7 @@ make_majority_trio() {
   [ "${lines[0]}" = 'mgit sync: alpha: pulled 2 commits' ]
   [ "${lines[1]}" = 'mgit sync: beta: pulled 2 commits' ]
   [ "${lines[2]}" = 'mgit sync: gamma: pulled 2 commits' ]
-  [ "${lines[3]}" = 'mgit sync: 0 repositories already in sync' ]
+  [ "${lines[3]}" = 'mgit sync: 3 repositories: 0 in sync, 3 pulled, 0 pushed, 0 skipped, 0 failed' ]
   [ "${#lines[@]}" -eq 4 ]
   for name in alpha beta gamma; do
     [ "$(git -C "$TREE/$name" rev-parse HEAD)" = "$(git --git-dir="$BATS_TEST_TMPDIR/$name.git" rev-parse HEAD)" ]
@@ -1508,7 +1580,7 @@ make_majority_trio() {
 
   run "$MGIT" sync
   [ "$status" -eq 0 ]
-  [ "$output" = 'mgit sync: 3 repositories already in sync' ]
+  [ "$output" = 'mgit sync: 3 repositories: 3 in sync, 0 pulled, 0 pushed, 0 skipped, 0 failed' ]
 }
 
 @test "sync warns about failed fetches and detached checkouts and leaves them untouched" {
@@ -1529,9 +1601,12 @@ make_majority_trio() {
   run "$MGIT" -j 2 sync
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: detached: detached HEAD (skipped)"* ]] || false
-  [[ "$output" == *"mgit sync: lost: fetch from origin failed (skipped)"* ]] || false
+  [[ "$output" == *"mgit sync: lost: fetch from origin failed"$'\n'* ]] || false
   [[ "$output" == *"missing.git"* ]] || false
   [[ "$output" == *"mgit sync: working: pulled 1 commit"* ]] || false
+  [ "${lines[${#lines[@]} - 3]}" = 'mgit sync: 3 repositories: 0 in sync, 1 pulled, 0 pushed, 1 skipped, 1 failed' ]
+  [ "${lines[${#lines[@]} - 2]}" = '  detached: detached HEAD' ]
+  [ "${lines[${#lines[@]} - 1]}" = '  lost: fetch from origin failed, 0 ahead, 0 behind (stale)' ]
   [ "$(git -C "$TREE/lost" rev-parse HEAD)" = "$before" ]
   [ "$(git -C "$TREE/working" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse HEAD)" ]
 }
@@ -1551,7 +1626,8 @@ make_majority_trio() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"mgit sync: repo: pulled 1 commit"* ]] || false
   [[ "$output" == *"mgit sync: repo [topic]: pulled 1 commit"* ]] || false
-  [[ "$output" != *"failed"* ]] || false
+  [[ "$output" != *"fetch from"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 2 repositories: 0 in sync, 2 pulled, 0 pushed, 0 skipped, 0 failed' ]
   [ "$(git -C "$TREE/repo-topic" rev-parse HEAD)" = "$(git --git-dir="$origin" rev-parse topic)" ]
 }
 

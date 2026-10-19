@@ -510,8 +510,9 @@ structure, and child workspace directories and manifests must already exist.
 \&
 .TP
 .B mgit sync
-first fetches, in parallel, the upstream remote of every selected clean branch
-that tracks one, once per repository and remote.
+first fetches, in parallel, the upstream remote of every selected branch that
+tracks a remote branch, once per repository and remote, whether or not the
+worktree is clean; a branch tracking a local branch needs no fetch.
 Then, one checkout at a time in selection order, it compares each branch with
 its upstream.
 A branch only behind is fast-forwarded with
@@ -529,8 +530,10 @@ left untouched.
 With
 .BR \-i " or " \-\-interactive ,
 it asks before each pull and push; an empty answer skips the action.
-Declined actions are counted at the end and do not cause failure.
-If input ends before an answer, the command stops unsuccessfully.
+Prompts go to standard error.
+Declined actions are counted as skipped and do not cause failure.
+If input ends before an answer, the command stops unsuccessfully after its
+tally, which counts the checkouts not reached.
 .PP
 A diverged branch's warning predicts, with an in-memory
 .BR "git merge\-tree" ,
@@ -542,14 +545,34 @@ The checkout is not touched, and a Git without
 .B merge\-tree \-\-write\-tree
 gives the plain warning.
 .PP
-Only repositories that pulled, pushed, warned or failed are named.
-Already-current repositories are collapsed into one final count and bare
-repositories into another.
+Each pull and push is named on standard output as it happens; skips,
+warnings, failures and progress go to standard error.
+The run ends on standard output with one tally that accounts for every
+selected checkout, for example
+.PP
+.RS
+.EX
+mgit sync: 57 repositories: 55 in sync, 0 pulled, 1 pushed, 1 skipped, 0 failed
+  ki\-agentic\-harness: local changes, 5 ahead, 0 behind
+.EE
+.RE
+.PP
+followed by one indented line for each skipped or failed checkout with its
+reason and, where its branch has an upstream, its ahead and behind counts.
+Local changes, detached heads, branches without an upstream, diverged
+branches, bare repositories and declined actions are skipped; a failed status,
+fetch, comparison, pull or push is failed, and a dirty checkout whose fetch
+failed keeps both reasons.
+Counts after a failed fetch compare with the last fetched upstream and are
+marked
+.BR (stale) .
 With
 .BR \-v " or " \-\-verbose ,
 it also prints numbered progress for each checkout, names each bare
-repository, and announces each pull and push before it starts.
-Any warning, failure or bare repository makes the command exit unsuccessfully.
+repository, and announces each pull and push before it starts; the tally does
+not change.
+Any skip other than a declined action, and any failure, makes the command exit
+unsuccessfully.
 .TP
 .B mgit overview
 reads local Git state only, never fetching or changing a ref, the index or a
