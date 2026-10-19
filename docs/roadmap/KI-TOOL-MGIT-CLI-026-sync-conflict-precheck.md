@@ -7,17 +7,17 @@ purpose: capability
 component: cli
 size: m
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-19T23:13:40Z
+updated_at: 2026-10-19T23:36:00Z
 ---
 
 ## Goal
 
-When `mgit sync` finds a branch that has diverged from its upstream, it says whether merging or rebasing would conflict, and in which files, without touching the branch, index or working tree, so Kris knows which divergences are easy before deciding what to do.
+When `mgit sync` finds a branch that has diverged from its upstream, it says whether merging its upstream would conflict, and in which files, without touching the branch, index or working tree, so Kris knows which divergences are easy before deciding what to do.
 
 ## Context
 
@@ -38,9 +38,9 @@ Since [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob
 
 ## Steps
 
-- [ ] Probe for `git merge-tree --write-tree` support once per run, falling back to today's warning.
-- [ ] Run the in-memory merge for each diverged checkout and extend its warning with the outcome; name the conflicted files under `--verbose`.
-- [ ] Add Bats cases for a clean divergence, a conflicting one, the fallback and an unchanged worktree, index and HEAD; update the documents listed in Boundary.
+- [ ] In the serial classification pass, run `git merge-tree --write-tree --name-only --no-messages HEAD @{upstream}` for each diverged checkout. Exit `0` extends the warning to `diverged from U, A ahead and B behind, merge would be clean (skipped)`; exit `1` to `..., merge would conflict in N files (skipped)`, N counting the path lines after the tree line, with the paths printed as indented detail under `-v` only; any other exit, including an older Git that rejects `--write-tree`, keeps today's warning unchanged. No separate version probe.
+- [ ] Add Bats cases against local bare origins for a clean divergence, a conflicting one with its paths under `-v` only, and the fallback through a `git` wrapper that refuses `merge-tree`; each asserts an unchanged HEAD, index and worktree and no merge or rebase state. Update the existing divergent case.
+- [ ] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`.
 - [ ] Run the complete gate.
 
 ## Files touched
@@ -92,3 +92,12 @@ One extra in-memory merge per diverged checkout only, which is rare across the e
 ### Adoption
 
 Captured and adopted into Next on 18 October 2026 by the ways-of-working accept-mgit run, under Kris's MGIT-SYNC-PRECHECK question and the thread's answer. Not planned.
+
+### Planning
+
+Planned to Ready on 20 October 2026 by the tools-burndown burnmgit run, `size: m` under MGIT-026-SIZE a). Decided under HIGH-APPLY, 20 October:
+
+- **Merge only.** The Goal predicts a merge, not a rebase, as the Discussion above argues; a rebase prediction through `git replay` is offered to the coordinator as an idea, not captured, under CAPTURE-GATE.
+- **No version probe.** The `merge-tree` exit status itself is the probe: `0` clean, `1` conflicts, anything else falls back to today's warning. This costs nothing when no branch has diverged and needs no Git version parsing.
+- **Wording.** The prediction is appended to the existing diverged line, so the line stays one warning; conflicted paths appear under `-v` only, as indented detail like `git status --short` for a dirty checkout.
+- **Interaction with [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md).** 030 is still a draft; whichever lands second carries the prediction into its closing detail line.
