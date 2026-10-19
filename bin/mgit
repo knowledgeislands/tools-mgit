@@ -236,9 +236,11 @@ Run a Git command across the current set as usual, then learn its normal
 output. Each checkout's own details (path, remote URL, upstream, remote,
 branch and repository name) are replaced by placeholders. When every checkout
 then prints the same output, mgit writes it as a template, one file per
-command after Git alias expansion, in ${XDG_CONFIG_HOME:-~/.config}/mgit/templates/;
-otherwise it names the checkouts that differed and writes nothing. Learning
-needs at least two repositories. Later runs of the command count a checkout
+command after Git alias expansion, in ${XDG_CONFIG_HOME:-~/.config}/mgit/templates/.
+When more than half print the same output, mgit names the checkouts that
+differed and asks before writing it; a run whose input is not a terminal
+writes nothing. Otherwise it names the checkouts that differed and writes
+nothing. Learning needs at least two repositories. Later runs of the command count a checkout
 that exits 0 with output matching the template as quiet. With no templates,
 every checkout with output is shown. 'mgit --learn COMMAND' is the same as
 'mgit learn COMMAND'.
@@ -3637,11 +3639,35 @@ learn_lines() {
   done < "$2"
 }
 
+# When more than half the checkouts agree but not all, ask before learning the
+# majority output. Only a terminal is asked, so an unattended run never waits.
+learn_confirm_majority() {
+  local answer
+  if [ ! -t 0 ]; then
+    printf 'mgit: not learned: %s of %s agreed and %s differed: %s; run it from a terminal to confirm the majority output\n' \
+      "$1" "$(plural "$2" repository repositories)" "$3" "$4"
+    return 1
+  fi
+  while true; do
+    printf 'mgit learn: %s of %s agreed and %s differed: %s. Learn the majority output? [y/N]\n' \
+      "$1" "$(plural "$2" repository repositories)" "$3" "$4"
+    if ! IFS= read -r answer; then
+      printf 'mgit: not learned: interactive input ended\n'
+      return 1
+    fi
+    case "$answer" in
+      y|Y|yes|YES) return 0 ;;
+      n|N|no|NO|'') printf 'mgit: not learned: majority output declined\n'; return 1 ;;
+      *) printf 'mgit learn: answer y or n\n' >&2 ;;
+    esac
+  done
+}
+
 # After a learning run: write a template when every checkout's normalised
-# output agrees, else name the checkouts that differ from the most common
-# output and write nothing.
+# output agrees, or, once confirmed, when more than half agree; else name the
+# checkouts that differ from the most common output and write nothing.
 learn_verdict() {
-  local failed="$1" total=${#repos[@]} i j count best=0 best_count=0 differ="" differing=0 file printed
+  local failed="$1" total=${#repos[@]} i j count best=0 best_count=0 differ="" differing=0 file printed agreed=""
   local -a outputs
   if [ "$failed" -gt 0 ]; then
     printf 'mgit: not learned: %s failed\n' "$(plural "$failed" repository repositories)"
@@ -3664,9 +3690,18 @@ learn_verdict() {
       differ="$differ, ${repo_labels[i]}"
       differing=$((differing + 1))
     done
-    printf 'mgit: not learned: %s of %s differed from the most common output: %s\n' \
-      "$differing" "$(plural "$total" repository repositories)" "${differ#, }"
-    return 1
+    if [ $((best_count * 2)) -le "$total" ]; then
+      printf 'mgit: not learned: %s of %s differed from the most common output: %s\n' \
+        "$differing" "$(plural "$total" repository repositories)" "${differ#, }"
+      return 1
+    fi
+    if [ ! -s "$runner_dir/$best.learn-out" ] && [ ! -s "$runner_dir/$best.learn-err" ]; then
+      printf 'mgit: not learned: the most common output is empty, which is already quiet; %s of %s differed: %s\n' \
+        "$differing" "$(plural "$total" repository repositories)" "${differ#, }"
+      return 1
+    fi
+    learn_confirm_majority "$best_count" "$total" "$differing" "${differ#, }" || return 1
+    agreed="$best_count of "
   fi
   if [ ! -s "$runner_dir/$best.learn-out" ] && [ ! -s "$runner_dir/$best.learn-err" ]; then
     printf 'mgit: not learned: no repository printed anything, which is already quiet\n'
@@ -3689,7 +3724,7 @@ learn_verdict() {
     printf 'mgit: cannot write %s\n' "$file" >&2
     return 1
   fi
-  printf "mgit: learned 'git %s' from %s: %s\n" "$printed" "$(plural "$total" repository repositories)" "$file"
+  printf "mgit: learned 'git %s' from %s%s: %s\n" "$printed" "$agreed" "$(plural "$total" repository repositories)" "$file"
 }
 
 learn_list() {

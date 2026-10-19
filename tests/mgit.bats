@@ -867,18 +867,23 @@ make_level_pair() {
   : > "$TREE/gamma/new"
   cd "$TREE"
 
-  run "$MGIT" learn st
+  make_origin "$TREE/delta" "$BATS_TEST_TMPDIR/origins/delta.git" delta
+  : > "$TREE/delta/other"
+
+  run "$MGIT" learn st < /dev/null
   [ "$status" -eq 1 ]
   [[ "$output" == *'gamma: git st'*'?? new'* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 1 of 3 repositories differed from the most common output: gamma' ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 4 repositories differed from the most common output: delta, gamma' ]
   [ ! -e "$XDG_CONFIG_HOME/mgit/templates/status_-sb.template" ]
+  rm -rf "$TREE/delta"
 
-  run "$MGIT" learn rev-parse --verify trunk
+  run "$MGIT" learn rev-parse --verify trunk < /dev/null
   [ "$status" -eq 1 ]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 repositories failed' ]
 
-  run "$MGIT" learn status --short
+  run "$MGIT" learn status --short < /dev/null
   [ "$status" -eq 1 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: the most common output is empty, which is already quiet; 1 of 3 repositories differed: gamma' ]
   run "$MGIT" --filter alpha --filter beta learn status --short
   [ "$status" -eq 0 ]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: no repository printed anything, which is already quiet' ]
@@ -887,6 +892,93 @@ make_level_pair() {
   [ "$status" -eq 1 ]
   [ "$output" = 'mgit: not learned: learning needs at least two repositories' ]
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+}
+
+# Run a command on a pseudo-terminal, answering its first [y/N] prompt with $1
+# (EOF ends the input instead), and capture its output and exit status.
+run_on_terminal() {
+  command -v python3 >/dev/null 2>&1 || skip 'python3 is needed for a pseudo-terminal'
+  run env NO_COLOR=1 python3 -c '
+import os, pty, sys
+answer, command = sys.argv[1], sys.argv[2:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(command[0], command)
+out, sent = b"", False
+while True:
+    try:
+        data = os.read(fd, 1024)
+    except OSError:
+        break
+    if not data:
+        break
+    out += data
+    if not sent and b"[y/N]" in out:
+        os.write(fd, b"\x04" if answer == "EOF" else answer.encode() + b"\n")
+        sent = True
+_, code = os.waitpid(pid, 0)
+sys.stdout.write(out.decode().replace("\r", ""))
+sys.exit(os.WEXITSTATUS(code) if os.WIFEXITED(code) else 1)
+' "$@"
+}
+
+make_majority_trio() {
+  make_level_pair
+  make_origin "$TREE/gamma" "$BATS_TEST_TMPDIR/origins/gamma.git" gamma
+  : > "$TREE/gamma/new"
+}
+
+@test "learn asks before writing a majority output" {
+  local template="$XDG_CONFIG_HOME/mgit/templates/status_-sb.template"
+  make_majority_trio
+  cd "$TREE"
+
+  run_on_terminal n "$MGIT" learn st
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'mgit learn: 2 of 3 repositories agreed and 1 differed: gamma. Learn the majority output? [y/N]'* ]] || false
+  [[ "$output" == *'mgit: not learned: majority output declined'* ]] || false
+  [ ! -e "$template" ]
+
+  run_on_terminal '' "$MGIT" learn st
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'mgit: not learned: majority output declined'* ]] || false
+  [ ! -e "$template" ]
+
+  run_on_terminal EOF "$MGIT" learn st
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'mgit: not learned: interactive input ended'* ]] || false
+  [ ! -e "$template" ]
+
+  run_on_terminal y "$MGIT" learn st
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit: learned 'git status -sb' from 2 of 3 repositories: $template"* ]] || false
+  grep -qx 'stdout: ## {branch}...{upstream}' "$template"
+
+  run "$MGIT" st
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: 3 repositories: 2 quiet, 1 with output, 0 failed' ]
+  [[ "$output" == *'gamma: git st'*'?? new'* ]] || false
+}
+
+@test "learn never asks without a terminal" {
+  make_majority_trio
+  cd "$TREE"
+
+  run "$MGIT" learn st < /dev/null
+  [ "$status" -eq 1 ]
+  [[ "$output" != *'[y/N]'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 3 repositories agreed and 1 differed: gamma; run it from a terminal to confirm the majority output' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  run bash -c 'printf "y\n" | "$1" learn st' _ "$MGIT"
+  [ "$status" -eq 1 ]
+  [[ "${lines[${#lines[@]} - 1]}" == 'mgit: not learned: 2 of 3 repositories agreed'* ]] || false
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  rm -rf "$TREE/gamma"
+  run_on_terminal y "$MGIT" learn st
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'[y/N]'* ]] || false
+  [[ "$output" == *"mgit: learned 'git status -sb' from 2 repositories: "* ]] || false
 }
 
 @test "a learned standard-error message is quiet only while it matches" {

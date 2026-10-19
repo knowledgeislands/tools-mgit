@@ -625,8 +625,13 @@ and
 for the repository's directory name, longest value first; values shorter than
 two characters are left alone.
 When every checkout succeeded and the results agree, write them as the
-command's template and name the file; otherwise name the checkouts that differ
-from the most common output, write nothing and exit 1.
+command's template and name the file.
+When every checkout succeeded and more than half agree, name the checkouts
+that differ and ask on the terminal before writing the majority output; when
+standard input is not a terminal, or the answer is not yes, write nothing and
+exit 1.
+Otherwise name the checkouts that differ from the most common output, write
+nothing and exit 1.
 Learning needs at least two repositories; output that is empty everywhere is
 already quiet and writes nothing.
 Templates are keyed by the command after Git alias expansion, so

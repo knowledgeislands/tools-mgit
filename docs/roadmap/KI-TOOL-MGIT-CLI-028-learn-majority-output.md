@@ -8,12 +8,12 @@ component: cli
 priority: medium
 size: s
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: f2286d264c63a28d1e5cf55ce38a1aadf2e6252f
 created_at: 2026-10-19T07:58:20Z
-updated_at: 2026-10-19T07:58:33Z
+updated_at: 2026-10-19T08:05:16Z
 ---
 
 # Learn Majority Output
@@ -35,15 +35,15 @@ Today `learn_verdict` in `bin/mgit` learns one value, the normalised standard ou
 
 ## Current state
 
-Planned on 19 October 2026; not started. `learn_verdict` already finds the most common output and its count, so the change is confined to its decision after that count.
+Delivered on 19 October 2026 by the tools-burndown mgitlearn run; awaiting Kris's review. `learn_verdict` asks before writing a majority output, only on a terminal.
 
 ## Steps
 
-- [ ] In `learn_verdict`, learn without asking when every repository agrees; when strictly more than half agree, name the differing repositories and, only if standard input is a terminal, ask `[y/N]` before writing; otherwise, or on a declined, empty or ended answer, write nothing and exit `1`.
-- [ ] Say in the learned line how many repositories agreed out of how many when not all did.
-- [ ] Update `mgit help learn`, the manual, README, running-commands guide, MGIT-WS-026 and the changelog.
-- [ ] Add Bats cases for the confirmed, declined and non-terminal majority paths and the half-or-fewer refusal.
-- [ ] Run the complete gate.
+- [x] In `learn_verdict`, learn without asking when every repository agrees; when strictly more than half agree, name the differing repositories and, only if standard input is a terminal, ask `[y/N]` before writing; otherwise, or on a declined, empty or ended answer, write nothing and exit `1`.
+- [x] Say in the learned line how many repositories agreed out of how many when not all did.
+- [x] Update `mgit help learn`, the manual, README, running-commands guide, MGIT-WS-026 and the changelog.
+- [x] Add Bats cases for the confirmed, declined and non-terminal majority paths and the half-or-fewer refusal.
+- [x] Run the complete gate.
 
 ## Files touched
 
@@ -74,6 +74,39 @@ Running commands, "Learn normal output", describes the majority confirmation.
 ### Roadmap
 
 None.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, `mgit learn <command>` still learns without asking when every repository agrees. When strictly more than half, but not all, print the same non-empty normalised output, it names the differing repositories and asks `Learn the majority output? [y/N]` when standard input is a terminal; `y` writes the template and the learned line reads "from N of M repositories". Any other answer, ended input or a non-terminal standard input writes nothing and exits `1`, and a non-terminal run never reads its input. Half or fewer agreeing is refused as before. Excluded as planned: counting failures as differing, a flag to accept the majority unattended, partial templates and any release. Baseline `f2286d264c63a28d1e5cf55ce38a1aadf2e6252f`; the delivery commit follows it.
+
+### Change Summary
+
+- `bin/mgit`: new `learn_confirm_majority`; `learn_verdict` applies the strict-majority rule, refuses an empty majority output, and reports the agreeing count; `mgit help learn` text.
+- `tests/mgit.bats`: `run_on_terminal`, a Python `pty` helper skipped when `python3` is absent, and `make_majority_trio`; new cases `learn asks before writing a majority output` and `learn never asks without a terminal`; the difference case now uses a two-of-four split and covers the empty majority.
+- `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `docs/specs/workspace-dispatch.md` (MGIT-WS-026), `CHANGELOG.md`.
+
+### Verification
+
+- `MGIT_KI_PRODUCER=<ki> TMPDIR=<run temp> bats tests/` under macOS Bash 3.2: 133 of 134 pass. The one failure, `--filter applies to bare commands and requires a pattern`, asserts that the output does not contain `tools-b`, and the run's temporary path contains `tools-burndown`; with the default `TMPDIR` it passes. The learn cases also pass with bats itself on a pseudo-terminal, so none waits for input.
+- `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check`: pass.
+- `ki repo audit --repo .`: FAIL=0, the same 7 warnings as at baseline.
+
+### Outstanding concerns
+
+- The terminal cases need `python3`; without it they skip. CI's Ubuntu image has it.
+- Unattended runs cannot accept a majority; a later record could add an explicit flag if Kris wants one.
+- Any failed repository still blocks learning, as before; the instruction did not cover failures.
+- The `tools-b` fixture assertion collides with temporary paths that contain that text; a small test fix, not in this record.
+
+### Post-change review
+
+The goal holds: a majority is learned only after a yes on a terminal, unanimous learning is unchanged, and a script or pipe gets a clear refusal without waiting. Scope stayed inside the boundary. Regression risk is low: the only changed outcome is for runs where more than half but not all agree, which used to refuse outright and still do when not on a terminal. Ready for acceptance review.
+
+### Mini recap
+
+Added majority learning with confirmation to `mgit learn`, documented it in help, the manual, README, guide, MGIT-WS-026 and the changelog, and covered it with terminal and non-terminal Bats cases. No release.
 
 ## Discussion
 
