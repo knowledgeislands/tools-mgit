@@ -8,13 +8,13 @@ project: tools-burndown
 component: cli
 priority: high
 size: m
-horizon: soon
+horizon: next
 status: draft
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-19T21:10:01Z
-updated_at: 2026-10-19T22:23:07Z
+updated_at: 2026-10-19T22:45:47Z
 ---
 
 # Sync Closing Summary
@@ -31,7 +31,7 @@ How `sync_command` in [`bin/mgit`](../../bin/mgit) reports today:
 
 - Each changed or troubled checkout gets one `mgit sync: <label>: <outcome>` line on standard output as it is reached: `pulled N commits`, `pushed N commits`, `local changes (skipped)` followed by `git status --short`, `detached HEAD (skipped)`, `branch B has no upstream (skipped)`, `fetch from R failed (skipped)`, `diverged from U, A ahead and B behind (skipped)`, and `status failed`, `cannot compare with upstream`, `pull failed` or `push failed`.
 - The closing lines count only three things: `N repositories already in sync`, `N actions skipped by user` under `-i`, and `N bare repositories skipped` without `-v`. Pulled, pushed, warned and failed checkouts are never counted, so the reader adds them up from the lines above.
-- The local-changes check runs before the ahead and behind count, so a dirty checkout's unpushed or unpulled commits are never computed or shown. Its branch is still fetched: the fetch pass selects by branch and upstream, not cleanliness, so a fresh behind count is available. The manual and the running-commands guide say sync fetches every *clean* tracking branch, which the code does not match; planning should settle which is meant.
+- The local-changes check runs before the ahead and behind count, so a dirty checkout's unpushed or unpulled commits are never computed or shown. Its branch is still fetched: the fetch pass selects by branch and upstream, not cleanliness, so a fresh behind count is available. The manual and the running-commands guide say sync fetches every _clean_ tracking branch, which the code does not match; planning should settle which is meant.
 - Every skip except a user's `-i` refusal sets the exit status to `1`, as does a bare repository.
 
 The other fan-out commands already close with one tally line. Ordinary dispatch, which `mgit st` uses, prints `mgit: 57 repositories: N quiet, N with output, N failed: label (exit n), …`, naming each failure; `mgit overview` prints `mgit overview: N repositories: N clean, N need attention, N failed`. Both also give `--json` a `summary` object; `sync` has no `--json`.
@@ -51,11 +51,54 @@ The other fan-out commands already close with one tally line. Ordinary dispatch,
 
 **Decisions still needed:** the nine open design choices in Discussion, above all the outcome categories, tally shape, where skipped detail goes, and whether `--json` is in scope.
 
-**Promotion to Next:** when Kris or planning settles choices 1 to 3 and 7, which fix the output contract; the rest can be settled during planning.
+**Readiness:** promoted to Next as a draft before the output contract is settled, under MGIT-030-NEXT a). It becomes Ready only once Kris settles the nine design choices under `ki-plan`, choices 1 to 3 and 7 first because they fix the output contract, and the Steps, Files touched and Verify below are rewritten to match.
+
+## Current state
+
+`sync_command` in [`bin/mgit`](../../bin/mgit) keeps three counters, `synced`, `skipped` for a user's `-i` refusal and `bare_count`, and one `failed` flag; pulled, pushed, warned and failed checkouts are not counted, so no total can be printed today. The local-changes skip `continue`s before the upstream lookup and the `rev-list --left-right --count`, so a dirty checkout's ahead and behind are never computed, although its branch is still fetched. A `q` answer or end of input under `-i` returns `1` straight after `runner_cleanup`, printing no closing lines. All output goes to standard output and `sync` has no `--json`.
+
+[MGIT-WS-018](../specs/workspace-dispatch.md#mgit-ws-018--repository-set-synchronization), the manual, the README and the [running-commands guide](../guides/user/running-commands.md) describe today's closing counts, and the specification, manual and guide say only _clean_ tracking branches are fetched, which the code does not match. Six `sync` Bats cases in [`tests/mgit.bats`](../../tests/mgit.bats) assert `already in sync` closing lines.
+
+Gaps in this draft: the output contract is unsettled, so the draft Steps below name concerns rather than exact strings and become concrete once the choices are settled; whether the `-i` quit path should print a tally, and whether held commits on branches other than the checked-out one count, are open inside choices 4 and 6; and the stream choice 5 may move work to KI-TOOL-MGIT-CLI-029 rather than here.
+
+## Steps
+
+- [ ] Count each checkout's outcome in `sync_command` into the settled categories, recording each skipped checkout's label and reason.
+- [ ] Compute ahead and behind for skipped checkouts whose upstream is known, as settled by choice 4, without changing which checkouts are pulled, pushed or skipped.
+- [ ] Replace the closing count lines with the settled tally and skipped-repository detail, identical with and without `-v` if choice 8 says so.
+- [ ] Apply the settled stream (choice 5), exit-status (choice 6) and `--json` (choice 7) decisions, or route each departure to KI-TOOL-MGIT-CLI-029 or a new record.
+- [ ] Update every `sync` Bats case and add cases for a dirty checkout ahead of and behind its upstream, a failed fetch, an `-i` refusal and a mixed run whose tally adds up to the selected set, against local bare origins in disposable repositories.
+- [ ] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`, including the clean-branch wording settled by choice 9.
+
+## Files touched
+
+`bin/mgit`, `tests/mgit.bats`, `docs/specs/workspace-dispatch.md`, `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md` and `CHANGELOG.md`.
+
+## Verify
+
+The [definition of done](../guides/developer/definition-of-done.md) gate passes: `shellcheck bin/mgit install.sh`, `bats tests/`, `mandoc -T lint man/mgit.1` and `git diff --check`. The new Bats cases assert that the tally's counts sum to the selected repository count and that a dirty checkout ahead of its upstream is named with its unpushed count. Exact assertions follow the settled output contract.
 
 ## Dependencies / blocks
 
 None. Blocks nothing. KI-TOOL-MGIT-CLI-026 rewords the diverged warning line, so whichever lands second should rebase its wording on the other.
+
+## Documentation impact
+
+### Decision Records
+
+None expected: the tally follows the existing dispatch and `overview` closing-line pattern. If choice 5 or 7 departs from the `ki-repo-tools` command-line conventions, the departure is recorded on KI-TOOL-MGIT-CLI-029 rather than in a Decision Record.
+
+### Specifications
+
+MGIT-WS-018 changes: its closing-count clause is replaced by the settled tally, it gains the held-commit detail for skipped checkouts, and its clean-branch fetch wording is corrected or the behaviour narrowed under choice 9; its Verify list names the new Bats cases.
+
+### Guides
+
+The running-commands guide's `sync` section describes the new tally and skipped detail and the settled clean-branch wording; the README and manual change to match.
+
+### Roadmap
+
+None beyond the KI-TOOL-MGIT-CLI-026 wording interaction and any departure routed to KI-TOOL-MGIT-CLI-029; a deferred `--json` under choice 7 becomes a new triage record.
 
 ## Discussion
 
@@ -76,3 +119,7 @@ Open design choices, for planning rather than decided here:
 ### Adoption
 
 Adopted into Soon on 19 October 2026 by the tools-burndown trimga run, under Kris's instruction of 19 October 2026, 23:21 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "There are 23 tickets across triage for the tool projects, can we get those triaged immediately?" Not planned. `priority: high`, raised from `medium`: a sync that leaves commits unpushed without saying so risks stranded work, which deferring keeps costing. `size: m` kept from capture.
+
+### Promotion
+
+Promoted from Soon to Next as a draft on 19 October 2026 by the tools-burndown mgitplan run, under Kris's decision MGIT-030-NEXT a) of 19 October 2026, 23:42 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "Go ahead with the recommendations." This replaces the earlier promotion condition, which waited for choices 1 to 3 and 7; all nine choices are now settled with Kris at planning. Not Ready.
