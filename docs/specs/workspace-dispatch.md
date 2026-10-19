@@ -152,13 +152,13 @@ _Evidence:_ The named source and Bats checks implement this requirement and pass
 
 ### MGIT-WS-018 — Repository-set synchronization
 
-`mgit sync` MUST fetch the upstream remote of every clean tracking branch through the shared runner, at most once per repository and remote, before it changes any checkout. It MUST then act serially in selection order: fast-forward a branch only behind its upstream, push a branch only ahead, and leave every other branch untouched. It MUST NOT merge or rebase, whatever the user's pull configuration. It MUST skip and show dirty worktrees; name diverged branches with their counts, detached heads, branches without upstreams and failed fetches as warnings; name repositories changed; and collapse already-current repositories, and bare repositories, into counts. Without `-v/--verbose` it MUST NOT print per-checkout progress.
+`mgit sync` MUST fetch the upstream remote of every clean tracking branch through the shared runner, at most once per repository and remote, before it changes any checkout. It MUST then act serially in selection order: fast-forward a branch only behind its upstream, push a branch only ahead, and leave every other branch untouched. It MUST NOT merge or rebase, whatever the user's pull configuration. It MUST skip and show dirty worktrees; name diverged branches with their counts and an in-memory merge prediction, clean or conflicting in N files, that changes no branch, index or worktree, listing conflicting files only with `-v/--verbose` and falling back to the plain warning where Git cannot predict; detached heads, branches without upstreams and failed fetches as warnings; name repositories changed; and collapse already-current repositories, and bare repositories, into counts. Without `-v/--verbose` it MUST NOT print per-checkout progress.
 
 _Conformance:_ conforming
 
-_Verify:_ `bats tests/mgit.bats` — `sync rolls up current repositories and shows dirty worktrees`; `sync pulls incoming commits and pushes outgoing commits`; `sync interactive mode confirms each pull and push`; `sync reports no-upstream bare and divergent repositories`; `sync honors repository filters`; `sync fetches every repository before fast-forwarding them in order`; `sync warns about failed fetches and detached checkouts and leaves them untouched`; `sync fetches a repository once for all its tracked worktrees`.
+_Verify:_ `bats tests/mgit.bats` — `sync rolls up current repositories and shows dirty worktrees`; `sync pulls incoming commits and pushes outgoing commits`; `sync interactive mode confirms each pull and push`; `sync reports no-upstream bare and divergent repositories`; `sync predicts a conflicting merge without touching the checkout`; `sync keeps the plain divergence warning when merge-tree is unavailable`; `sync honors repository filters`; `sync fetches every repository before fast-forwarding them in order`; `sync warns about failed fetches and detached checkouts and leaves them untouched`; `sync fetches a repository once for all its tracked worktrees`.
 
-_Evidence:_ The named Bats checks cover clean, dirty, incoming, outgoing, no-upstream, bare, divergent, and filtered repository states.
+_Evidence:_ The named Bats checks cover clean, dirty, incoming, outgoing, no-upstream, bare, divergent (clean, conflicting and unpredicted), and filtered repository states.
 
 ## Fan-out result
 

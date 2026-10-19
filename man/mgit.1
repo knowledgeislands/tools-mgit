@@ -532,6 +532,16 @@ it asks before each pull and push; an empty answer skips the action.
 Declined actions are counted at the end and do not cause failure.
 If input ends before an answer, the command stops unsuccessfully.
 .PP
+A diverged branch's warning predicts, with an in-memory
+.BR "git merge\-tree" ,
+whether merging its upstream would be clean or conflict, and in how many
+files; with
+.B \-v
+the conflicting files are listed.
+The checkout is not touched, and a Git without
+.B merge\-tree \-\-write\-tree
+gives the plain warning.
+.PP
 Only repositories that pulled, pushed, warned or failed are named.
 Already-current repositories are collapsed into one final count and bare
 repositories into another.

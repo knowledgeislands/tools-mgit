@@ -1390,7 +1390,7 @@ make_majority_trio() {
 
   [ "$status" -eq 1 ]
   [[ "$output" != *"archive.git"* ]] || false
-  [[ "$output" == *"mgit sync: diverged: diverged from origin/$branch, 1 ahead and 1 behind (skipped)"* ]] || false
+  [[ "$output" == *"mgit sync: diverged: diverged from origin/$branch, 1 ahead and 1 behind, merge would be clean (skipped)"* ]] || false
   [[ "$output" == *"mgit sync: no-upstream: branch "*" has no upstream (skipped)"* ]] || false
   [[ "$output" == *"mgit sync: 0 repositories already in sync"* ]] || false
   [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 1 bare repository skipped' ]
@@ -1403,6 +1403,65 @@ make_majority_trio() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: archive.git: bare repository (skipped)"* ]] || false
   [[ "$output" != *"bare repository skipped"* ]] || false
+}
+
+@test "sync predicts a conflicting merge without touching the checkout" {
+  local seed="$BATS_TEST_TMPDIR/conflict-seed"
+  local origin="$BATS_TEST_TMPDIR/conflict.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/conflict"
+  printf 'remote\n' > "$seed/payload"
+  printf 'remote\n' > "$seed/other"
+  git -C "$seed" add payload other
+  git -C "$seed" commit -q -m remote-update
+  git -C "$seed" push -q
+  printf 'local\n' > "$TREE/conflict/payload"
+  printf 'local\n' > "$TREE/conflict/other"
+  git -C "$TREE/conflict" add payload other
+  git -C "$TREE/conflict" commit -q -m local-update
+  local before index branch
+  before=$(git -C "$TREE/conflict" rev-parse HEAD)
+  index=$(git -C "$TREE/conflict" write-tree)
+  branch=$(git -C "$TREE/conflict" branch --show-current)
+
+  cd "$TREE"
+  run "$MGIT" sync
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: conflict: diverged from origin/$branch, 1 ahead and 1 behind, merge would conflict in 2 files (skipped)"* ]] || false
+  [[ "$output" != *"  payload"* ]] || false
+
+  run "$MGIT" sync -v
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"merge would conflict in 2 files (skipped)"$'\n'"  other"$'\n'"  payload"* ]] || false
+
+  [ "$(git -C "$TREE/conflict" rev-parse HEAD)" = "$before" ]
+  [ "$(git -C "$TREE/conflict" write-tree)" = "$index" ]
+  [ -z "$(git -C "$TREE/conflict" status --short)" ]
+  [ "$(cat "$TREE/conflict/payload")" = local ]
+  [ ! -e "$TREE/conflict/.git/MERGE_HEAD" ]
+  [ ! -e "$TREE/conflict/.git/rebase-merge" ]
+}
+
+@test "sync keeps the plain divergence warning when merge-tree is unavailable" {
+  local seed="$BATS_TEST_TMPDIR/old-seed"
+  local origin="$BATS_TEST_TMPDIR/old.git"
+  make_origin "$seed" "$origin" baseline
+  git clone -q "$origin" "$TREE/old"
+  git -C "$seed" commit -q --allow-empty -m remote-update
+  git -C "$seed" push -q
+  git -C "$TREE/old" commit -q --allow-empty -m local-update
+  local real branch
+  real=$(command -v git)
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = merge-tree ] && exit 129; done\nexec "%s" "$@"\n' "$real" > "$BATS_TEST_TMPDIR/bin/git"
+  chmod +x "$BATS_TEST_TMPDIR/bin/git"
+  branch=$(git -C "$TREE/old" branch --show-current)
+
+  cd "$TREE"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH" run "$MGIT" sync
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mgit sync: old: diverged from origin/$branch, 1 ahead and 1 behind (skipped)"* ]] || false
+  [[ "$output" != *"merge would"* ]] || false
 }
 
 @test "sync honors repository filters" {

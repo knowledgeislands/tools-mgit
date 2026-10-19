@@ -193,7 +193,9 @@ Every clean branch with an upstream is fetched first, in parallel. Then, one
 checkout at a time, a branch only behind its upstream is fast-forwarded and a
 branch only ahead is pushed. Diverged, dirty, detached and untracked branches,
 and failed fetches, are named with a warning and left untouched; nothing is
-merged or rebased. Only checkouts that pulled, pushed, warned or failed are
+merged or rebased. A diverged branch's warning says whether merging its
+upstream would be clean or conflict, computed in memory; -v lists the
+conflicting files. Only checkouts that pulled, pushed, warned or failed are
 named; the rest are counted.
 
 Options:
@@ -2894,7 +2896,7 @@ sync_report() {
 sync_command() {
   local help=false interactive=false verbose=false d label index branch upstream remote key
   local status_output counts ahead behind output owner detail synced=0 skipped=0 bare_count=0
-  local failed=false current=0 total=${#repos[@]} answer_status j common
+  local failed=false current=0 total=${#repos[@]} answer_status j common prediction conflicts
   local fetch_keys=()
 
   while [ $# -gt 0 ]; do
@@ -2990,7 +2992,20 @@ sync_command() {
     behind="${counts##*[[:space:]]}"
 
     if [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
-      sync_report "$label" "diverged from $upstream, $ahead ahead and $behind behind (skipped)"
+      # Predict the merge in memory; any status but 0 or 1, as from a Git
+      # older than 2.38, leaves the plain warning.
+      prediction="" detail=""
+      if output=$(git -C "$d" merge-tree --write-tree --name-only --no-messages HEAD '@{upstream}' 2>/dev/null); then
+        prediction=', merge would be clean'
+      elif [ $? -eq 1 ]; then
+        detail="${output#*$'\n'}"
+        [ "$detail" != "$output" ] || detail=""
+        conflicts=0
+        [ -z "$detail" ] || conflicts=$(printf '%s\n' "$detail" | wc -l | tr -d ' ')
+        prediction=", merge would conflict in $(plural "$conflicts" file files)"
+        [ "$verbose" = true ] || detail=""
+      fi
+      sync_report "$label" "diverged from $upstream, $ahead ahead and $behind behind$prediction (skipped)" "$detail"
       failed=true
     elif [ "$behind" -gt 0 ]; then
       if [ "$interactive" = true ]; then

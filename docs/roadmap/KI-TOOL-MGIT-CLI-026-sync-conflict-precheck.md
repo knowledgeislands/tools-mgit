@@ -6,13 +6,13 @@ kind: deliver
 purpose: capability
 component: cli
 size: m
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 6926519fba3cf311d8ce92eaff8b92ca4cda603e
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-19T23:36:00Z
+updated_at: 2026-10-19T23:50:00Z
 ---
 
 ## Goal
@@ -38,10 +38,10 @@ Since [KI-TOOL-MGIT-CLI-020](https://github.com/knowledgeislands/tools-mgit/blob
 
 ## Steps
 
-- [ ] In the serial classification pass, run `git merge-tree --write-tree --name-only --no-messages HEAD @{upstream}` for each diverged checkout. Exit `0` extends the warning to `diverged from U, A ahead and B behind, merge would be clean (skipped)`; exit `1` to `..., merge would conflict in N files (skipped)`, N counting the path lines after the tree line, with the paths printed as indented detail under `-v` only; any other exit, including an older Git that rejects `--write-tree`, keeps today's warning unchanged. No separate version probe.
-- [ ] Add Bats cases against local bare origins for a clean divergence, a conflicting one with its paths under `-v` only, and the fallback through a `git` wrapper that refuses `merge-tree`; each asserts an unchanged HEAD, index and worktree and no merge or rebase state. Update the existing divergent case.
-- [ ] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`.
-- [ ] Run the complete gate.
+- [x] In the serial classification pass, run `git merge-tree --write-tree --name-only --no-messages HEAD @{upstream}` for each diverged checkout. Exit `0` extends the warning to `diverged from U, A ahead and B behind, merge would be clean (skipped)`; exit `1` to `..., merge would conflict in N files (skipped)`, N counting the path lines after the tree line, with the paths printed as indented detail under `-v` only; any other exit, including an older Git that rejects `--write-tree`, keeps today's warning unchanged. No separate version probe.
+- [x] Add Bats cases against local bare origins for a clean divergence, a conflicting one with its paths under `-v` only, and the fallback through a `git` wrapper that refuses `merge-tree`; each asserts an unchanged HEAD, index and worktree and no merge or rebase state. Update the existing divergent case.
+- [x] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`.
+- [x] Run the complete gate.
 
 ## Files touched
 
@@ -72,6 +72,35 @@ Running commands shows the new warning.
 ### Roadmap
 
 A rebase prediction would be a later record.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, from baseline `6926519`: `mgit sync` appends an in-memory merge prediction to each diverged branch's warning, `merge would be clean` or `merge would conflict in N files`, listing the conflicting paths under `-v` only, and keeps the plain warning when `git merge-tree --write-tree` is unavailable. Nothing merges, rebases or touches the branch, index, worktree or remote; which checkouts sync acts on is unchanged; no release.
+
+### Change Summary
+
+- `bin/mgit`: the diverged branch of `sync_command` runs `git merge-tree --write-tree --name-only --no-messages HEAD @{upstream}` and reads its exit status; `sync_usage` describes the prediction.
+- `tests/mgit.bats`: the divergent case now expects `merge would be clean`; new cases `sync predicts a conflicting merge without touching the checkout` (two conflicting files, paths under `-v` only, unchanged HEAD, index, worktree and no merge or rebase state) and `sync keeps the plain divergence warning when merge-tree is unavailable` (a `git` wrapper exiting `129` for `merge-tree`).
+- `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, MGIT-WS-018 in `docs/specs/workspace-dispatch.md` (requirement, Verify and Evidence) and `CHANGELOG.md`.
+- Deviation: none. The clean-branch fetch wording was left for [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md), which owns it.
+
+### Verification
+
+`ki repo audit --repo .` FAIL=0, with three warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding, no committed `.githooks/pre-commit`); `shellcheck bin/mgit install.sh` and `bash -n` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki`: 137 passed, none failed; `mandoc -T lint man/mgit.1` clean and the rendered section inspected; `rumdl` clean; `git diff --check` passes.
+
+### Outstanding concerns
+
+None. A Git below 2.38 was simulated by the wrapper, not run.
+
+### Post-change review
+
+The goal is met for merges; rebase prediction stays out, as planned. Regression risk is low: the new call runs only for diverged checkouts, its failure only drops the prediction, and the warning line keeps its prefix and `(skipped)` suffix. Ready for acceptance.
+
+### Mini recap
+
+Diverged branches now say whether a merge would be clean or conflict, without touching anything; documents and specification match; full gate green. Idea for the coordinator, not captured: a rebase prediction through `git replay`.
 
 ## Discussion
 
