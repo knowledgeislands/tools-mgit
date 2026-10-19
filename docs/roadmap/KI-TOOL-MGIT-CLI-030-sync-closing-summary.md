@@ -2,16 +2,19 @@
 id: KI-TOOL-MGIT-CLI-030
 area: CLI
 title: Sync closing summary
+kind: deliver
 purpose: capability
+project: tools-burndown
 component: cli
-priority: medium
+priority: high
 size: m
-status: triage
+horizon: soon
+status: draft
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-19T21:10:01Z
-updated_at: 2026-10-19T21:10:01Z
+updated_at: 2026-10-19T22:23:07Z
 ---
 
 # Sync Closing Summary
@@ -40,6 +43,16 @@ The other fan-out commands already close with one tally line. Ordinary dispatch,
 - **In:** the closing tally and skipped-repository detail in `sync_command`; ahead and behind counts for checkouts skipped after their upstream is known; MGIT-WS-018, `sync` help, manual, README, running-commands guide and changelog; Bats cases against local bare origins in disposable repositories, updating the existing `sync` cases.
 - **Out:** changing which checkouts `sync` pulls, pushes or skips, or acting on a dirty checkout; merge prediction for diverged branches, which [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md) owns; option-parsing departures, which [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md) owns; summaries of other commands; running `sync` against the real estate.
 
+## Shaping
+
+**Approach:** count each checkout's outcome in `sync_command` as it is reached, compute ahead and behind for a skipped checkout whose upstream is known, and print one closing tally after the per-repository lines, in the shape `mgit st` and `mgit overview` already use; update MGIT-WS-018, every `sync` Bats case and the four documents in Boundary together.
+
+**Dependencies:** none blocking. Wording interacts with [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md), whichever lands second; a stream or option-parsing departure found here goes to [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md).
+
+**Decisions still needed:** the nine open design choices in Discussion, above all the outcome categories, tally shape, where skipped detail goes, and whether `--json` is in scope.
+
+**Promotion to Next:** when Kris or planning settles choices 1 to 3 and 7, which fix the output contract; the rest can be settled during planning.
+
 ## Dependencies / blocks
 
 None. Blocks nothing. KI-TOOL-MGIT-CLI-026 rewords the diverged warning line, so whichever lands second should rebase its wording on the other.
@@ -59,3 +72,7 @@ Open design choices, for planning rather than decided here:
 7. **Machine output.** Whether `sync` gains `--json` with a `summary` object matching dispatch and `overview`, here or on a later record.
 8. **Verbose mode.** Bare repositories are counted only without `-v` today. Whether the tally is identical with and without `-v`, so verbose adds progress and nothing else.
 9. **Clean-branch wording.** Whether the manual and guide are corrected to say every tracking branch is fetched, or the fetch pass is narrowed to clean branches, which would cost the dirty checkouts' behind counts in choice 4.
+
+### Adoption
+
+Adopted into Soon on 19 October 2026 by the tools-burndown trimga run, under Kris's instruction of 19 October 2026, 23:21 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "There are 23 tickets across triage for the tool projects, can we get those triaged immediately?" Not planned. `priority: high`, raised from `medium`: a sync that leaves commits unpushed without saying so risks stranded work, which deferring keeps costing. `size: m` kept from capture.

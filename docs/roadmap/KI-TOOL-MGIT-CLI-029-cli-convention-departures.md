@@ -2,16 +2,19 @@
 id: KI-TOOL-MGIT-CLI-029
 area: CLI
 title: CLI convention departures
+kind: deliver
 purpose: debt
+project: tools-burndown
 component: cli
 priority: medium
 size: m
-status: triage
+horizon: soon
+status: draft
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-19T18:26:00Z
-updated_at: 2026-10-19T18:26:00Z
+updated_at: 2026-10-19T22:23:07Z
 ---
 
 # CLI Convention Departures
@@ -38,6 +41,16 @@ mgit departs in four ways:
 - **In:** the four fixes above in `bin/mgit`, each with its Bats case in disposable fixtures, and the matching help, Bash and Zsh completion, manual, user guide, specification and changelog updates.
 - **Out:** a top-level `-f` for `--filter`; other departures the conventions might later name; other tools' departures, which live on their own records.
 
+## Shaping
+
+**Approach:** probably one argument pre-pass in `bin/mgit` that splits attached values (`--jobs=2`, `-j2`) and groups of short flags (`-vW`) into separate words before today's option loop, so each option keeps one parsing path; then add `-n` for `--dry-run` and `-f` for `worktree remove --force`, each with its Bats case, help, completion, manual, guide, specification and changelog change.
+
+**Dependencies:** none. It touches the same option loop as [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md) only if that record adds `sync --json`.
+
+**Decisions still needed:** the three planning questions in Discussion: one pre-pass or per-option handling; where `-n` must not be claimed because the arguments pass through to Git; and how a value-taking option inside a group is treated.
+
+**Promotion to Next:** when those three are answered at planning and the pre-pass's reach over every value option is listed.
+
 ## Dependencies / blocks
 
 None. Blocks nothing. It does not block the v0.18.0 release.
@@ -47,3 +60,7 @@ None. Blocks nothing. It does not block the v0.18.0 release.
 Origin: KI-TOOL-MGIT-CLI-023's CLI-DEPARTURES finding, homed here before that record is pruned. Capture only; adoption, horizon and plan belong to this repository.
 
 Planning questions: whether grouping and attached values are handled by one shared pre-pass over the arguments, which would also cover `-t` and other value options, or per option; how `-n` interacts with commands that pass arguments through to Git, where `-n` already has meanings; and whether `-vW` grouping must reject a grouped option that takes a value in the middle of the group. `size: m` is provisional: the grouping pre-pass is the bulk of the work and the three other fixes are small.
+
+### Adoption
+
+Adopted into Soon on 19 October 2026 by the tools-burndown trimga run, under Kris's instruction of 19 October 2026, 23:21 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "There are 23 tickets across triage for the tool projects, can we get those triaged immediately?" Not planned. `priority: medium` and `size: m` kept from capture.
