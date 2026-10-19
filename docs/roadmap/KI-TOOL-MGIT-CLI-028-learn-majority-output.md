@@ -7,13 +7,12 @@ purpose: capability
 component: cli
 priority: medium
 size: s
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: f2286d264c63a28d1e5cf55ce38a1aadf2e6252f
 created_at: 2026-10-19T07:58:20Z
-updated_at: 2026-10-19T08:13:03Z
+updated_at: 2026-10-19T20:40:12Z
 ---
 
 # Learn Majority Output
@@ -110,6 +109,14 @@ The goal holds: no template is written without a yes on a terminal, unanimous or
 ### Mini recap
 
 Made `mgit learn` always confirm before writing, naming how many agreed and any that differed, and learn from a single repository; documented it in help, the manual, README, guide, MGIT-WS-026 and the changelog, covered it with terminal and non-terminal Bats cases, and fixed the `tools-b` path collision in the `--filter` test. No release.
+
+## Done
+
+Accepted 2026-10-19 by Kris Brown on the review packet above.
+
+### Acceptance
+
+Accepted on 19 October 2026 by the tools-burndown `mgitgo` run, under Kris Brown's answer of 19 October 2026 at 21:34 BST in the ki-principal [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) ("Summary of 21:28 answered"): "All recommended", taken as BURNDOWN-ACCEPT a) and MGIT-GO a), "accept KI-TOOL-MGIT-CLI-028 and KI-TOOL-MGIT-CLI-023 and publish mgit `v0.18.0` on `9a3564d`". Re-check against `main` at `bfa9a82` before closure: `MGIT_KI_PRODUCER=<ki> bats tests/` passes 135 of 135 with none skipped in disposable fixtures; `shellcheck`, `bash -n`, `mandoc -T lint` and `git diff --check` pass; `ki repo audit --repo .` has no failure. The outstanding concerns carry forward as known behaviour: learning needs a terminal, and a failed repository still blocks it.
 
 ## Discussion
 
