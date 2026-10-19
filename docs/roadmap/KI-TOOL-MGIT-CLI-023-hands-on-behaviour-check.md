@@ -11,7 +11,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 713bc3618c48136fc88f7277c8df6512cceb4e02
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-19T18:18:08Z
+updated_at: 2026-10-19T18:26:00Z
 ---
 
 ## Goal
@@ -91,7 +91,7 @@ Within the boundary, Kris used the runner, sync, overview and escape-hatch behav
 
 ### Outstanding concerns
 
-- **Command-line convention departures.** The CLI-DEPARTURES finding under Remedial findings is a fix for mgit's next change and is not built: `-j/--jobs` refuses `--jobs=2` and `-j2`, short options do not group, `--dry-run` lacks `-n`, and `worktree remove --force` lacks `-f`. It lives only on this record, so it needs a home of its own before this record is pruned.
+- **Command-line convention departures.** The CLI-DEPARTURES finding under Remedial findings is a fix for mgit's next change and is not built: `-j/--jobs` refuses `--jobs=2` and `-j2`, short options do not group, `--dry-run` lacks `-n`, and `worktree remove --force` lacks `-f`. It is captured as triage in [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md), its home once this record is pruned.
 - **External members in the consumer manifest (from KI-TOOL-MGIT-CLI-017).** The chezmoi-managed `workspaces/personal/dot_mgit.toml` gains the dotfiles checkout as an external member only after a release carrying unified members reaches every machine that applies it. That release is prepared but not cut; the manifest change follows it as CONSUMER-MIGRATE, the chezmoi work's, for Kris's `chezmoi diff` review.
 
 ### Post-change review
