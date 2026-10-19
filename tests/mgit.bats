@@ -803,12 +803,58 @@ make_level_pair() {
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
 }
 
+# Run a command on a pseudo-terminal, answering its first [y/N] prompt with $1
+# (EOF ends the input instead), and capture its output and exit status.
+run_on_terminal() {
+  command -v python3 >/dev/null 2>&1 || skip 'python3 is needed for a pseudo-terminal'
+  run env NO_COLOR=1 python3 -c '
+import os, pty, sys
+answer, command = sys.argv[1], sys.argv[2:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(command[0], command)
+out, sent = b"", False
+while True:
+    try:
+        data = os.read(fd, 1024)
+    except OSError:
+        break
+    if not data:
+        break
+    out += data
+    if not sent and b"[y/N]" in out:
+        os.write(fd, b"\x04" if answer == "EOF" else answer.encode() + b"\n")
+        sent = True
+_, code = os.waitpid(pid, 0)
+sys.stdout.write(out.decode().replace("\r", ""))
+sys.exit(os.WEXITSTATUS(code) if os.WIFEXITED(code) else 1)
+' "$@"
+}
+
+make_majority_trio() {
+  make_level_pair
+  make_origin "$TREE/gamma" "$BATS_TEST_TMPDIR/origins/gamma.git" gamma
+  : > "$TREE/gamma/new"
+}
+
 @test "learn writes a template that later runs count as quiet" {
   local template="$XDG_CONFIG_HOME/mgit/templates/status_-sb.template"
   make_level_pair
   cd "$TREE"
 
-  run "$MGIT" learn st
+  run "$MGIT" learn st < /dev/null
+  [ "$status" -eq 1 ]
+  [[ "$output" != *'[y/N]'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 2 repositories agreed; run it from a terminal to confirm' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  run_on_terminal n "$MGIT" learn st
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'mgit learn: 2 of 2 repositories agreed. Learn this output? [y/N]'* ]] || false
+  [[ "$output" == *'mgit: not learned: declined'* ]] || false
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  run_on_terminal y "$MGIT" learn st
   [ "$status" -eq 0 ]
   [ "${lines[${#lines[@]} - 1]}" = "mgit: learned 'git status -sb' from 2 repositories: $template" ]
   [ -f "$template" ]
@@ -848,7 +894,7 @@ make_level_pair() {
   make_level_pair
   cd "$TREE"
 
-  run "$MGIT" --learn remote -v
+  run_on_terminal y "$MGIT" --learn remote -v
   [ "$status" -eq 0 ]
   grep -qx 'stdout: {remote}	{remote-url} (fetch)' "$XDG_CONFIG_HOME/mgit/templates/remote_-v.template"
   run "$MGIT" -R git remote -v
@@ -856,7 +902,7 @@ make_level_pair() {
   run "$MGIT" remote -v
   [ "$output" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
 
-  run "$MGIT" learn rev-parse --show-toplevel
+  run_on_terminal y "$MGIT" learn rev-parse --show-toplevel
   [ "$status" -eq 0 ]
   grep -qx 'stdout: {path}' "$XDG_CONFIG_HOME/mgit/templates/rev-parse_--show-toplevel.template"
 }
@@ -888,44 +934,27 @@ make_level_pair() {
   [ "$status" -eq 0 ]
   [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: no repository printed anything, which is already quiet' ]
 
-  run "$MGIT" --filter alpha learn st
-  [ "$status" -eq 1 ]
-  [ "$output" = 'mgit: not learned: learning needs at least two repositories' ]
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
 }
 
-# Run a command on a pseudo-terminal, answering its first [y/N] prompt with $1
-# (EOF ends the input instead), and capture its output and exit status.
-run_on_terminal() {
-  command -v python3 >/dev/null 2>&1 || skip 'python3 is needed for a pseudo-terminal'
-  run env NO_COLOR=1 python3 -c '
-import os, pty, sys
-answer, command = sys.argv[1], sys.argv[2:]
-pid, fd = pty.fork()
-if pid == 0:
-    os.execvp(command[0], command)
-out, sent = b"", False
-while True:
-    try:
-        data = os.read(fd, 1024)
-    except OSError:
-        break
-    if not data:
-        break
-    out += data
-    if not sent and b"[y/N]" in out:
-        os.write(fd, b"\x04" if answer == "EOF" else answer.encode() + b"\n")
-        sent = True
-_, code = os.waitpid(pid, 0)
-sys.stdout.write(out.decode().replace("\r", ""))
-sys.exit(os.WEXITSTATUS(code) if os.WIFEXITED(code) else 1)
-' "$@"
-}
-
-make_majority_trio() {
+@test "learn learns from a single repository" {
+  local template="$XDG_CONFIG_HOME/mgit/templates/status_-sb.template"
   make_level_pair
-  make_origin "$TREE/gamma" "$BATS_TEST_TMPDIR/origins/gamma.git" gamma
-  : > "$TREE/gamma/new"
+  cd "$TREE"
+
+  run "$MGIT" --filter alpha learn st < /dev/null
+  [ "$status" -eq 1 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 1 of 1 repository agreed; run it from a terminal to confirm' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
+
+  run_on_terminal y "$MGIT" --filter alpha learn st
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'mgit learn: 1 of 1 repository agreed. Learn this output? [y/N]'* ]] || false
+  [[ "$output" == *"mgit: learned 'git status -sb' from 1 repository: $template"* ]] || false
+  grep -qx 'stdout: ## {branch}...{upstream}' "$template"
+
+  run "$MGIT" st
+  [ "$output" = 'mgit: 2 repositories: 2 quiet, 0 with output, 0 failed' ]
 }
 
 @test "learn asks before writing a majority output" {
@@ -935,13 +964,13 @@ make_majority_trio() {
 
   run_on_terminal n "$MGIT" learn st
   [ "$status" -eq 1 ]
-  [[ "$output" == *'mgit learn: 2 of 3 repositories agreed and 1 differed: gamma. Learn the majority output? [y/N]'* ]] || false
-  [[ "$output" == *'mgit: not learned: majority output declined'* ]] || false
+  [[ "$output" == *'mgit learn: 2 of 3 repositories agreed and 1 differed: gamma. Learn this output? [y/N]'* ]] || false
+  [[ "$output" == *'mgit: not learned: declined'* ]] || false
   [ ! -e "$template" ]
 
   run_on_terminal '' "$MGIT" learn st
   [ "$status" -eq 1 ]
-  [[ "$output" == *'mgit: not learned: majority output declined'* ]] || false
+  [[ "$output" == *'mgit: not learned: declined'* ]] || false
   [ ! -e "$template" ]
 
   run_on_terminal EOF "$MGIT" learn st
@@ -966,7 +995,7 @@ make_majority_trio() {
   run "$MGIT" learn st < /dev/null
   [ "$status" -eq 1 ]
   [[ "$output" != *'[y/N]'* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 3 repositories agreed and 1 differed: gamma; run it from a terminal to confirm the majority output' ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 3 repositories agreed and 1 differed: gamma; run it from a terminal to confirm' ]
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
 
   run bash -c 'printf "y\n" | "$1" learn st' _ "$MGIT"
@@ -975,17 +1004,17 @@ make_majority_trio() {
   [ ! -e "$XDG_CONFIG_HOME/mgit" ]
 
   rm -rf "$TREE/gamma"
-  run_on_terminal y "$MGIT" learn st
-  [ "$status" -eq 0 ]
-  [[ "$output" != *'[y/N]'* ]] || false
-  [[ "$output" == *"mgit: learned 'git status -sb' from 2 repositories: "* ]] || false
+  run bash -c 'printf "y\n" | "$1" learn st' _ "$MGIT"
+  [ "$status" -eq 1 ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit: not learned: 2 of 2 repositories agreed; run it from a terminal to confirm' ]
+  [ ! -e "$XDG_CONFIG_HOME/mgit" ]
 }
 
 @test "a learned standard-error message is quiet only while it matches" {
   make_level_pair
   cd "$TREE"
 
-  run "$MGIT" learn push
+  run_on_terminal y "$MGIT" learn push
   [ "$status" -eq 0 ]
   grep -qx 'stderr: Everything up-to-date' "$XDG_CONFIG_HOME/mgit/templates/push.template"
 
@@ -1017,8 +1046,10 @@ make_majority_trio() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 
-  "$MGIT" learn st >/dev/null
-  "$MGIT" learn remote >/dev/null
+  run_on_terminal y "$MGIT" learn st
+  [ "$status" -eq 0 ]
+  run_on_terminal y "$MGIT" learn remote
+  [ "$status" -eq 0 ]
   run "$MGIT" learn --list
   [ "$status" -eq 0 ]
   [ "$output" = "git remote	$dir/remote.template"$'\n'"git status -sb	$dir/status_-sb.template" ]
@@ -1036,14 +1067,14 @@ make_majority_trio() {
   local dir="$XDG_CONFIG_HOME/mgit/templates"
   make_level_pair
   cd "$TREE"
-  run "$MGIT" learn log -1 --format=%s_x HEAD
+  run_on_terminal y "$MGIT" learn log -1 --format=%s_x HEAD
   [ "$status" -eq 0 ]
   [ -f "$dir/log_-1_--format=%25s%5Fx_HEAD.template" ]
   grep -qx 'stdout: payload_x' "$dir/log_-1_--format=%25s%5Fx_HEAD.template"
-  run "$MGIT" learn log -1 '--format=tformat:a b/c' HEAD
+  run_on_terminal y "$MGIT" learn log -1 '--format=tformat:a b/c' HEAD
   [ "$status" -eq 0 ]
   [ -f "$dir/log_-1_--format=tformat%3Aa%20b%2Fc_HEAD.template" ]
-  run "$MGIT" -B --learn config --get remote.origin.fetch
+  run_on_terminal y "$MGIT" -B --learn config --get remote.origin.fetch
   [ "$status" -eq 0 ]
   grep -qx 'stdout: +refs/heads/\*:refs/remotes/{remote}/\*' "$dir/config_--get_remote.origin.fetch.template"
 }
@@ -2739,7 +2770,7 @@ make_external_estate() {
   run "$MGIT" --filter 'mcp-' -R pwd
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TREE/mcp-a"* ]] || false
-  [[ "$output" != *"tools-b"* ]] || false
+  [[ "$output" != *"$TREE/tools-b"* ]] || false
 
   run "$MGIT" --filter
   [ "$status" -eq 2 ]
