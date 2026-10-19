@@ -23,7 +23,7 @@ KI
 assert_atomic() {
   run "$MGIT" -t short -R git config pilot.dispatched yes
   [ "$status" -ne 0 ]
-  ! git -C "$ROOT/selected" config --get pilot.dispatched
+  ! git -C "$ROOT/selected" config --get pilot.dispatched || false
 }
 @test "producer error partial unterminated duplicate empty and invalid roots never dispatch" {
   printf '%s\0' "$ROOT/selected" > "$KI_OUTPUT"

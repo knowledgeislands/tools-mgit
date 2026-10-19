@@ -73,15 +73,15 @@ write_registry() {
 assert_no_dispatch() {
   run "$MGIT" "$@" -R git config pilot.dispatched yes
   [ "$status" -ne 0 ]
-  ! git -C "$CAPITAL" config --get pilot.dispatched
-  ! git -C "$MEMBER" config --get pilot.dispatched
+  ! git -C "$CAPITAL" config --get pilot.dispatched || false
+  ! git -C "$MEMBER" config --get pilot.dispatched || false
 }
 
 @test "real producer uses literal case-sensitive repeated basename prefixes with excluded missing roots" {
   run "$MGIT" -t short --filter 'Tool [*]' --filter absent --filter 'Tool [*]' -R git config pilot.proof yes
   [ "$status" -eq 0 ]
   [ "$(git -C "$MEMBER" config --get pilot.proof)" = yes ]
-  ! git -C "$CAPITAL" config --get pilot.proof
+  ! git -C "$CAPITAL" config --get pilot.proof || false
   run "$MGIT" --estate --filter Capital
   [ "$status" -eq 0 ]
   [ "$output" = '../Capital Space' ]
@@ -155,8 +155,8 @@ write_other_capital() {
   [ "$status" -eq 0 ]
   [ "$(git -C "$ROOT/Alpha Capital" config --get pilot.principal)" = yes ]
   [ "$(git -C "$CAPITAL" config --get pilot.principal)" = yes ]
-  ! git -C "$ROOT/Zulu Capital" config --get pilot.principal
-  ! git -C "$MEMBER" config --get pilot.principal
+  ! git -C "$ROOT/Zulu Capital" config --get pilot.principal || false
+  ! git -C "$MEMBER" config --get pilot.principal || false
   assert_no_dispatch --principals --filter Tool
   assert_no_dispatch --principals --estate
   assert_no_dispatch -t short --principals
@@ -215,7 +215,7 @@ write_other_capital() {
   cp .mgit.toml "$ROOT/before.toml"
   run "$MGIT" register --dry-run
   [ "$status" -ne 0 ]
-  [[ "$output" == *'Agora syntax is retired'* ]]
+  [[ "$output" == *'Agora syntax is retired'* ]] || false
   cmp .mgit.toml "$ROOT/before.toml"
   printf '%s\n' 'schema = 1' 'kind = "workspace"' 'agora = "old"' '[agora.members."../Capital Space"]' > .mgit.toml
   cp .mgit.toml "$ROOT/before.toml"

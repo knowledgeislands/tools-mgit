@@ -7,13 +7,13 @@ purpose: debt
 project: tools-burndown
 priority: medium
 size: s
-horizon: next
-status: ready
+horizon: now
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: 73a665af3e4ab8c111044332bc2ac619dca30e53
 created_at: 2026-10-18T17:10:05Z
-updated_at: 2026-10-19T23:24:00Z
+updated_at: 2026-10-19T23:30:00Z
 ---
 
 # Fatal Bats Assertions
@@ -42,9 +42,9 @@ The `ki-repo-tools` audit on 19 October 2026 confirmed the capture's counts: `SH
 
 ## Steps
 
-- [ ] Add `|| false` to each of the seven assertions the audit names.
-- [ ] Run both suites, the producer suite with `MGIT_KI_PRODUCER` naming the local `ki`; for any test that now fails, decide whether the fault is in the test or in the producer or protocol, fix a test fault here, and raise a real defect to the coordinator, since CAPTURE-GATE lets this run create no record.
-- [ ] Run the complete gate and confirm `SHELL-FATAL` no longer warns.
+- [x] Add `|| false` to each of the seven assertions the audit names.
+- [x] Run both suites, the producer suite with `MGIT_KI_PRODUCER` naming the local `ki`; for any test that now fails, decide whether the fault is in the test or in the producer or protocol, fix a test fault here, and raise a real defect to the coordinator, since CAPTURE-GATE lets this run create no record.
+- [x] Run the complete gate and confirm `SHELL-FATAL` no longer warns.
 
 ## Files touched
 
@@ -75,6 +75,32 @@ None.
 ### Roadmap
 
 A real defect the fatal assertions expose becomes its own record.
+
+## Review
+
+### Delivered
+
+Within the approved boundary, from baseline `73a665a`: the seven bare assertions the audit named now end `|| false`, six in `tests/territory-producer.bats` and one in `tests/territory-protocol.bats`. `tests/mgit.bats`, the `SHELL-FATAL` criterion and other repositories were left alone.
+
+### Change Summary
+
+`tests/territory-producer.bats` (lines 76, 77, 84, 158, 159 and 218) and `tests/territory-protocol.bats` (line 26) gain `|| false`; this record. No fault was exposed, so no defect needed routing.
+
+### Verification
+
+`ki repo audit --repo .` FAIL=0, its three warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding, no committed `.githooks/pre-commit`); `ki repo audit --skill ki-repo-tools` reports no `SHELL-FATAL`; `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 135 passed, none failed or skipped.
+
+### Outstanding concerns
+
+None.
+
+### Post-change review
+
+The goal is met: a failing negative check mid-test now fails its test under Bash 3.2, and every assertion still holds. Tests only, so no regression risk to `mgit`. Ready for acceptance.
+
+### Mini recap
+
+Seven assertions made fatal; the territory suites pass with the real producer; `SHELL-FATAL` clears. No learning to route.
 
 ## Discussion
 
