@@ -5,13 +5,12 @@ title: Hands-on behaviour check
 kind: audit
 purpose: corrective
 component: cli
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 713bc3618c48136fc88f7277c8df6512cceb4e02
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-19T18:26:00Z
+updated_at: 2026-10-19T20:40:12Z
 ---
 
 ## Goal
@@ -101,6 +100,14 @@ The goal holds: Kris has used the behaviour on his estate and confirmed it works
 ### Mini recap
 
 Recorded Kris's passed hands-on check of mgit's runner, sync, overview and escape-hatch behaviour and brought the record to Awaiting review. Two concerns carry forward: the convention departures need their own record before pruning, and the consumer-manifest migration follows the release.
+
+## Done
+
+Accepted 2026-10-19 by Kris Brown on the review packet above.
+
+### Acceptance
+
+Accepted on 19 October 2026 by the tools-burndown `mgitgo` run, under Kris Brown's answer of 19 October 2026 at 21:34 BST in the ki-principal [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) ("Summary of 21:28 answered"): "All recommended", taken as BURNDOWN-ACCEPT a) and MGIT-GO a), "accept KI-TOOL-MGIT-CLI-028 and KI-TOOL-MGIT-CLI-023 and publish mgit `v0.18.0` on `9a3564d`". Re-check against `main` at `bfa9a82` before closure: `MGIT_KI_PRODUCER=<ki> bats tests/` passes 135 of 135 with none skipped in disposable fixtures; `shellcheck`, `bash -n`, `mandoc -T lint` and `git diff --check` pass; `ki repo audit --repo .` has no failure. The two outstanding concerns have homes: the command-line convention departures are captured in [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md), and the consumer-manifest migration follows the v0.18.0 release as CONSUMER-MIGRATE in the chezmoi work.
 
 ## Discussion
 
