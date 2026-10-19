@@ -8,13 +8,13 @@ project: tools-burndown
 component: cli
 priority: medium
 size: m
-horizon: soon
-status: draft
+horizon: next
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-19T18:26:00Z
-updated_at: 2026-10-19T22:23:07Z
+updated_at: 2026-10-20T00:55:00Z
 ---
 
 # CLI Convention Departures
@@ -43,17 +43,63 @@ mgit departs in four ways:
 
 ## Shaping
 
-**Approach:** probably one argument pre-pass in `bin/mgit` that splits attached values (`--jobs=2`, `-j2`) and groups of short flags (`-vW`) into separate words before today's option loop, so each option keeps one parsing path; then add `-n` for `--dry-run` and `-f` for `worktree remove --force`, each with its Bats case, help, completion, manual, guide, specification and changelog change.
+**Approach:** one shared argument pre-pass, `split_options`, run before each of mgit's own option loops, expands short groups, attached short values and `--name=value` into separate words, so each option keeps the one parsing path it has today; then `-n` for `--dry-run` and `-f` for `worktree remove --force`, each with its Bats case, help, completion, manual, guide, specification and changelog change.
 
-**Dependencies:** none. It touches the same option loop as [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md) only if that record adds `sync --json`.
+**Dependencies:** none. [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md) is delivered without `sync --json`, so it adds no option to the loops this record touches.
 
-**Decisions still needed:** the three planning questions in Discussion: one pre-pass or per-option handling; where `-n` must not be claimed because the arguments pass through to Git; and how a value-taking option inside a group is treated.
+**Decisions still needed:** none; the three planning questions are decided in Planning.
 
-**Promotion to Next:** when those three are answered at planning and the pre-pass's reach over every value option is listed.
+**Readiness:** Ready.
+
+## Current state
+
+The top-level loop in [`bin/mgit`](../../bin/mgit) stops at the first word that is not an option, which is the command, and everything after it goes to Git or the named mgit command. Its value options are `-t/--territory`, `--filter` and `-j/--jobs`, each taking only the next word; its flags are `-P`, `-L`, `-B`, `-R`, `-W`, `-I`, `-v`, `-h` and `-V` and the long-only `--learn`, `--json`, `--estate` and `--principals`, and it gives removed letters (`-G`, `-a`, `-f`) their own messages. mgit's own commands parse their options in their own loops, any order with operands:
+
+- `register`: flags `--dry-run`, `-h`; values `-t/--territory`, `--repo`; removed `-a`.
+- `structure standard` and `structure nested`: flags `--dry-run`, `-h`.
+- `worktree add`: flag `-h`. `worktree remove`: flags `--force`, `-h`.
+- `sync`: flags `-i`, `-v`, `-h`. `overview`: flags `--json`, `-v`, `-h`; value `--stale-days`.
+- `doctor`: `-h`. `diag`: `--full`, `-h`. `repair`: `--apply`, `-h`.
+
+`learn` and `completion` take a command or shell word, not options to group. Only `register` and `structure` have `--dry-run`, and neither passes arguments to Git.
+
+## Steps
+
+- [ ] Add `split_options` to `bin/mgit`: given a mode, the short flag letters, the short value letters and the long value options, it rewrites the words into `split_args`. A short group expands letter by letter; a value letter takes the rest of the word as its value, or the next word whole when it ends the group; a letter that is neither is passed on as its own `-x`, so the existing loop names it. `--name=value` splits for a long value option and is passed on unchanged otherwise, so the loop refuses it. `--` and every word after it pass through untouched; in top-level mode so does the first word that is not an option, with everything after it, so pass-through arguments are never rewritten.
+- [ ] Run it before the top-level loop and before the loops of `register`, `structure standard`, `structure nested`, `worktree add`, `worktree remove`, `sync`, `overview`, `doctor`, `diag` and `repair`.
+- [ ] Add `-n` as the short form of `--dry-run` on `register` and both `structure` forms, and `-f` as the short form of `--force` on `worktree remove`.
+- [ ] Bats cases in disposable fixtures: `--jobs=2`, `-j2` and `-vj2` run as `-j 2`; `-vW` as `-v -W`; `-jv` refused as a non-numeric job count; `--verbose=x` refused; `mgit -v log -n1 --format=%s` passes `-n1` and `--format=%s` to Git unchanged; `--filter=PREFIX` and `-tHANDLE` select as their separate forms; `sync -iv`; `overview --stale-days=N`; `register -n`; `structure standard -n` and `structure nested -n`; `worktree remove -f` on a dirty worktree.
+- [ ] Update the usage text of the four touched commands, the Bash and Zsh completions, `man/mgit.1`, the running-commands, repository-sets and worktrees guides, a new option-syntax requirement in `docs/specs/workspace-dispatch.md`, MGIT-WS-021's `-n` wording, and `CHANGELOG.md`.
+
+## Files touched
+
+`bin/mgit`, `tests/mgit.bats`, `man/mgit.1`, `docs/specs/workspace-dispatch.md`, `docs/guides/user/running-commands.md`, `docs/guides/user/repository-sets.md`, `docs/guides/user/worktrees.md`, `CHANGELOG.md` and this record.
+
+## Verify
+
+The [definition of done](../guides/developer/definition-of-done.md) gate passes: `shellcheck bin/mgit install.sh`, `bash -n`, `bats tests/`, `mandoc -T lint man/mgit.1`, `rumdl check` and `git diff --check`. The new Bats cases show each attached, grouped and short form behaves as its separate long form, and that arguments after the command reach Git unchanged.
 
 ## Dependencies / blocks
 
 None. Blocks nothing. It does not block the v0.18.0 release.
+
+## Documentation impact
+
+### Decision Records
+
+None: the change brings mgit into line with the `ki-repo-tools` conventions, so no departure remains to record.
+
+### Specifications
+
+A new requirement in `docs/specs/workspace-dispatch.md` states the option syntax mgit accepts and that pass-through arguments are never rewritten; MGIT-WS-021 names `-n`.
+
+### Guides
+
+The running-commands guide gains the option syntax; the repository-sets and worktrees guides mention `-n` and `-f` where they show `--dry-run` and `--force`.
+
+### Roadmap
+
+None.
 
 ## Discussion
 
@@ -64,3 +110,13 @@ Planning questions: whether grouping and attached values are handled by one shar
 ### Adoption
 
 Adopted into Soon on 19 October 2026 by the tools-burndown trimga run, under Kris's instruction of 19 October 2026, 23:21 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md): "There are 23 tickets across triage for the tool projects, can we get those triaged immediately?" Not planned. `priority: medium` and `size: m` kept from capture.
+
+### Planning
+
+Promoted from Soon to Next and planned to Ready on 20 October 2026 by the tools-burndown burnmgit run, under Kris's TO-DONE instruction of 20 October 2026, 00:20 BST, in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md), which lifts every hold whose condition no longer holds; the promotion condition was answering the three questions at planning. Decided under HIGH-APPLY, 20 October:
+
+- **One pre-pass.** A shared `split_options` before each existing loop, not per-option handling: one rule for every value option (`-t`, `-j`, `--filter`, `--repo`, `--stale-days`) and every command, while each option keeps one parsing path and its existing messages.
+- **Where `-n` is claimed.** Only on `register` and `structure`, the commands with `--dry-run`. Never at the top level, and never after the command word of ordinary dispatch, `-B`, `-R` or `learn`, where the words belong to Git or the named command; the pre-pass stops at the command word so `git log -n5` and its kin are untouched.
+- **A value option inside a group.** As POSIX `getopt` and the conventions do: the value letter takes the rest of the word as its value, so `-vj2` means `-v -j 2`, and `-jv` gives `-j` the value `v`, which `--jobs` then refuses as not a positive whole number. A value letter ending the group takes the next word.
+
+Sync is done: [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md) applied SYNC-STREAMS b) on 20 October, so `sync` now puts skip, warning, progress and prompt lines on standard error and needs no stream departure here.
