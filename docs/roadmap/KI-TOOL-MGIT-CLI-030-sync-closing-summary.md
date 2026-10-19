@@ -9,12 +9,12 @@ component: cli
 priority: high
 size: m
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-10-19T21:10:01Z
-updated_at: 2026-10-19T23:20:00Z
+updated_at: 2026-10-20T00:20:00Z
 ---
 
 # Sync Closing Summary
@@ -49,9 +49,9 @@ The other fan-out commands already close with one tally line. Ordinary dispatch,
 
 **Dependencies:** none blocking. Wording interacts with [KI-TOOL-MGIT-CLI-026](KI-TOOL-MGIT-CLI-026-sync-conflict-precheck.md), whichever lands second; a stream or option-parsing departure found here goes to [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md).
 
-**Decisions still needed:** choices 1 (outcome categories, SYNC-CATEGORIES) and 5 (standard streams, SYNC-STREAMS) are with Kris; the other seven are decided in Discussion.
+**Decisions still needed:** none; all nine are decided in Discussion.
 
-**Readiness:** stays a draft until SYNC-CATEGORIES and SYNC-STREAMS land; the Steps below are concrete except where they name those two choices, and become Ready once each is written in.
+**Readiness:** Ready once SYNC-CATEGORIES and SYNC-STREAMS landed on 20 October.
 
 ## Current state
 
@@ -59,15 +59,15 @@ The other fan-out commands already close with one tally line. Ordinary dispatch,
 
 [MGIT-WS-018](../specs/workspace-dispatch.md#mgit-ws-018--repository-set-synchronization), the manual, the README and the [running-commands guide](../guides/user/running-commands.md) describe today's closing counts, and the specification, manual and guide say only _clean_ tracking branches are fetched, which the code does not match. Six `sync` Bats cases in [`tests/mgit.bats`](../../tests/mgit.bats) assert `already in sync` closing lines.
 
-Under `-i`, any answer other than yes or no, `q` included, reprompts; only the end of input stops the run early. Gaps in this draft: where a failed fetch falls, and which precedence a dirty checkout whose fetch also failed takes, wait on choice 1; which stream each line uses waits on choice 5.
+Under `-i`, any answer other than yes or no, `q` included, reprompts; only the end of input stops the run early. No gaps remain.
 
 ## Steps
 
-- [ ] Give every selected checkout exactly one outcome in `sync_command` - in sync, pulled, pushed, skipped or failed - recording each skipped or failed checkout's label and reason; place a failed fetch, and a dirty checkout whose fetch also failed, as choice 1 settles.
+- [ ] Give every selected checkout exactly one outcome in `sync_command` - in sync, pulled, pushed, skipped or failed - recording each skipped or failed checkout's label and reason. Local changes, detached HEAD, no upstream, divergence, bare repositories and `-i` refusals are skipped; a failed status, fetch, comparison, pull or push is failed; a dirty checkout whose fetch also failed is failed with both reasons, `local changes, fetch from R failed`.
 - [ ] For a skipped checkout on a branch whose upstream resolves, compute ahead and behind of the checked-out branch against `@{upstream}`; mark the counts `stale` where that checkout's fetch failed, and give a detached HEAD or a branch without an upstream no counts, saying so rather than printing zeros. Which checkouts are pulled, pushed or skipped does not change.
 - [ ] Replace the closing count lines with `mgit sync: N repositories: N in sync, N pulled, N pushed, N skipped, N failed`, zero counts included, counting selected checkouts (linked worktrees under `-W` too), then one indented line per skipped or failed checkout, such as `ki-agentic-harness: local changes, 5 ahead, 0 behind` indented two spaces. Print it identically with and without `-v`, bare repositories always counted as skipped; `-v` adds only progress lines.
 - [ ] When interactive input ends, print the tally and detail for the checkouts reached, with `N not reached` added to the tally so it still sums to the selection, and exit `1`. Keep every other exit status as it is.
-- [ ] Apply the stream choice 5 settles to the per-repository, detail, prompt and tally lines.
+- [ ] Send skip, warning and failure lines with their indented detail, `-v` progress and `-i` prompts to standard error; keep `pulled` and `pushed` lines, the tally and its detail on standard output.
 - [ ] Update every `sync` Bats case and add cases for a dirty checkout ahead of and behind its upstream, a failed fetch with stale counts, a detached HEAD, an `-i` refusal, interactive input ending, and a mixed run whose tally sums to the selected set, against local bare origins in disposable repositories.
 - [ ] Update MGIT-WS-018, `sync_usage`, `man/mgit.1`, `README.md`, the running-commands guide and `CHANGELOG.md`; correct the clean-branch wording to say every branch with a remote upstream is fetched, and that a branch tracking a local branch (remote `.`) needs no fetch.
 
@@ -87,7 +87,7 @@ None. Blocks nothing. KI-TOOL-MGIT-CLI-026 rewords the diverged warning line, so
 
 ### Decision Records
 
-None expected: the tally follows the existing dispatch and `overview` closing-line pattern. If choice 5 or 7 departs from the `ki-repo-tools` command-line conventions, the departure is recorded on KI-TOOL-MGIT-CLI-029 rather than in a Decision Record.
+None: the tally follows the existing dispatch and `overview` closing-line pattern, and SYNC-STREAMS b) brings `sync` into line with the `ki-repo-tools` stream convention, so no departure is left to record.
 
 ### Specifications
 
@@ -137,4 +137,7 @@ Choices 2, 3, 4, 6, 7, 8 and 9 were decided under HIGH-APPLY, 20 October: the co
 - **SYNC-VERBOSE (8):** the tally is identical with and without `-v`, bare repositories always counted as skipped; `-v` adds only progress lines.
 - **SYNC-CLEANFETCH (9):** the specification, manual and guide are corrected to the code: every branch with a remote upstream is fetched, and a branch tracking a local branch, remote `.`, needs no fetch.
 
-Still with Kris: SYNC-CATEGORIES (1), where mgitplan recommended a failed fetch as skipped and the blind review a failed fetch as failed, keeping both reasons for a dirty checkout whose fetch also failed; and SYNC-STREAMS (5), where mgitplan recommended leaving the streams and recording the departure on KI-TOOL-MGIT-CLI-029, and the blind review moving skip, warning, progress and prompt lines to standard error here.
+Choices 1 and 5 were applied under TO-DONE at 00:20 BST on 20 October, in the same log, and reached this run through the coordinator's inbox:
+
+- **SYNC-CATEGORIES (1), c):** five exclusive outcomes, a failed fetch counting as failed; a dirty checkout whose fetch also failed keeps both reasons.
+- **SYNC-STREAMS (5), b):** skip, warning, progress and prompt lines to standard error; the tally and per-repository results on standard output. [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md) no longer needs a `sync` stream departure.
