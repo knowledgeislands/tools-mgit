@@ -8,13 +8,12 @@ project: tools-burndown
 component: cli
 priority: medium
 size: m
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 4dff1a4a90e26a2e648c9386d1f65c381d8a615e
 created_at: 2026-10-19T18:26:00Z
-updated_at: 2026-10-20T00:00:00Z
+updated_at: 2026-10-20T00:48:16Z
 ---
 
 # CLI Convention Departures
@@ -115,6 +114,8 @@ Within the approved boundary, from baseline `4dff1a4`: one shared pre-pass, `spl
 
 `ki repo audit --repo .` FAIL=0, its two warnings unrelated (`.rumdl.toml` template drift, Claude Desktop binding); `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1`, `rumdl check .` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 141 passed, none failed or skipped, the one completion assertion updated after the first run.
 
+Independent acceptance by acceptmgit on 20 October 2026, against committed revision `ba04f398143974183c5b8160e7f7f5129c690c44`: the full definition-of-done gate passes, including 141 Bats tests with the committed KI producer and isolated fixtures; repository, roadmap, authoring and tools audits have no FAIL, and the tools audit has no `SHELL-FATAL` warning. Shellcheck, Bash syntax, manual lint, rumdl and whitespace checks pass. The rendered manual and emitted Bash and Zsh completion syntax were checked. The two existing audit warnings concern authoring-template drift and the Claude binding.
+
 ### Outstanding concerns
 
 A word after a subcommand that starts with a hyphen is now split as options, so `worktree remove -odd-path` is refused letter by letter rather than whole; `--` before such a path still works. The spec area's preamble excludes structure and worktree mutation, yet MGIT-WS-027 names their `-n` and `-f`, as the only option-syntax home.
@@ -126,6 +127,10 @@ The goal is met: `--jobs=2`, `-j2`, `-vW`, `-n` and `worktree remove -f` work as
 ### Mini recap
 
 One option pre-pass for all of mgit's own options, two short letters added, no departures left on the conventions. No learning to route.
+
+## Done
+
+Accepted 20 October 2026 by acceptmgit under Kris’s TO-DONE authority on the review packet above.
 
 ## Discussion
 
@@ -146,3 +151,7 @@ Promoted from Soon to Next and planned to Ready on 20 October 2026 by the tools-
 - **A value option inside a group.** As POSIX `getopt` and the conventions do: the value letter takes the rest of the word as its value, so `-vj2` means `-v -j 2`, and `-jv` gives `-j` the value `v`, which `--jobs` then refuses as not a positive whole number. A value letter ending the group takes the next word.
 
 Sync is done: [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md) applied SYNC-STREAMS b) on 20 October, so `sync` now puts skip, warning, progress and prompt lines on standard error and needs no stream departure here.
+
+### Independent acceptance
+
+Kris’s TO-DONE instruction of 20 October 2026 in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) authorises an independent acceptance pass; this run’s brief explicitly grants “full authority to accept and prune” these four named records. The requirements, completed Steps, delivery packet and current implementation were reviewed independently, and the full gate was re-run rather than relying on delivery reports.

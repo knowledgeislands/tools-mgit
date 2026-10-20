@@ -8,13 +8,12 @@ project: tools-burndown
 component: cli
 priority: high
 size: m
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 72d38213fb1611f0d4b6b6dfaa68118d0282e9d2
 created_at: 2026-10-19T21:10:01Z
-updated_at: 2026-10-19T23:50:00Z
+updated_at: 2026-10-20T00:48:16Z
 ---
 
 # Sync Closing Summary
@@ -115,6 +114,8 @@ Within the approved boundary, from baseline `72d3821`: `mgit sync` gives every s
 
 `ki repo audit --repo .` FAIL=0, its two warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding); `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1`, `rumdl check` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 139 passed, none failed or skipped. The cases assert the exact tally lines, sums to the selection, a dirty checkout's held commits, `stale` counts after a failed fetch, a detached HEAD without counts, and `not reached` when input ends.
 
+Independent acceptance by acceptmgit on 20 October 2026, against committed revision `ba04f398143974183c5b8160e7f7f5129c690c44`: the full definition-of-done gate passes, including 141 Bats tests with the committed KI producer and isolated fixtures; repository, roadmap, authoring and tools audits have no FAIL, and the tools audit has no `SHELL-FATAL` warning. Shellcheck, Bash syntax, manual lint, rumdl and whitespace checks pass. The rendered manual and emitted Bash and Zsh completion syntax were checked. The two existing audit warnings concern authoring-template drift and the Claude binding.
+
 ### Outstanding concerns
 
 Moving skip and warning lines to standard error changes what a caller capturing only standard output sees; the changelog says so. `sync --json`, deferred under SYNC-JSON, is offered to the coordinator as an idea.
@@ -126,6 +127,10 @@ The goal is met: the SYNC-SUMMARY case, a dirty checkout five commits ahead, is 
 ### Mini recap
 
 One closing tally for `sync`, held commits named, streams split per SYNC-STREAMS b). No learning to route.
+
+## Done
+
+Accepted 20 October 2026 by acceptmgit under Kris’s TO-DONE authority on the review packet above.
 
 ## Discussion
 
@@ -167,3 +172,7 @@ Choices 1 and 5 were applied under TO-DONE at 00:20 BST on 20 October, in the sa
 
 - **SYNC-CATEGORIES (1), c):** five exclusive outcomes, a failed fetch counting as failed; a dirty checkout whose fetch also failed keeps both reasons.
 - **SYNC-STREAMS (5), b):** skip, warning, progress and prompt lines to standard error; the tally and per-repository results on standard output. [KI-TOOL-MGIT-CLI-029](KI-TOOL-MGIT-CLI-029-cli-convention-departures.md) no longer needs a `sync` stream departure.
+
+### Independent acceptance
+
+Kris’s TO-DONE instruction of 20 October 2026 in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) authorises an independent acceptance pass; this run’s brief explicitly grants “full authority to accept and prune” these four named records. The requirements, completed Steps, delivery packet and current implementation were reviewed independently, and the full gate was re-run rather than relying on delivery reports.

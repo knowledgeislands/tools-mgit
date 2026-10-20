@@ -6,13 +6,12 @@ kind: deliver
 purpose: capability
 component: cli
 size: m
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 6926519fba3cf311d8ce92eaff8b92ca4cda603e
 created_at: 2026-10-18T08:37:21Z
-updated_at: 2026-10-19T23:50:00Z
+updated_at: 2026-10-20T00:48:16Z
 ---
 
 ## Goal
@@ -90,6 +89,8 @@ Within the approved boundary, from baseline `6926519`: `mgit sync` appends an in
 
 `ki repo audit --repo .` FAIL=0, with three warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding, no committed `.githooks/pre-commit`); `shellcheck bin/mgit install.sh` and `bash -n` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki`: 137 passed, none failed; `mandoc -T lint man/mgit.1` clean and the rendered section inspected; `rumdl` clean; `git diff --check` passes.
 
+Independent acceptance by acceptmgit on 20 October 2026, against committed revision `ba04f398143974183c5b8160e7f7f5129c690c44`: the full definition-of-done gate passes, including 141 Bats tests with the committed KI producer and isolated fixtures; repository, roadmap, authoring and tools audits have no FAIL, and the tools audit has no `SHELL-FATAL` warning. Shellcheck, Bash syntax, manual lint, rumdl and whitespace checks pass. The rendered manual and emitted Bash and Zsh completion syntax were checked. The two existing audit warnings concern authoring-template drift and the Claude binding.
+
 ### Outstanding concerns
 
 None. A Git below 2.38 was simulated by the wrapper, not run.
@@ -101,6 +102,10 @@ The goal is met for merges; rebase prediction stays out, as planned. Regression 
 ### Mini recap
 
 Diverged branches now say whether a merge would be clean or conflict, without touching anything; documents and specification match; full gate green. Idea for the coordinator, not captured: a rebase prediction through `git replay`.
+
+## Done
+
+Accepted 20 October 2026 by acceptmgit under Kris’s TO-DONE authority on the review packet above.
 
 ## Discussion
 
@@ -130,3 +135,7 @@ Planned to Ready on 20 October 2026 by the tools-burndown burnmgit run, `size: m
 - **No version probe.** The `merge-tree` exit status itself is the probe: `0` clean, `1` conflicts, anything else falls back to today's warning. This costs nothing when no branch has diverged and needs no Git version parsing.
 - **Wording.** The prediction is appended to the existing diverged line, so the line stays one warning; conflicted paths appear under `-v` only, as indented detail like `git status --short` for a dirty checkout.
 - **Interaction with [KI-TOOL-MGIT-CLI-030](KI-TOOL-MGIT-CLI-030-sync-closing-summary.md).** 030 is still a draft; whichever lands second carries the prediction into its closing detail line.
+
+### Independent acceptance
+
+Kris’s TO-DONE instruction of 20 October 2026 in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) authorises an independent acceptance pass; this run’s brief explicitly grants “full authority to accept and prune” these four named records. The requirements, completed Steps, delivery packet and current implementation were reviewed independently, and the full gate was re-run rather than relying on delivery reports.

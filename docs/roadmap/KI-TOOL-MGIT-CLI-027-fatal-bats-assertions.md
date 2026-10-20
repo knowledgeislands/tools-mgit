@@ -7,13 +7,12 @@ purpose: debt
 project: tools-burndown
 priority: medium
 size: s
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 73a665af3e4ab8c111044332bc2ac619dca30e53
 created_at: 2026-10-18T17:10:05Z
-updated_at: 2026-10-19T23:30:00Z
+updated_at: 2026-10-20T00:48:16Z
 ---
 
 # Fatal Bats Assertions
@@ -90,6 +89,8 @@ Within the approved boundary, from baseline `73a665a`: the seven bare assertions
 
 `ki repo audit --repo .` FAIL=0, its three warnings unrelated to this change (`.rumdl.toml` template drift, Claude Desktop binding, no committed `.githooks/pre-commit`); `ki repo audit --skill ki-repo-tools` reports no `SHELL-FATAL`; `shellcheck bin/mgit install.sh`, `bash -n`, `mandoc -T lint man/mgit.1` and `git diff --check` pass; `bats tests/` with `MGIT_KI_PRODUCER` naming the local `ki` and `TMPDIR` in the run's temporary directory: 135 passed, none failed or skipped.
 
+Independent acceptance by acceptmgit on 20 October 2026, against committed revision `ba04f398143974183c5b8160e7f7f5129c690c44`: the full definition-of-done gate passes, including 141 Bats tests with the committed KI producer and isolated fixtures; repository, roadmap, authoring and tools audits have no FAIL, and the tools audit has no `SHELL-FATAL` warning. Shellcheck, Bash syntax, manual lint, rumdl and whitespace checks pass. The rendered manual and emitted Bash and Zsh completion syntax were checked. The two existing audit warnings concern authoring-template drift and the Claude binding.
+
 ### Outstanding concerns
 
 None.
@@ -102,6 +103,10 @@ The goal is met: a failing negative check mid-test now fails its test under Bash
 
 Seven assertions made fatal; the territory suites pass with the real producer; `SHELL-FATAL` clears. No learning to route.
 
+## Done
+
+Accepted 20 October 2026 by acceptmgit under Kris’s TO-DONE authority on the review packet above.
+
 ## Discussion
 
 Origin: the ways-of-working bats-rule run of 18 October 2026. The line counts are that run's read-only sample and should be re-counted against the audit at planning. Planning question: whether any exposed fault in the territory suites is a test fault or a real producer or protocol defect, which would need its own record. Capture only; adoption, priority and plan belong to this repository.
@@ -113,3 +118,7 @@ Adopted into Next on 19 October 2026 by the tools-burndown trimga run, under Kri
 ### Planning
 
 Planned to Ready on 20 October 2026 by the tools-burndown burnmgit run. The audit re-count on 20 October matches Current state. No design choice was open; the one judgement, how an exposed real defect is routed, was decided under HIGH-APPLY, 20 October: report it to the coordinator rather than capture a record, under CAPTURE-GATE.
+
+### Independent acceptance
+
+Kris’s TO-DONE instruction of 20 October 2026 in the [tools-burndown decisions log](/Users/krisbrown/workspaces/knowledge-islands/ki-principal/+/_WORK/ki.tools-burndown/decisions.md) authorises an independent acceptance pass; this run’s brief explicitly grants “full authority to accept and prune” these four named records. The requirements, completed Steps, delivery packet and current implementation were reviewed independently, and the full gate was re-run rather than relying on delivery reports.
