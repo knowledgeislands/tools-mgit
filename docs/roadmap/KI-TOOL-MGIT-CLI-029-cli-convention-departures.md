@@ -14,7 +14,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 4dff1a4a90e26a2e648c9386d1f65c381d8a615e
 created_at: 2026-10-19T18:26:00Z
-updated_at: 2026-10-20T01:30:00Z
+updated_at: 2026-10-20T00:00:00Z
 ---
 
 # CLI Convention Departures
