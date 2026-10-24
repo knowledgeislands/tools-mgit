@@ -219,7 +219,7 @@ write_other_capital() {
   cmp .mgit.toml "$ROOT/before.toml"
   printf '%s\n' 'schema = 1' 'kind = "workspace"' 'agora = "old"' '[agora.members."../Capital Space"]' > .mgit.toml
   cp .mgit.toml "$ROOT/before.toml"
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -ne 0 ]
   cmp .mgit.toml "$ROOT/before.toml"
 }

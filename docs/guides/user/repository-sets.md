@@ -55,7 +55,7 @@ Earlier releases wrote external roots as empty `[registered.members."PATH"]` tab
 
 Existing `schema = 1` manifests with grouped members remain readable. Registration rewrites a manifest containing only its structural `default` group into the direct-member format. A manifest with alternative groups must have those tables removed deliberately before registration; `mgit` refuses to discard them silently.
 
-For a focused migration, run `mgit repair` in the directory containing the manifest. It prints the proposed config diff and missing clone targets without changing them. `mgit repair --apply` revalidates and writes only a recognised repository-kind file or a workspace containing just the structural default group, then clones missing declared repositories. Unknown schema values, mixed shapes and alternative groups are refused. This command does not refresh members or update Chezmoi's source; if Chezmoi owns the file, carry the reviewed change into its source before applying that source again.
+For a focused migration, run `mgit repair --dry-run`, or `-n`, in the directory containing the manifest. It prints the proposed config diff and missing clone targets without changing them. `mgit repair` revalidates and writes only a recognised repository-kind file or a workspace containing just the structural default group, then clones missing declared repositories. Unknown schema values, mixed shapes and alternative groups are refused. This command does not refresh members or update Chezmoi's source; if Chezmoi owns the file, carry the reviewed change into its source before applying that source again.
 
 ## Repository configuration
 
@@ -74,17 +74,17 @@ Workspace tables are invalid in repository document, and `symlinks` table is inv
 
 ## Recreate a workspace
 
-`mgit repair` previews missing repositories declared by direct members in the workspace in the current directory:
+`mgit repair` clones missing repositories declared by direct members in the workspace in the current directory:
 
 ```sh
 mgit repair
 ```
 
-Add `--apply` to clone every missing local repository from its `source` URL and follow child workspace documents through direct members. A missing external member is reported and never cloned. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
+Use `--dry-run`, or `-n`, to preview without changing files. Repair clones every missing local repository from its `source` URL and follows child workspace documents through direct members. A missing external member is reported and never cloned. Standard repositories use normal clone, bare repositories use `--bare`, and nested repositories use `.bare/` plus `main/` layout.
 
 Repair never replaces existing path. Present repository must match declared type; non-repository path or type mismatch is error. Child workspace directories and workspace-kind `.mgit.toml` documents must already exist.
 
-Repair validates the workspace tree before reporting proposed clones. Without `--apply`, it never creates a repository or changes a manifest.
+Repair validates the workspace tree before writing or reporting proposed clones. With `--dry-run`, it never creates a repository or changes a manifest.
 
 ## Migrate Agora locations
 

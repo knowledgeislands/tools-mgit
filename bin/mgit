@@ -70,7 +70,7 @@ Options:
 
 Commands:
   register                generate workspace manifests and symlink metadata
-  repair                  preview config repairs and missing repository clones
+  repair                  repair config and clone missing repositories
   doctor                  evaluate local prerequisites and configuration
   diag                    print share-safe diagnostic facts
   sync                    update clean tracking branches across the current set
@@ -111,15 +111,14 @@ EOF
 
 repair_usage() {
   cat <<'EOF'
-Usage: mgit repair [--apply]
+Usage: mgit repair [--dry-run]
 
-Preview recognised configuration repairs and missing workspace repositories.
---apply writes the validated config repair and clones missing repositories.
+Repair recognised configuration and clone missing workspace repositories.
 Existing repository paths are never replaced, and external members (../ paths)
 are never cloned.
 
 Options:
-      --apply    perform the previewed repairs
+  -n, --dry-run  preview config repairs and clones without changing files
   -h, --help  display help for command
 EOF
 }
@@ -371,7 +370,7 @@ _mgit() {
       fi
       ;;
     repair)
-      COMPREPLY=( $(compgen -W '--apply --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W '--dry-run -n --help -h' -- "$cur") )
       ;;
     diag)
       COMPREPLY=( $(compgen -W '--full --help -h' -- "$cur") )
@@ -428,7 +427,7 @@ _mgit() {
   typeset -A opt_args
   global_commands=(
     'register:generate workspace manifests and repository symlink metadata'
-    'repair:preview config repairs and missing repository clones'
+    'repair:repair config and clone missing repositories'
     'doctor:evaluate local prerequisites and configuration'
     'diag:print share-safe environment facts'
     'sync:update clean tracking branches across the current set'
@@ -476,7 +475,7 @@ _mgit() {
   )
   case $words[2] in
     register) _arguments -s '1:action:(add rm)' '*--territory[add or remove a territory location]:territory name:' '*-t[add or remove a territory location]:territory name:' '*--repo[add or remove a repository location]:repository path:_files -/' '--dry-run[preview manifest changes]' '-n[preview manifest changes]' '-h[display help for command]' '--help[display help for command]' ;;
-    repair) _arguments '--apply[perform validated repairs]' '-h[display help for command]' '--help[display help for command]' ;;
+    repair) _arguments -s '--dry-run[preview config repairs and clones]' '-n[preview config repairs and clones]' '-h[display help for command]' '--help[display help for command]' ;;
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
     sync) _arguments -s '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
@@ -1473,7 +1472,7 @@ config_repair_render() {
 }
 
 config_repair_command() {
-  local apply="$1" file="./$MGIT_MANIFEST" kind line cleaned seen_schema=false before after temporary code
+  local dry_run="$1" file="./$MGIT_MANIFEST" kind line cleaned seen_schema=false before after temporary code
   if [ ! -f "$file" ] || [ -L "$file" ]; then
     printf 'mgit repair: regular %s required\n' "$file" >&2
     return 1
@@ -1497,7 +1496,7 @@ config_repair_command() {
   git diff --no-index -- "$file" <(config_repair_render "$file" "$kind")
   code=$?
   [ "$code" -eq 1 ] || { [ "$code" -eq 0 ] && printf 'mgit repair: no change\n'; return "$code"; }
-  [ "$apply" = true ] || { printf 'mgit repair: preview only; rerun with --apply to write\n'; return 0; }
+  [ "$dry_run" = false ] || { printf 'mgit repair: would write %s\n' "$file"; return 0; }
   temporary=$(mktemp "${file}.repair.XXXXXX") || return 1
   if ! cp -p "$file" "$temporary" || ! config_repair_render "$file" "$kind" > "$temporary"; then
     rm -f -- "$temporary"
@@ -2257,13 +2256,13 @@ repair_tree() {
 }
 
 repair_command() {
-  local help=false apply=false kind
-  repair_dry_run=true
-  split_options sub '' '' "$@"
+  local help=false kind
+  repair_dry_run=false
+  split_options sub n '' "$@"
   set -- "${split_args[@]+"${split_args[@]}"}"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --apply) [ "$apply" = false ] || { usage_error_for repair_usage 'repair: repeated --apply'; return; }; apply=true ;;
+      -n|--dry-run) repair_dry_run=true ;;
       -h|--help) help=true ;;
       *) usage_error_for repair_usage "repair: unexpected argument: $1"; return ;;
     esac
@@ -2280,12 +2279,7 @@ repair_command() {
     repair_preflight_repositories=()
     repair_preflight "." || return 1
   fi
-  if [ "$apply" = true ]; then
-    config_repair_command true || return 1
-    repair_dry_run=false
-  else
-    config_repair_command false || return 1
-  fi
+  config_repair_command "$repair_dry_run" || return 1
   if [ "$kind" = workspace ]; then
     repair_seen=()
     repair_tree "."

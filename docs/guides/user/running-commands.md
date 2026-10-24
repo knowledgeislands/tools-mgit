@@ -87,7 +87,7 @@ Run `mgit diag` for share-safe tool/version, installation mode, host platform an
 
 `mgit diag --full` adds the resolved executable, current directory, manifest path and configuration error details for private troubleshooting. Review fuller output before sharing it. Ordinary diagnostics omit paths and rejected configuration values.
 
-Run `mgit doctor` to evaluate two read-only check units: Git availability and current manifest validity. It reports the check scope, pass/warn/fail/skipped counts and a healthy or unhealthy verdict; failures include a next action and exit with status 1. An absent optional manifest passes because filesystem discovery remains available. These checks do not synchronize repositories, assess package upgrades, or change configuration. Use `mgit diag --full` when an invalid manifest needs error detail, and `mgit repair` to preview a recognised repair before explicitly applying it.
+Run `mgit doctor` to evaluate two read-only check units: Git availability and current manifest validity. It reports the check scope, pass/warn/fail/skipped counts and a healthy or unhealthy verdict; failures include a next action and exit with status 1. An absent optional manifest passes because filesystem discovery remains available. These checks do not synchronize repositories, assess package upgrades, or change configuration. Use `mgit diag --full` when an invalid manifest needs error detail, and `mgit repair --dry-run` to preview a recognised repair before running `mgit repair`.
 
 ## Include linked worktrees
 
@@ -150,7 +150,7 @@ Workspace members are selected before filters are applied. The filter then narro
 
 Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bypass`, `--raw` and `--learn` apply only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
-`mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` previews recognised config repairs and missing repository clones, and `--apply` performs them explicitly.
+`mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` performs recognised config repairs and clones missing repositories; `mgit repair --dry-run`, or `-n`, previews them without changing files.
 
 ## Select a territory
 

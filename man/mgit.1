@@ -44,10 +44,12 @@ Generate
 manifests for the current tree.
 .sp
 .TP
-.B mgit repair [\-\-apply]
-Preview a recognised legacy schema repair and missing repository clones.
-Apply both only with
-.BR \-\-apply .
+.B mgit repair [\-\-dry\-run]
+Perform recognised legacy schema repair and missing repository clones.
+Preview without changing files with
+.BR \-\-dry\-run
+(or
+.BR \-n ).
 Existing repository paths are never replaced.
 The selection comes from the current
 .I .mgit.toml
@@ -504,19 +506,18 @@ emits a warning but does not prevent a local manifest from being generated or
 removed.
 .TP
 .B mgit repair
-uses the workspace manifest in the current directory to preview every missing
+uses the workspace manifest in the current directory to clone every missing
 repository among the direct members with a source URL.
-On apply it creates standard, nested, and bare repositories in their declared
-forms.
+It creates standard, nested, and bare repositories in their declared forms.
 It recursively follows child workspaces through their direct members.
 External members, whose paths begin with
 .BR ../ ,
 are reported when missing and never cloned.
-.B mgit repair \-\-apply
-performs the validated config repair and missing repository clones.
-Repair validates the workspace before the preview; without
-.B \-\-apply
-it does not change files.
+.B mgit repair \-\-dry\-run
+(or
+.BR \-n )
+previews config repairs and missing clones without changing files.
+Repair validates the workspace before writing or previewing.
 Existing paths are never replaced: a present repository must match its declared
 structure, and child workspace directories and manifests must already exist.
 .SS Repository management
@@ -813,9 +814,11 @@ Existing schema-1 manifests with grouped members remain readable.
 Registration migrates one containing only the structural default group to
 direct members. A manifest with alternative groups must have those tables
 removed deliberately before registration; mgit refuses to discard them.
-.B mgit repair
+.B mgit repair \-\-dry\-run
+(or
+.BR \-n )
 previews the exact diff without writing or refreshing membership.
-.B mgit repair \-\-apply
+.B mgit repair
 revalidates and writes only a recognised repository manifest or a workspace
 with a sole structural default group. Unknown shapes and alternative groups
 are refused. This does not update Chezmoi source state.

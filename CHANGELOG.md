@@ -2,6 +2,12 @@
 
 All notable changes to `mgit` are documented here as a consolidated Pre-1.0 baseline. It is updated as the tool evolves; tags, GitHub releases and commit history retain the exact 0.x snapshots.
 
+## Unreleased
+
+### Changed
+
+- `mgit repair` now writes recognised config repairs and clones missing repositories by default. Use `--dry-run` or `-n` to preview without changing files; `--apply` is no longer accepted. Existing-path, external-member and preflight validation guards remain in place.
+
 ## Pre-1.0 baseline
 
 This baseline describes the `v0.18.0` release. Separate 0.x release entries are not maintained here.
@@ -37,7 +43,7 @@ This baseline describes the `v0.18.0` release. Separate 0.x release entries are 
 #### Workspace management
 
 - `mgit register [add|rm] [--territory <handle>] [--repo <path>] [-n|--dry-run]`
-- `mgit repair [--apply]`
+- `mgit repair [--dry-run]`
 
 #### Repository management
 
@@ -65,7 +71,7 @@ This baseline describes the `v0.18.0` release. Separate 0.x release entries are 
 
 - Runtime discovery walks Git repositories below current directory, with physical or symlink-following traversal and optional literal case-sensitive directory-basename prefix filters.
 - Unversioned `.mgit.toml` documents use explicit `workspace` or `repository` kind for repository-set membership and cross-repository symlink metadata.
-- `mgit repair` previews a validated legacy-schema diff and missing clones; `--apply` performs the repairs after preflight. Alternative group selections are never discarded automatically.
+- `mgit repair` performs validated legacy-schema repair and missing clones after preflight; `--dry-run` or `-n` previews them without writing. Alternative group selections are never discarded automatically.
 - `mgit register` refreshes repository entries from saved local, territory-handle, and explicit repository locations; add/rm change locations, while registration synchronizes Chezmoi-managed state.
 - Repositories outside a workspace are ordinary typed `[members."../PATH"]` entries generated from saved locations, deduplicated by physical path across the recursive set and never cloned by `repair`; one that resolves back inside its own workspace is rejected, and `register` (and `--dry-run`) names each hand-written external member it drops. Legacy `[registered.members]` tables remain readable with one deprecation warning per manifest until `mgit register` rewrites them.
 - Ordinary commands run in a bounded parallel pool (`--jobs`, default 8) with a terminal-only progress line, then print in selection order only checkouts with output or a failure and one closing count naming each failure. Nothing is quiet by built-in rule beyond empty output: `mgit learn` learns a Git command's normal output, with each checkout's path, remote, upstream, branch and name set aside, from one checkout or more into a template under `~/.config/mgit/templates/` when every checkout, or more than half, agree and the user confirms on a terminal, and later runs count a matching checkout as quiet. Workers cannot prompt, read the terminal or open an editor. `--verbose` restores serial streaming and `--json` prints one document.
@@ -73,8 +79,8 @@ This baseline describes the `v0.18.0` release. Separate 0.x release entries are 
 - Workspace selection recursively expands child workspaces, while repository metadata adds linked repositories transitively without duplicate dispatch.
 - Territory, estate and principals selectors buffer exact NUL-delimited roots from `ki territory roots --null`, keeping KI's order, passing repeated nonempty literal prefixes to KI before physical-root validation; failures never dispatch a partial set.
 - Selected standard and nested repositories target only their primary checkout by default; `--all-worktrees` expands them to every active checkout.
-- `mgit repair --apply` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
-- `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair` previews config changes and missing clones by default.
+- `mgit repair` recreates missing standard, nested, and bare repositories from workspace member metadata without replacing existing paths.
+- `register --dry-run` previews manifest writes and removals without changing local or Chezmoi state; `repair --dry-run` (or `-n`) previews config changes and missing clones without writing.
 - `mgit doctor` evaluates Git and manifest readiness without mutation, reports its check scope, verdict and pass/warn/fail/skipped counts, and does not assess package updates or repository synchronization. An absent optional manifest is healthy.
 - `doctor` and `diag` share tool/version, proven local/release/unknown installation mode, host platform/architecture, executing Bash runtime and configuration-state context. `diag` keeps paths and configuration errors behind explicit `--full` output.
 - Repository structure and worktree commands operate consistently across standard and nested layouts.

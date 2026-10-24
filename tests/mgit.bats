@@ -384,7 +384,8 @@ KI
   [[ "$output" == *"sync"* ]] || false
   [[ "$output" == *"--estate --principals"* ]] || false
   [[ "$output" == *"add rm --territory -t --repo --dry-run -n --help -h"* ]] || false
-  [[ "$output" == *"--apply"* ]] || false
+  [[ "$output" != *"--apply"* ]] || false
+  [[ "$output" == *"--dry-run -n --help -h"* ]] || false
   [[ "$output" == *"--all-worktrees"* ]] || false
   [[ "$output" != *"bootstrap"* ]] || false
   [[ "$output" != *"convert"* ]] || false
@@ -404,7 +405,8 @@ KI
   [[ "$output" == *"--principals[select the territory Capitals in KI order]"* ]] || false
   [[ "$output" == *"add or remove a territory location"* ]] || false
   [[ "$output" == *"add or remove a repository location"* ]] || false
-  [[ "$output" == *"perform validated repairs"* ]] || false
+  [[ "$output" == *"preview config repairs and clones"* ]] || false
+  [[ "$output" != *"--apply"* ]] || false
   [[ "$output" == *"sync:update clean tracking branches"* ]] || false
   [[ "$output" == *"compdef _mgit mgit"* ]] || false
   [[ "$output" == *"'--raw[run an ordinary command without git prefix]'"* ]] || false
@@ -2022,11 +2024,11 @@ make_external_estate() {
     '[members."../external"]' 'kind = "repository"' 'type = "standard"' \
     "source = \"$BATS_TEST_TMPDIR/origin.git\"" > "$TREE/workspace/.mgit.toml"
   cd "$TREE/workspace"
-  run "$MGIT" repair
+  run "$MGIT" repair --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"would clone standard repository"*"/workspace/local"* ]] || false
   [[ "$output" == *"not cloning missing external member: "*"/external"* ]] || false
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   [ -f "$TREE/workspace/local/payload" ]
   [ ! -e "$TREE/external" ]
@@ -2312,7 +2314,7 @@ make_external_estate() {
     "source = \"$TREE/standard.origin.git\"" > "$TREE/workspace/group/.mgit.toml"
 
   cd "$TREE/workspace"
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
 
   [ "$status" -eq 0 ]
   [ "$(cat "$TREE/workspace/standard-repo/payload")" = standard ]
@@ -2362,17 +2364,21 @@ make_external_estate() {
   [ -f "$TREE/repo/.mgit.toml" ]
 }
 
-@test "repair previews missing clone targets without creating them" {
+@test "repair dry-run previews missing clone targets without creating them" {
   make_origin "$TREE/source" "$TREE/origin.git" payload
   mkdir "$TREE/workspace"
   printf '%s\n' 'kind = "workspace"' '[members."missing"]' 'kind = "repository"' \
     'type = "standard"' "source = \"$TREE/origin.git\"" > "$TREE/workspace/.mgit.toml"
   cd "$TREE/workspace"
+  before=$(cat .mgit.toml)
+  for option in --dry-run -n; do
+    run "$MGIT" repair "$option"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"mgit repair: would clone standard repository"* ]] || false
+    [ ! -e "$TREE/workspace/missing" ]
+    [ "$(cat .mgit.toml)" = "$before" ]
+  done
   run "$MGIT" repair
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"would clone standard repository"* ]] || false
-  [ ! -e "$TREE/workspace/missing" ]
-  run "$MGIT" repair --apply
   [ "$status" -eq 0 ]
   [ -f "$TREE/workspace/missing/payload" ]
 }
@@ -2389,13 +2395,13 @@ make_external_estate() {
     > "$TREE/.mgit.toml"
 
   cd "$TREE"
-  run "$MGIT" repair
+  run "$MGIT" repair --dry-run
 
   [ "$status" -eq 1 ]
   [ ! -e "$TREE/missing-repo" ]
   [[ "$output" == *"no clone URL"* ]] || false
 
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 1 ]
   grep -Fx 'schema = 1' .mgit.toml
   [ ! -e "$TREE/missing-repo" ]
@@ -2525,7 +2531,7 @@ make_external_estate() {
   [ "$output" = a ]
 }
 
-@test "repair previews and explicitly converts only a structural default workspace" {
+@test "repair dry-run previews and default repairs a structural default workspace" {
   mkrepo "$TREE/a"
   printf '%s\n' \
     '# Preserve this note' \
@@ -2538,16 +2544,18 @@ make_external_estate() {
     'type = "standard"' > "$TREE/.mgit.toml"
   cd "$TREE"
   before=$(cat .mgit.toml)
-  run "$MGIT" repair
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'-schema = 1'* ]] || false
-  [[ "$output" == *'+[members."a"]'* ]] || false
-  [[ "$output" == *'preview only'* ]] || false
-  [ "$(cat .mgit.toml)" = "$before" ]
+  for option in --dry-run -n; do
+    run "$MGIT" repair "$option"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'-schema = 1'* ]] || false
+    [[ "$output" == *'+[members."a"]'* ]] || false
+    [[ "$output" == *'mgit repair: would write ./.mgit.toml'* ]] || false
+    [ "$(cat .mgit.toml)" = "$before" ]
+  done
   run "$MGIT"
   [ "$status" -eq 0 ]
   [ "$output" = a ]
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   grep -Fx '# Preserve this note' .mgit.toml
   grep -Fx '[members."a"]' .mgit.toml
@@ -2565,15 +2573,15 @@ make_external_estate() {
   mkrepo "$TREE/a"
   printf '%s\n' 'schema = 1' 'kind = "repository"' > "$TREE/a/.mgit.toml"
   cd "$TREE/a"
-  run "$MGIT" repair
+  run "$MGIT" repair --dry-run
   [ "$status" -eq 0 ]
   grep -Fx 'schema = 1' .mgit.toml
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 0 ]
   grep -Fx 'kind = "repository"' .mgit.toml
   ! grep -Fq 'schema =' .mgit.toml || false
   printf '%s\n' 'schema = 2' 'kind = "repository"' > .mgit.toml
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 1 ]
   grep -Fx 'schema = 2' .mgit.toml
 
@@ -2588,7 +2596,7 @@ make_external_estate() {
     '[groups.focus.members."a"]' \
     'kind = "repository"' > .mgit.toml
   before=$(cat .mgit.toml)
-  run "$MGIT" repair --apply
+  run "$MGIT" repair
   [ "$status" -eq 1 ]
   [[ "$output" == *'alternative groups need a deliberate manual decision'* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
@@ -3222,4 +3230,16 @@ make_overview_hygiene() {
   run "$MGIT" help overview
   [ "$status" -eq 0 ]
   [[ "$output" == 'Usage: mgit overview [--json] [-v|--verbose] [--stale-days <days>]'* ]] || false
+}
+
+@test "repair rejects the removed apply option without writing" {
+  printf '%s\n' 'schema = 1' 'kind = "workspace"' 'default = "default"' \
+    '[groups.default.members."missing"]' 'kind = "repository"' 'type = "standard"' \
+    > "$TREE/.mgit.toml"
+  cd "$TREE"
+  before=$(cat .mgit.toml)
+  assert_usage_error repair --apply
+  [[ "$output" == *'repair: unexpected argument: --apply'* ]] || false
+  [ "$(cat .mgit.toml)" = "$before" ]
+  [ ! -e missing ]
 }
