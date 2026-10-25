@@ -3283,7 +3283,7 @@ overview_collect() {
       git -C "$dir" for-each-ref --merged="$default" --format='%(refname)' refs/heads refs/remotes 2>/dev/null)
   fi
   while IFS=$'\t' read -r name stamp track; do
-    [ -n "$name" ] && [ "$name" != "$default_local" ] || continue
+    { [ -n "$name" ] && [ "$name" != "$default_local" ]; } || continue
     kept=false
     for item in "${in_use[@]+"${in_use[@]}"}"; do [ "$item" != "$name" ] || kept=true; done
     [ "$kept" = false ] || continue
@@ -3309,7 +3309,7 @@ overview_collect() {
       "$(overview_age_days "$now" "$stamp")" "$(overview_automation "$name")"
   done < <(git -C "$dir" for-each-ref --format='%(refname:short)%09%(committerdate:unix)%09%(upstream:track)' refs/heads 2>/dev/null)
   while IFS=$'\t' read -r name stamp symref; do
-    [ -n "$name" ] && [ -z "$symref" ] && [ "${name#*/}" != "$default_local" ] || continue
+    { [ -n "$name" ] && [ -z "$symref" ] && [ "${name#*/}" != "$default_local" ]; } || continue
     kept=false
     for item in "${in_use[@]+"${in_use[@]}"}"; do [ "$item" != "${name#*/}" ] || kept=true; done
     [ "$kept" = false ] || continue
