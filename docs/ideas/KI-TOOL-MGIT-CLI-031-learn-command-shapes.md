@@ -16,6 +16,8 @@ created_at: 2026-10-22T10:36:39Z
 updated_at: 2026-10-22T10:37:32Z
 ---
 
+> **Idea, not on the roadmap.** Let a learned command recognise later invocations with the same structure even when argument values change; six design questions are still open. Moved out of `docs/roadmap/` on 27 October 2026 under the roadmap sweep, with its record kept in full here so that it can return when Kris brings it back; it was `KI-TOOL-MGIT-CLI-031`.
+
 # Learn command shapes
 
 ## Goal
