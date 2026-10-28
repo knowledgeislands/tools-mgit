@@ -29,6 +29,14 @@ Run a Git subcommand in every selected checkout even when
 owns the name, as in
 .BR "mgit \-B worktree list" .
 .TP
+.B mgit [\fIoptions\fR] chain \fIgit-command\fR [\fIargument\fR ...] [\-\-then \fIgit-command\fR [\fIargument\fR ...]] ...
+Run several Git commands in order in every selected checkout, stopping each
+checkout at its first failing step.
+.TP
+.B mgit [\fIoptions\fR] chain \fIrecipe\fR | \fIrecipe\fR
+Run the steps saved in Git configuration as
+.BR mgit.chain.\fIrecipe\fR .
+.TP
 .B mgit [\fIoptions\fR] learn \fIgit-command\fR [\fIargument\fR ...]
 Run a Git command as usual, then learn its normal output as a template so
 later runs hide checkouts that match it.
@@ -656,6 +664,66 @@ Pass
 or
 .B \-\-force
 to discard dirty changes in that linked checkout.
+.SS Chained commands
+\&
+.TP
+.B mgit chain \fIgit-command\fR [\fIargument\fR ...] \-\-then \fIgit-command\fR [\fIargument\fR ...] ...
+Split the words after
+.B chain
+at each literal
+.B \-\-then
+into steps and run them in order, as Git commands, in every selected checkout.
+Every other word reaches Git unchanged;
+.B \-\-then
+separates steps wherever it appears, even after
+.BR \-\- ,
+so write a path of that name as
+.IR ./\-\-then .
+A checkout stops at its first step that exits non-zero, and the rest of its
+steps are not run; other checkouts carry on.
+Checkouts run in parallel up to the
+.B \-j
+limit.
+Each checkout then gets one block naming every step
+.BR ok ,
+.B failed (exit
+.IB N )
+or
+.B not run
+with that step's output, and one closing line counts the checkouts that
+completed, stopped after at least one step completed, and failed to start
+because no step completed, naming each that did not complete with its step
+and exit status.
+.B \-v
+streams each checkout's steps one checkout at a time, and
+.B \-\-json
+prints one document.
+The command exits 1 unless every checkout completed.
+.BR \-R ,
+.B \-\-learn
+and mgit commands cannot be chained, and learned templates do not apply.
+.TP
+.B mgit chain \fIrecipe\fR
+Run the recipe saved in Git configuration as
+.BR mgit.chain.\fIrecipe\fR ,
+whose value holds the steps joined by
+.B \-\-then
+and splits into words as a shell would split single-quoted, double-quoted and
+backslash-escaped words:
+.PP
+.nf
+git config \-\-global mgit.chain.tidy 'fetch \-\-prune \-\-then pull \-\-ff\-only'
+mgit chain tidy
+.fi
+.PP
+.B mgit \fIrecipe\fR
+with no other words runs the recipe too, unless mgit owns the name or
+.BR \-B ,
+.B \-R
+or
+.B \-\-learn
+is given; a recipe takes precedence over a Git alias of the same name, and
+any further word sends the command to Git as before.
 .SS Output learning
 \&
 .TP
@@ -739,6 +807,15 @@ autoload -Uz compinit && compinit
 .fi
 .SH FILES
 \&
+.SS Chain recipes
+\&
+.PP
+Recipes are read with
+.B git config \-\-get mgit.chain.\fINAME\fR
+from the directory where
+.B mgit
+runs, so a global, system or repository-local setting is visible as Git would
+see it.
 .SS Workspace kind
 \&
 .PP

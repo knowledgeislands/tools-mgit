@@ -46,6 +46,7 @@ mgit status
 mgit sync
 mgit sync -i
 mgit overview
+mgit chain fetch --prune --then pull --ff-only
 mgit -R npm test
 mgit -v pull
 mgit learn st
@@ -57,6 +58,8 @@ mgit help repair
 `mgit sync` fetches every tracking branch in parallel, then fast-forwards branches that are only behind and pushes branches that are only ahead, one checkout at a time. Diverged, dirty, detached and untracked branches are named with a warning and left untouched; nothing is merged or rebased, though a diverged branch's warning says whether a merge would be clean or conflict. It ends with one tally of every repository, in sync, pulled, pushed, skipped and failed, then names each one left behind with its reason and any commits it holds ahead or behind; pass `-v` for progress on every checkout. Use `mgit sync -i` to confirm each pull and push separately; an empty answer skips that action.
 
 Ordinary commands run in up to eight checkouts at once (`-j/--jobs N` sets the limit). Only checkouts with output or a failure are shown, in selection order, followed by one line counting the quiet ones and naming each failure. mgit has no built-in idea of normal output: `mgit learn st` runs `st` across the set and, when every checkout, or more than half, prints the same thing once its own branch, remote, path and name are set aside, asks you to confirm, naming any that differed, then saves that as a template in `~/.config/mgit/templates/`, so later runs hide checkouts that match it. Pass `-v/--verbose` for one checkout at a time with all output streamed, as for an interactive command, or `--json` for one document. Options take the usual forms: `-vW` groups, `-j4` and `--jobs=4` attach a value, and words after the command reach Git unchanged.
+
+`mgit chain` runs several Git commands in order in each checkout, split at each `--then`; a checkout stops at its first failing step while the others carry on, and one tally counts those that completed, stopped and failed to start. Save a sequence as a recipe with `git config --global mgit.chain.tidy 'fetch --prune --then pull --ff-only'` and run it as `mgit chain tidy`, or `mgit tidy` when mgit does not own the name.
 
 `mgit overview` shows, read-only, what is outstanding across the set: dirty files, ahead and behind counts, stashes, worktrees needing attention, and obsolete branches by the Git clean-down criteria. It names only checkouts that need attention, and `--json` prints one document for tools.
 

@@ -4,6 +4,10 @@ All notable changes to `mgit` are documented here as a consolidated Pre-1.0 base
 
 ## Unreleased
 
+### Added
+
+- `mgit chain` runs several Git commands in order in each checkout, split at each `--then`; a checkout stops at its first failing step while the others carry on, and one tally counts those that completed, stopped and failed to start. It takes `-j`, `-v` and `--json`. Recipes saved as `git config mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when mgit does not own the name; `-B` bypasses them.
+
 ### Changed
 
 - `mgit repair` now writes recognised config repairs and clones missing repositories by default. Use `--dry-run` or `-n` to preview without changing files; `--apply` is no longer accepted. Existing-path, external-member and preflight validation guards remain in place.

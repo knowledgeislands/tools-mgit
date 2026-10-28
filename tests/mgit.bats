@@ -543,7 +543,7 @@ assert_usage_error() {
 }
 
 @test "standalone reserved-command help exits 0" {
-  for command in register repair doctor diag sync overview structure worktree learn completion; do
+  for command in register repair doctor diag sync chain overview structure worktree learn completion; do
     run "$MGIT" "$command" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: mgit"* ]] || false
@@ -3242,4 +3242,198 @@ make_overview_hygiene() {
   [[ "$output" == *'repair: unexpected argument: --apply'* ]] || false
   [ "$(cat .mgit.toml)" = "$before" ]
   [ ! -e missing ]
+}
+
+@test "chain splits at --then and passes every other word to Git" {
+  mkrepo "$TREE/alpha"
+  mkrepo "$TREE/beta"
+  cd "$TREE"
+
+  run "$MGIT" chain log -n 1 --format=%s --then branch -v --list --then status --short -- -v
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = alpha ]
+  [ "${lines[1]}" = '  1 ok: git log -n 1 --format=%s' ]
+  [ "${lines[2]}" = init ]
+  [ "${lines[3]}" = '  2 ok: git branch -v --list' ]
+  [[ "${lines[4]}" == '* '*' init' ]] || false
+  [ "${lines[5]}" = '  3 ok: git status --short -- -v' ]
+  [ "${lines[6]}" = beta ]
+  [ "${lines[12]}" = 'mgit chain: 2 repositories: 2 completed, 0 stopped, 0 failed to start' ]
+
+  run "$MGIT" --filter al -j2 chain log -n 1 --format=%s
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+}
+
+@test "chain splits at every literal --then, so a path of that name is written ./--then" {
+  mkrepo "$TREE/alpha"
+  : > "$TREE/alpha/--then"
+  cd "$TREE"
+
+  run "$MGIT" chain add -- ./--then --then diff --cached --name-only
+  [ "$status" -eq 0 ]
+  [ "${lines[2]}" = '  2 ok: git diff --cached --name-only' ]
+  [ "${lines[3]}" = '--then' ]
+
+  git -C alpha reset -q
+  run "$MGIT" chain add -- --then
+  [ "$status" -eq 2 ]
+  [[ "$output" == 'mgit: error: chain: every step needs a Git command on each side of --then'* ]] || false
+  [ -z "$(git -C alpha diff --cached --name-only)" ]
+}
+
+@test "chain stops a checkout at its first failing step while others carry on" {
+  local name
+  for name in alpha beta gamma; do mkrepo "$TREE/$name"; done
+  git -C "$TREE/alpha" tag start
+  git -C "$TREE/beta" tag start
+  git -C "$TREE/alpha" branch feature
+  cd "$TREE"
+
+  run "$MGIT" chain show-ref -q --verify refs/tags/start --then checkout -q feature --then commit -q --allow-empty -m chained
+  [ "$status" -eq 1 ]
+  [[ "$output" == *$'alpha\n  1 ok: git show-ref -q --verify refs/tags/start\n  2 ok: git checkout -q feature\n  3 ok: git commit -q --allow-empty -m chained\n'* ]] || false
+  [[ "$output" == *$'beta\n  1 ok: git show-ref -q --verify refs/tags/start\n  2 failed (exit 1): git checkout -q feature\n'*$'\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
+  [[ "$output" == *$'gamma\n  1 failed (exit 1): git show-ref -q --verify refs/tags/start\n  2 not run: git checkout -q feature\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 1 completed, 1 stopped, 1 failed to start: beta (step 2, exit 1), gamma (step 1, exit 1)' ]
+  [ "$(git -C alpha log -1 --format=%s feature)" = chained ]
+  [ "$(git -C beta log -1 --format=%s)" = init ]
+  [ "$(git -C gamma log -1 --format=%s)" = init ]
+}
+
+@test "chain runs checkouts in parallel up to the job limit" {
+  local name
+  for name in a b c; do mkrepo "$TREE/$name"; done
+  export MARKS="$BATS_TEST_TMPDIR/marks"
+  mkdir "$MARKS"
+  # A shell alias runs at the repository top level, waits briefly for its
+  # siblings, then reports how many have started.
+  # shellcheck disable=SC2016
+  local probe='!touch "$MARKS/${PWD##*/}"; n=0; while [ "$(ls "$MARKS" | wc -l)" -lt 3 ] && [ $n -lt 20 ]; do sleep 0.1; n=$((n + 1)); done; ls "$MARKS" | wc -l | tr -d " "'
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --file "$GIT_CONFIG_GLOBAL" alias.probe "$probe"
+  cd "$TREE"
+
+  run "$MGIT" -j 3 chain probe --then log -n 1 --format=%s
+  [ "$status" -eq 0 ]
+  [ "${lines[2]}" = 3 ]
+  [ "${lines[7]}" = 3 ]
+  [ "${lines[12]}" = 3 ]
+
+  rm -f "$MARKS"/*
+  run "$MGIT" --jobs 1 chain probe --then log -n 1 --format=%s
+  [ "$status" -eq 0 ]
+  [ "${lines[2]}" = 1 ]
+  [ "${lines[7]}" = 2 ]
+  [ "${lines[12]}" = 3 ]
+  [ "${lines[15]}" = 'mgit chain: 3 repositories: 3 completed, 0 stopped, 0 failed to start' ]
+}
+
+@test "verbose chain streams each checkout's steps in turn and keeps the tally" {
+  mkrepo "$TREE/alpha"
+  mkrepo "$TREE/beta"
+  git -C "$TREE/beta" tag start
+  cd "$TREE"
+
+  run "$MGIT" -v chain log -n 1 --format=%s --then show-ref -q --verify refs/tags/start --then rev-parse --is-inside-work-tree
+  [ "$status" -eq 1 ]
+  [ "$output" = $'alpha: git log -n 1 --format=%s\ninit\nalpha: git show-ref -q --verify refs/tags/start\nbeta: git log -n 1 --format=%s\ninit\nbeta: git show-ref -q --verify refs/tags/start\nbeta: git rev-parse --is-inside-work-tree\ntrue\nmgit chain: 2 repositories: 1 completed, 1 stopped, 0 failed to start: alpha (step 2, exit 1)' ]
+}
+
+@test "json prints chain results as one document" {
+  mkrepo "$TREE/alpha"
+  cd "$TREE"
+
+  run "$MGIT" --json chain log -n 1 --format=%s --then show-ref -q --verify refs/tags/start --then status
+  [ "$status" -eq 1 ]
+  [[ "$output" == '{"tool":"mgit","command":"chain","version":"'*'","recipe":null,"steps":["git log -n 1 --format=%s","git show-ref -q --verify refs/tags/start","git status"],"repositories":[{"label":"alpha","path":"'*'/alpha","outcome":"stopped","steps":[{"command":"git log -n 1 --format=%s","run":true,"exit":0,"stdout":"init\n","stderr":""},{"command":"git show-ref -q --verify refs/tags/start","run":true,"exit":1,"stdout":"","stderr":""},{"command":"git status","run":false}]}],"summary":{"repositories":1,"completed":0,"stopped":1,"failed_to_start":0}}' ]] || false
+
+  assert_usage_error -v --json chain status
+}
+
+@test "chain recipes come from Git configuration and split like shell words" {
+  mkrepo "$TREE/alpha"
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.tidy "log -n 1 \"--format=%s by %an\" --then log -n 1 '--format=%s  'x\\ y"
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.open 'log "--format=%s'
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.empty 'status --then'
+  cd "$TREE"
+
+  run "$MGIT" chain tidy
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\\ by\\ %an\ninit by t\n  2 ok: git log -n 1 --format=%s\\ \\ x\\ y\ninit  x y\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+
+  run "$MGIT" --json chain tidy
+  [[ "$output" == *'"recipe":"tidy","steps":["git log -n 1 --format=%s\\ by\\ %an",'* ]] || false
+
+  run "$MGIT" chain open
+  [ "$status" -eq 1 ]
+  [ "$output" = 'mgit: recipe open: unterminated quote in mgit.chain.open' ]
+
+  run "$MGIT" chain empty
+  [ "$status" -eq 1 ]
+  [ "$output" = 'mgit: recipe empty: every step needs a Git command' ]
+}
+
+@test "a lone recipe name runs ahead of Git but never shadows an mgit command" {
+  mkrepo "$TREE/alpha"
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.tidy 'log -n 1 --format=%s --then rev-parse --is-inside-work-tree'
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.status 'log -n 1 --format=tformat:recipe'
+  git config --file "$GIT_CONFIG_GLOBAL" mgit.chain.overview 'log -n 1 --format=tformat:recipe'
+  git config --file "$GIT_CONFIG_GLOBAL" alias.tidy 'log -n 1 --format=tformat:alias'
+  cd "$TREE"
+
+  run "$MGIT" tidy
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\n  2 ok: git rev-parse --is-inside-work-tree\ntrue\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+
+  run "$MGIT" status
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = '  1 ok: git log -n 1 --format=tformat:recipe' ]
+
+  # Further words, -B and --raw all leave the name to Git or the shell.
+  run "$MGIT" tidy --format=tformat:extra
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha: git tidy --format=tformat:extra\nextra\nmgit: 1 repository: 0 quiet, 1 with output, 0 failed' ]
+  run "$MGIT" -B tidy
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha: git tidy\nalias\nmgit: 1 repository: 0 quiet, 1 with output, 0 failed' ]
+  run "$MGIT" -B status --short
+  [ "$status" -eq 0 ]
+  [[ "$output" != *recipe* ]] || false
+  run "$MGIT" -R tidy
+  [ "$status" -eq 1 ]
+  [[ "$output" != *'mgit chain:'* ]] || false
+
+  # An mgit-owned name always runs the mgit command, never a recipe.
+  run "$MGIT" overview
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'mgit overview: 1 repository:'* ]] || false
+  [[ "$output" != *recipe* ]] || false
+}
+
+@test "chain syntax is validated before anything runs" {
+  mkrepo "$TREE/alpha"
+  cd "$TREE"
+
+  assert_usage_error chain
+  assert_usage_error chain --then status
+  assert_usage_error chain commit -q --allow-empty -m one --then
+  assert_usage_error chain status --then --then status
+  assert_usage_error chain -h extra
+  assert_usage_error -R chain status
+  assert_usage_error --learn chain status
+  assert_usage_error help chain extra
+  [ "$(git -C alpha rev-list --count HEAD)" = 1 ]
+
+  run "$MGIT" chain --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit chain '* ]] || false
+  run "$MGIT" help chain
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit chain '* ]] || false
+  run "$MGIT" --help chain
+  [ "$status" -eq 0 ]
+  [[ "$output" == 'Usage: mgit chain '* ]] || false
 }

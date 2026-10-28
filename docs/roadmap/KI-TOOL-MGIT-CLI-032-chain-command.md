@@ -8,12 +8,12 @@ component: cli
 priority: high
 size: m
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: d4bb1b86928b7da74bfa5999957fdd33b36157ad
 created_at: 2026-10-28T22:44:14Z
-updated_at: 2026-10-28T22:44:14Z
+updated_at: 2026-10-28T22:54:27Z
 ---
 
 # Chain Git commands
@@ -45,13 +45,13 @@ Today a sequence such as fetch, fast-forward pull and push needs three separate 
 
 ## Steps
 
-- [ ] Add `chain` to the owned commands: split its raw words at each literal `--then` into steps, reject an empty step, `-R`, `--learn`, and `-v` with `--json` as usage errors, and give `mgit chain -h`, `mgit help chain` and `mgit --help chain` the chain usage.
-- [ ] Read recipes from `mgit.chain.<name>` when the only word after `chain` is a valid Git configuration key name with a value, splitting the value into words with single quotes, double quotes and backslash escapes; reject an unterminated quote or empty step naming the recipe.
-- [ ] Run a recipe at top level when `mgit <name>` has no other words, `<name>` is not an mgit-owned command, and none of `-B`, `-R` or `--learn` is given; share one owned-command list with the learn check.
-- [ ] Add a chain worker on the shared pool that runs each step in turn inside the checkout, stops at the first non-zero status, and keeps each step's output and status; render one block per checkout in selection order with each step `ok`, `failed (exit N)` or `not run` and its output, then `mgit chain: N repositories: N completed, N stopped, N failed to start` naming each checkout that did not complete with its step and exit status; exit `1` unless every checkout completed.
-- [ ] Add a streaming form under `-v` with the same per-step stop and the same tally, and a `--json` document with each checkout's outcome and steps and a `summary` object.
-- [ ] Add Bash and Zsh completion for `chain` (recipe names and `--then`), the usage text and command listing, MGIT-WS-028, the manual, README, running-commands guide and changelog, documenting a path named `--then` as `./--then`.
-- [ ] Add Bats cases for splitting with Git flags surviving, stop-at-first-failure with other checkouts continuing, the tally, parallel and verbose runs, JSON, recipes with quoting, top-level precedence, `-B` bypass, the no-shadow rule, and the usage errors.
+- [x] Add `chain` to the owned commands: split its raw words at each literal `--then` into steps, reject an empty step, `-R`, `--learn`, and `-v` with `--json` as usage errors, and give `mgit chain -h`, `mgit help chain` and `mgit --help chain` the chain usage.
+- [x] Read recipes from `mgit.chain.<name>` when the only word after `chain` is a valid Git configuration key name with a value, splitting the value into words with single quotes, double quotes and backslash escapes; reject an unterminated quote or empty step naming the recipe.
+- [x] Run a recipe at top level when `mgit <name>` has no other words, `<name>` is not an mgit-owned command, and none of `-B`, `-R` or `--learn` is given; share one owned-command list with the learn check.
+- [x] Add a chain worker on the shared pool that runs each step in turn inside the checkout, stops at the first non-zero status, and keeps each step's output and status; render one block per checkout in selection order with each step `ok`, `failed (exit N)` or `not run` and its output, then `mgit chain: N repositories: N completed, N stopped, N failed to start` naming each checkout that did not complete with its step and exit status; exit `1` unless every checkout completed.
+- [x] Add a streaming form under `-v` with the same per-step stop and the same tally, and a `--json` document with each checkout's outcome and steps and a `summary` object.
+- [x] Add Bash and Zsh completion for `chain` (recipe names and `--then`), the usage text and command listing, MGIT-WS-028, the manual, README, running-commands guide and changelog, documenting a path named `--then` as `./--then`.
+- [x] Add Bats cases for splitting with Git flags surviving, stop-at-first-failure with other checkouts continuing, the tally, parallel and verbose runs, JSON, recipes with quoting, top-level precedence, `-B` bypass, the no-shadow rule, and the usage errors.
 
 ## Files touched
 
@@ -73,7 +73,7 @@ None: `chain` adds a command in the existing dispatch and runner patterns, and K
 
 ### Specifications
 
-New MGIT-WS-028 in the dispatch specification states the chain contract, recipes and their precedence; MGIT-WS-022's selector applicability and MGIT-WS-026's owned-name rule cover `chain` through it.
+New MGIT-WS-028 in the dispatch specification states the chain contract, recipes and their precedence; MGIT-WS-022 names the selectors `chain` accepts, and MGIT-WS-026's owned-name rule covers `chain` as an mgit command.
 
 ### Guides
 
@@ -82,6 +82,38 @@ The running-commands guide gains a section on chains and recipes; the README usa
 ### Roadmap
 
 None expected; any follow-on found in delivery is reported to the coordinator rather than captured, under CAPTURE-GATE.
+
+## Review
+
+### Delivered
+
+`mgit chain STEP [--then STEP]...` runs Git steps in order in every selected checkout on the shared pool, stopping each checkout at its first failing step while the others carry on, with one block per checkout and a tally of completed, stopped and failed to start; `-v` streams it and `--json` prints one document. Recipes in `mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when the name is the sole word, not mgit-owned, and no `-B`, `-R` or `--learn` is given. Help, usage, Bash and Zsh completion, the manual, README, running-commands guide, MGIT-WS-028 and the changelog cover it, including the `./--then` path form.
+
+### Change Summary
+
+- `bin/mgit`: chain parsing, recipe lookup and shell-like splitting, the chain worker, captured, streaming and JSON renderers, the top-level recipe rule, one shared `is_mgit_command` list used by the learn check and the recipe rule, `chain_usage`, `mgit help chain`, the command listing and both completions.
+- `tests/mgit.bats`: nine chain cases, and `chain` in the standalone-help loop.
+- `docs/specs/workspace-dispatch.md`: new MGIT-WS-028 under Chained commands; MGIT-WS-022 names the selectors `chain` accepts.
+- `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `CHANGELOG.md` (Unreleased, Added); no version bump.
+
+### Verification
+
+- `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check` and `rumdl check` on the changed Markdown: pass.
+- `MGIT_KI_PRODUCER=<installed ki> TMPDIR=<run directory> bats tests/`: 151 of 151 pass, none skipped, the nine chain cases among them.
+- `ki repo audit --repo .`: the only FAIL is the existing SHELL-HOOK finding on `.githooks/pre-commit`, untouched by this work; a MAN-STYLE finding the new FILES subsection raised was fixed before commit.
+
+### Outstanding concerns
+
+- Every checkout is shown in captured output, including completed ones, because the brief asks for one block per repository; over a large set a quiet-collapse like ordinary dispatch may read better, left for review.
+- A recipe is read from the Git configuration visible in the invoking directory, as Git aliases are; a repository-local recipe in one member is not seen from the workspace root.
+
+### Post-change review
+
+Reviewed the diff against the agreed design: `--then` splitting is literal and global, Git flags pass unchanged, the stop rule is per checkout, owned names are never shadowed, `-B` reaches Git, and `mgit NAME ARGS` stays pass-through. The interpretation of "failed to start" as no step completed is recorded under Discussion.
+
+### Mini recap
+
+Chain and recipes are delivered and documented, with the full suite green; acceptance and any release stay with Kris.
 
 ## Discussion
 

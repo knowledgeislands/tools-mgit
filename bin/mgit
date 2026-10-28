@@ -74,6 +74,7 @@ Commands:
   doctor                  evaluate local prerequisites and configuration
   diag                    print share-safe diagnostic facts
   sync                    update clean tracking branches across the current set
+  chain                   run Git commands in order in each checkout, or a recipe
   overview                show what is outstanding across the current set
   structure               convert repository structure across the current set
   worktree                manage worktrees across the current set
@@ -82,6 +83,8 @@ Commands:
   help [command]          display help for a command
 
 Run 'mgit help <command>' for detailed help on a command.
+A lone word naming a chain recipe (git config mgit.chain.NAME) runs it as
+'mgit chain NAME' unless mgit owns the name; -B, -R and --learn skip recipes.
 Global selectors that do not apply to a command cause a usage error.
 Discovery options apply only without a workspace manifest or with --ignore.
 Short options group (-vW) and take attached values (-j4); a long option's
@@ -258,6 +261,35 @@ Options:
 EOF
 }
 
+chain_usage() {
+  cat <<'EOF'
+Usage: mgit chain <git-command> [argument ...] [--then <git-command> [argument ...]] ...
+       mgit chain <recipe>
+
+Run Git commands in order in each checkout of the current set.
+
+Every word after 'chain' goes to Git unchanged except a literal --then, which
+ends one step and starts the next, wherever it appears; write a path named
+--then as ./--then. Each checkout runs its steps in order and stops at its
+first failing step; other checkouts carry on. Checkouts run in parallel up to
+--jobs, and --verbose runs them one at a time, streaming every step. Each
+checkout's block names every step as ok, failed or not run, followed by its
+output, and the run ends with one tally: completed, stopped at a later step,
+and failed to start, where no step completed. --json prints one document. The
+run exits 1 unless every checkout completed.
+
+A recipe is a chain saved in the Git configuration visible where mgit runs:
+  git config --global mgit.chain.tidy 'fetch --prune --then pull --ff-only'
+'mgit chain tidy' runs it, and so does 'mgit tidy' when no other word follows
+and mgit owns no command of that name; -B, -R and --learn skip recipes. A
+recipe's value splits into words as a shell would, honouring quotes and
+backslashes.
+
+Options:
+  -h, --help              display help for this command
+EOF
+}
+
 completion_usage() {
   cat <<'EOF'
 Usage: mgit completion <shell>
@@ -337,7 +369,7 @@ _mgit() {
   local cur="${COMP_WORDS[COMP_CWORD]}" command="" subcommand="" word
   local i=1 command_index=0
   local -a commands global_options
-  commands='register repair doctor diag sync overview structure worktree learn completion help'
+  commands='register repair doctor diag sync chain overview structure worktree learn completion help'
   global_options='-P --physical -L --follow-symlinks -B --bypass -R --raw -j --jobs -v --verbose --json --learn -I --ignore -t --territory --estate --principals --filter -W --all-worktrees -h --help -V --version'
   case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
     --repo)
@@ -380,6 +412,13 @@ _mgit() {
       ;;
     sync)
       COMPREPLY=( $(compgen -W '--interactive -i --verbose -v --help -h' -- "$cur") )
+      ;;
+    chain)
+      if (( COMP_CWORD == command_index + 1 )); then
+        COMPREPLY=( $(compgen -W "$(git config --name-only --get-regexp '^mgit\.chain\.' 2>/dev/null | sed 's/^mgit\.chain\.//') --help -h" -- "$cur") )
+      else
+        COMPREPLY=( $(compgen -W '--then' -- "$cur") )
+      fi
       ;;
     overview)
       case "${COMP_WORDS[COMP_CWORD - 1]:-}" in
@@ -431,6 +470,7 @@ _mgit() {
     'doctor:evaluate local prerequisites and configuration'
     'diag:print share-safe environment facts'
     'sync:update clean tracking branches across the current set'
+    'chain:run Git commands in order in each checkout, or a recipe'
     'overview:show what is outstanding across the current set'
     'structure:change repository structure across the current set'
     'worktree:manage standard and nested worktrees'
@@ -479,6 +519,12 @@ _mgit() {
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
     sync) _arguments -s '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
+    chain)
+      if (( CURRENT == 3 )); then
+        compadd -- -h --help ${${(f)"$(git config --name-only --get-regexp '^mgit\.chain\.' 2>/dev/null)"}#mgit.chain.}
+      else
+        compadd -- --then
+      fi ;;
     overview) _arguments -s '--json[print one JSON document]' '-v[name clean checkouts too]' '--verbose[name clean checkouts too]' '--stale-days[idle days before an unmerged branch is stale]:days:' '-h[display help for command]' '--help[display help for command]' ;;
     structure) _arguments -s '1:repository structure:(standard nested)' '--dry-run[preview changes]' '-n[preview changes]' '-h[display help for command]' '--help[display help for command]' ;;
     worktree)
@@ -1538,6 +1584,7 @@ help_command() {
     diag) [ $# -eq 1 ] || { usage_error "help diag: unexpected argument: $subcommand"; return; }; diag_usage ;;
     sync) [ $# -eq 1 ] || { usage_error_for sync_usage "help sync: unexpected argument: $subcommand"; return; }; sync_usage ;;
     overview) [ $# -eq 1 ] || { usage_error_for overview_usage "help overview: unexpected argument: $subcommand"; return; }; overview_usage ;;
+    chain) [ $# -eq 1 ] || { usage_error_for chain_usage "help chain: unexpected argument: $subcommand"; return; }; chain_usage ;;
     completion) [ $# -eq 1 ] || { usage_error_for completion_usage "help completion: unexpected argument: $subcommand"; return; }; completion_usage ;;
     learn) [ $# -eq 1 ] || { usage_error_for learn_usage "help learn: unexpected argument: $subcommand"; return; }; learn_usage ;;
     structure)
@@ -3927,6 +3974,257 @@ dispatch_captured() {
   return "$result"
 }
 
+# Chains. `mgit chain` runs Git subcommands in order in each checkout. The
+# steps live in one flat word list, chain_words, with each step's first index
+# and length in chain_starts and chain_lengths, since Bash 3.2 has no nested
+# arrays; chain_texts holds each step as printed.
+chain_words=()
+chain_starts=()
+chain_lengths=()
+chain_texts=()
+chain_recipe_label=""
+
+# Split the words at each literal --then into steps. Returns 1 when a step
+# would be empty: a leading, trailing or doubled --then, or no words at all.
+chain_split() {
+  local word count=0
+  chain_words=(); chain_starts=(); chain_lengths=(); chain_texts=()
+  for word in "$@" --then; do
+    if [ "$word" != --then ]; then
+      chain_words+=("$word")
+      count=$((count + 1))
+      continue
+    fi
+    [ "$count" -gt 0 ] || return 1
+    chain_starts+=($((${#chain_words[@]} - count)))
+    chain_lengths+=("$count")
+    chain_texts+=("git$(printf ' %q' "${chain_words[@]:${#chain_words[@]} - count}")")
+    count=0
+  done
+}
+
+# Split $1 into split_words as a shell splits plain words: blanks separate
+# words, single quotes keep text literally, double quotes keep text with \"
+# and \\ escaped, and a backslash elsewhere keeps the next character. There is
+# no expansion of any kind. Returns 1 on an unterminated quote.
+split_recipe() {
+  local text="$1" word="" have=false quote="" c next i=0
+  split_words=()
+  while [ "$i" -lt ${#text} ]; do
+    c="${text:i:1}"
+    next="${text:i+1:1}"
+    i=$((i + 1))
+    if [ "$quote" = "'" ]; then
+      if [ "$c" = "'" ]; then quote=""; else word="$word$c"; fi
+    elif [ "$quote" = '"' ]; then
+      case "$c" in
+        '"') quote="" ;;
+        \\)
+          case "$next" in
+            '"'|\\) word="$word$next"; i=$((i + 1)) ;;
+            *) word="$word$c" ;;
+          esac ;;
+        *) word="$word$c" ;;
+      esac
+    else
+      case "$c" in
+        ' '|$'\t'|$'\n')
+          [ "$have" = false ] || split_words+=("$word")
+          word=""; have=false ;;
+        "'"|'"') quote="$c"; have=true ;;
+        \\) word="$word$next"; i=$((i + 1)); have=true ;;
+        *) word="$word$c"; have=true ;;
+      esac
+    fi
+  done
+  [ -z "$quote" ] || return 1
+  [ "$have" = false ] || split_words+=("$word")
+}
+
+# Set chain_recipe_value to recipe $1, read from the Git configuration visible
+# where mgit runs. Returns 1 when $1 is not a valid key name or has no value.
+chain_recipe() {
+  case "$1" in
+    ''|[!A-Za-z]*|*[!A-Za-z0-9-]*) return 1 ;;
+  esac
+  chain_recipe_value=$(git config --get "mgit.chain.$1" 2>/dev/null)
+}
+
+# Set the steps from the words after `chain`: a lone word naming a recipe runs
+# that recipe, and otherwise the words are the steps themselves.
+chain_parse() {
+  [ $# -gt 0 ] || { usage_error_for chain_usage 'chain requires a Git command or a recipe name'; return; }
+  case "$1" in
+    -h|--help)
+      [ $# -eq 1 ] || { usage_error_for chain_usage "chain: unexpected argument: $2"; return; }
+      chain_usage
+      exit 0 ;;
+  esac
+  if [ $# -eq 1 ] && chain_recipe "$1"; then
+    chain_recipe_label="$1"
+    split_recipe "$chain_recipe_value" ||
+      { printf 'mgit: recipe %s: unterminated quote in mgit.chain.%s\n' "$1" "$1" >&2; return 1; }
+    chain_split "${split_words[@]+"${split_words[@]}"}" ||
+      { printf 'mgit: recipe %s: every step needs a Git command\n' "$1" >&2; return 1; }
+    return 0
+  fi
+  chain_split "$@" || usage_error_for chain_usage 'chain: every step needs a Git command on each side of --then'
+}
+
+# Run every step in checkout $1 in turn, keeping each step's output and exit
+# status, and stop at the first step that fails.
+chain_worker() {
+  local s=0 status
+  cd "${repos[$1]}" || return 1
+  while [ "$s" -lt ${#chain_starts[@]} ]; do
+    status=0
+    git "${chain_words[@]:${chain_starts[s]}:${chain_lengths[s]}}" \
+      > "$runner_dir/$1.$s.out" 2> "$runner_dir/$1.$s.err" || status=$?
+    printf '%s\n' "$status" > "$runner_dir/$1.$s.rc"
+    [ "$status" -eq 0 ] || return "$status"
+    s=$((s + 1))
+  done
+}
+
+chain_completed=0
+chain_stopped=0
+chain_unstarted=0
+chain_failures=""
+
+# Count checkout label $1, whose chain stopped at step index $2 with status $3;
+# a stop at the step count means every step completed. Sets chain_outcome.
+chain_count() {
+  if [ "$2" -ge ${#chain_starts[@]} ]; then
+    chain_outcome=completed
+    chain_completed=$((chain_completed + 1))
+    return
+  fi
+  if [ "$2" -eq 0 ]; then
+    chain_outcome='failed-to-start'
+    chain_unstarted=$((chain_unstarted + 1))
+  else
+    chain_outcome=stopped
+    chain_stopped=$((chain_stopped + 1))
+  fi
+  chain_failures="$chain_failures, $1 (step $(($2 + 1)), exit $3)"
+}
+
+chain_tally() {
+  printf 'mgit chain: %s: %s completed, %s stopped, %s failed to start%s\n' \
+    "$(plural "${#repos[@]}" repository repositories)" "$chain_completed" "$chain_stopped" \
+    "$chain_unstarted" "${chain_failures:+: ${chain_failures#, }}"
+}
+
+# Set chain_stop and chain_stop_status for checkout $1 from its step files.
+chain_result() {
+  local s=0 status
+  chain_stop=${#chain_starts[@]}
+  chain_stop_status=0
+  while [ "$s" -lt ${#chain_starts[@]} ]; do
+    status=""
+    [ ! -f "$runner_dir/$1.$s.rc" ] || IFS= read -r status < "$runner_dir/$1.$s.rc" || true
+    if [ "${status:-none}" != 0 ]; then
+      chain_stop=$s
+      chain_stop_status="${status:-$(runner_status "$1")}"
+      return
+    fi
+    s=$((s + 1))
+  done
+}
+
+# Captured chain: run every checkout's chain in the pool, then print one block
+# per checkout in selection order and close with the tally.
+chain_captured() {
+  local i s label path state first=true step_first
+  runner_start || return 1
+  runner_run chain_worker
+  if [ "$runner_json" = true ]; then
+    printf '{"tool":"mgit","command":"chain","version":%s,"recipe":' "$(json_string "$MGIT_VERSION")"
+    if [ -n "$chain_recipe_label" ]; then json_string "$chain_recipe_label"; else printf null; fi
+    printf ',"steps":['
+    for s in "${!chain_texts[@]}"; do
+      [ "$s" -eq 0 ] || printf ','
+      json_string "${chain_texts[s]}"
+    done
+    printf '],"repositories":['
+  fi
+  for i in "${!repos[@]}"; do
+    label="${repo_labels[$i]}"
+    chain_result "$i"
+    chain_count "$label" "$chain_stop" "$chain_stop_status"
+    if [ "$runner_json" = true ]; then
+      [ "$first" = true ] || printf ','
+      first=false
+      capture_dir path "${repos[$i]}" || path="${repos[$i]}"
+      printf '{"label":%s,"path":%s,"outcome":"%s","steps":[' \
+        "$(json_string "$label")" "$(json_string "$path")" "$chain_outcome"
+      step_first=true
+      for s in "${!chain_texts[@]}"; do
+        [ "$step_first" = true ] || printf ','
+        step_first=false
+        if [ "$s" -gt "$chain_stop" ] || [ ! -f "$runner_dir/$i.$s.rc" ]; then
+          printf '{"command":%s,"run":false}' "$(json_string "${chain_texts[s]}")"
+        else
+          printf '{"command":%s,"run":true,"exit":%s,"stdout":%s,"stderr":%s}' \
+            "$(json_string "${chain_texts[s]}")" "$(runner_step_status "$i" "$s")" \
+            "$(file_json_string "$runner_dir/$i.$s.out")" "$(file_json_string "$runner_dir/$i.$s.err")"
+        fi
+      done
+      printf ']}'
+      continue
+    fi
+    printf '%s%s%s%s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR"
+    cat "$runner_dir/$i.err" >&2
+    for s in "${!chain_texts[@]}"; do
+      if [ "$s" -lt "$chain_stop" ]; then state=ok
+      elif [ "$s" -eq "$chain_stop" ]; then state="failed (exit $chain_stop_status)"
+      else state="not run"
+      fi
+      printf '  %s %s: %s\n' "$((s + 1))" "$state" "${chain_texts[s]}"
+      [ -f "$runner_dir/$i.$s.rc" ] || continue
+      cat "$runner_dir/$i.$s.out"
+      cat "$runner_dir/$i.$s.err" >&2
+    done
+  done
+  if [ "$runner_json" = true ]; then
+    printf '],"summary":{"repositories":%s,"completed":%s,"stopped":%s,"failed_to_start":%s}}\n' \
+      "${#repos[@]}" "$chain_completed" "$chain_stopped" "$chain_unstarted"
+  else
+    chain_tally
+  fi
+  runner_cleanup
+  [ $((chain_stopped + chain_unstarted)) -eq 0 ]
+}
+
+runner_step_status() {
+  local status=""
+  IFS= read -r status < "$runner_dir/$1.$2.rc" || true
+  printf '%s' "${status:-1}"
+}
+
+# Streaming chain: one checkout at a time, each step's header and output as it
+# runs, then the same tally.
+chain_streaming() {
+  local i s d label stop status
+  for i in "${!repos[@]}"; do
+    d="${repos[$i]}"
+    label="${repo_labels[$i]}"
+    stop=${#chain_starts[@]}
+    status=0
+    for s in "${!chain_texts[@]}"; do
+      printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "${chain_texts[s]}"
+      ( cd "$d" && git "${chain_words[@]:${chain_starts[s]}:${chain_lengths[s]}}" ) || {
+        status=$?
+        stop=$s
+        break
+      }
+    done
+    chain_count "$label" "$stop" "$status"
+  done
+  chain_tally
+  [ $((chain_stopped + chain_unstarted)) -eq 0 ]
+}
+
 selected_workspace_dirs=()
 selected_repo_dirs=()
 selected_local_repo_dirs=()
@@ -4209,6 +4507,12 @@ reject_selector_for() {
   local command="$1" option="$2"
   usage_error "$option cannot be used with $command"
 }
+is_mgit_command() {
+  case "$1" in
+    register|repair|doctor|diag|sync|overview|structure|worktree|chain|learn|completion|help|config) return 0 ;;
+  esac
+  return 1
+}
 reject_runner_options_for() {
   [ "$jobs_option" = false ] || { reject_selector_for "$1" --jobs; return; }
   [ "$runner_verbose" = false ] || { reject_selector_for "$1" --verbose; return; }
@@ -4253,11 +4557,17 @@ if [ "$learn_mode" = true ]; then
   [ "$bare" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --raw'; exit $?; }
   [ "$runner_verbose" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --verbose'; exit $?; }
   [ "$runner_json" = false ] || { usage_error_for learn_usage '--learn cannot be combined with --json'; exit $?; }
-  case "$owned_command" in
-    register|repair|doctor|diag|sync|overview|structure|worktree|learn|completion|help|config)
-      usage_error_for learn_usage "learn: $owned_command is an mgit command; use -B/--bypass to learn the Git command"
-      exit $? ;;
-  esac
+  if is_mgit_command "$owned_command"; then
+    usage_error_for learn_usage "learn: $owned_command is an mgit command; use -B/--bypass to learn the Git command"
+    exit $?
+  fi
+fi
+# A lone word naming a chain recipe runs it as `chain NAME`, ahead of Git
+# pass-through but never in place of an mgit command.
+if [ $# -eq 1 ] && [ "$git_mode" = false ] && [ "$bare" = false ] && [ "$learn_mode" = false ] &&
+  ! is_mgit_command "$1" && chain_recipe "$1"; then
+  set -- chain "$1"
+  owned_command=chain
 fi
 case "$owned_command" in
   register|repair|doctor|diag|completion)
@@ -4284,6 +4594,14 @@ case "$owned_command" in
       [ "$all_worktrees" = false ] || { reject_selector_for "$command_name" --all-worktrees; exit $?; }
       [ -z "$ki_selector" ] || { reject_selector_for "$command_name" "$ki_selector"; exit $?; }
     fi
+    ;;
+  chain)
+    [ "$bare" = false ] || { reject_selector_for chain --raw; exit $?; }
+    if [ "$runner_verbose" = true ] && [ "$runner_json" = true ]; then
+      usage_error '--verbose and --json cannot be combined'
+      exit $?
+    fi
+    chain_parse "${@:2}" || exit $?
     ;;
   '')
     [ "$bare" = false ] || { usage_error "--raw requires a command"; exit $?; }
@@ -4609,6 +4927,11 @@ if [ "$owned_command" = overview ]; then
   [ "$runner_verbose" = false ] || set -- --verbose "$@"
   [ "$runner_json" = false ] || set -- --json "$@"
   if [ "$show_help" = true ]; then overview_command "$@" --help; else overview_command "$@"; fi
+  exit $?
+fi
+
+if [ "$owned_command" = chain ]; then
+  if [ "$runner_verbose" = true ]; then chain_streaming; else chain_captured; fi
   exit $?
 fi
 

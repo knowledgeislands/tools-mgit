@@ -41,7 +41,7 @@ mgit -R sh -c 'git log --oneline | head -1'
 
 `--bare` has been removed: it is a usage error that names `-R/--raw`, and runs nothing.
 
-Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `learn`, `completion` and `help`. Prefix a command with `-B` (`--bypass`) to send it to Git anyway:
+Some names belong to mgit itself: `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `chain`, `learn`, `completion` and `help`. Prefix a command with `-B` (`--bypass`) to send it to Git anyway:
 
 ```sh
 mgit -B worktree list
@@ -49,6 +49,37 @@ mgit -B help -a
 ```
 
 `-B` cannot be combined with `-R`. The temporary `-G` and `--git` names have been removed: they are usage errors that name `-B/--bypass`, and run nothing.
+
+## Chain commands
+
+`mgit chain` runs several Git commands in order in each checkout. Write the commands unquoted, separated by `--then`:
+
+```sh
+mgit chain fetch --prune --then pull --ff-only --then push
+```
+
+Every word after `chain` reaches Git unchanged except `--then`, which always separates steps, even after `--`; write a path named `--then` as `./--then`. Each checkout works through its own steps and stops at its first failing step, so a checkout whose pull failed is not pushed, while the other checkouts carry on. Checkouts run in parallel up to the `-j` limit, and the usual selection options apply. Each checkout then gets one block naming every step `ok`, `failed (exit N)` or `not run`, with that step's output, and one line closes the run:
+
+```text
+tools-ki
+  1 ok: git fetch --prune
+  2 failed (exit 1): git pull --ff-only
+fatal: Not possible to fast-forward, aborting.
+  3 not run: git push
+mgit chain: 12 repositories: 11 completed, 1 stopped, 0 failed to start: tools-ki (step 2, exit 1)
+```
+
+A checkout is stopped when a later step failed after at least one completed, and failed to start when no step completed. The run exits `1` unless every checkout completed. `-v` streams each checkout's steps one checkout at a time with the terminal attached, and `--json` prints one document with each checkout's outcome and steps. Steps are Git commands only: `-R`, `--learn` and mgit's own commands cannot be chained, and learned templates do not apply.
+
+Save a sequence you run often as a recipe in Git configuration, with the steps joined by `--then`; the value splits into words as a shell would, so quote a word that holds spaces:
+
+```sh
+git config --global mgit.chain.tidy 'fetch --prune --then pull --ff-only'
+mgit chain tidy
+mgit tidy
+```
+
+`mgit tidy` runs the recipe only when `tidy` is the only word and mgit does not own the name; a recipe takes precedence over a Git alias of the same name, `-B` sends the word to Git instead, and `mgit tidy --verbose` or any other added word goes to Git as before. Recipes are read from the Git configuration visible where you run mgit.
 
 ## Learn normal output
 
