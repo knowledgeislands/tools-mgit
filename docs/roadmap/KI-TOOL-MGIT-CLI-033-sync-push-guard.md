@@ -8,12 +8,12 @@ component: cli
 priority: high
 size: m
 horizon: now
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
 baseline_ref: 0a995a84eccd2b6d8731a73689574c75927746ce
 created_at: 2026-10-31T14:20:53Z
-updated_at: 2026-10-31T14:20:53Z
+updated_at: 2026-10-31T14:21:51Z
 ---
 
 # Guard sync pushes
@@ -41,10 +41,10 @@ Kris released ki.prj.tools-burndown on 31 October 2026, "Release it, one fix at 
 
 ## Steps
 
-- [ ] Add `--push` to `sync`; without it, name a branch only ahead as `ahead N, not pushed (pass --push)` on standard error and in the tally detail, counted as skipped without failing the run, and never prompt for its push under `-i`.
-- [ ] Read `mgit.syncPush` with `git config --bool` in each checkout; false vetoes the push whatever `--push` or `-i` says, naming `mgit.syncPush is false`, and a value Git cannot read as a boolean vetoes it too, naming `mgit.syncPush is not a boolean`.
-- [ ] Update `sync_usage`, Bash and Zsh completion, the manual, README, running-commands guide, MGIT-WS-018 and the changelog's Changed section announcing the new default.
-- [ ] Add and adjust Bats cases for the default no-push, explicit push, veto precedence under `--push` and `-i --push`, interactive mode with and without `--push`, and linked worktrees sharing the repository's veto.
+- [x] Add `--push` to `sync`; without it, name a branch only ahead as `ahead N, not pushed (pass --push)` on standard error and in the tally detail, counted as skipped without failing the run, and never prompt for its push under `-i`.
+- [x] Read `mgit.syncPush` with `git config --bool` in each checkout; false vetoes the push whatever `--push` or `-i` says, naming `mgit.syncPush is false`, and a value Git cannot read as a boolean vetoes it too, naming `mgit.syncPush is not a boolean`.
+- [x] Update `sync_usage`, Bash and Zsh completion, the manual, README, running-commands guide, MGIT-WS-018 and the changelog's Changed section announcing the new default.
+- [x] Add and adjust Bats cases for the default no-push, explicit push, veto precedence under `--push` and `-i --push`, interactive mode with and without `--push`, and linked worktrees sharing the repository's veto.
 
 ## Files touched
 
@@ -75,6 +75,37 @@ The running-commands guide and README describe `--push` and `mgit.syncPush`.
 ### Roadmap
 
 None expected; any follow-on found in delivery is reported to the coordinator rather than captured.
+
+## Review
+
+### Delivered
+
+`mgit sync` now fetches and fast-forwards only. A branch only ahead of its upstream is named `ahead N, not pushed (pass --push)` on standard error and in the tally detail, counted as skipped without failing the run; `mgit sync --push` publishes it, and `-i` offers a push only with `--push`. `git config mgit.syncPush false` vetoes the push whatever `--push` or `-i` says, naming `mgit.syncPush is false`, and a value Git cannot read as a boolean vetoes it too. Usage, both completions, the manual, README, running-commands guide, MGIT-WS-018 and the changelog announce the new default.
+
+### Change Summary
+
+- `bin/mgit`: `--push` in `sync_command`, the per-checkout `mgit.syncPush` veto read with `git config --bool`, the unpushed outcome, `sync_usage`, and Bash and Zsh completion.
+- `tests/mgit.bats`: two new cases, for the veto under `--push` and `-i --push` with false, true, unset and non-boolean values, and for linked worktrees sharing the repository's veto; the push case now proves the default no-push before `--push`, and the interactive, input-ended, held-commit and prompt-stream cases use `--push` where they push, with `-i` alone shown offering no push.
+- `docs/specs/workspace-dispatch.md` (MGIT-WS-018), `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `CHANGELOG.md` (Unreleased, Changed); no version bump.
+
+### Verification
+
+- `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1` and `git diff --check`: pass.
+- `TMPDIR=<run directory> bats tests/`: 153 of 153 pass, the 15 sync cases among them.
+- `ki repo audit --repo .`: the only FAIL is the existing SHELL-HOOK finding on `.githooks/pre-commit`, untouched by this work.
+
+### Outstanding concerns
+
+- An unpushed branch counts as skipped but, like a declined `-i` action, does not make sync exit unsuccessfully, so a script relying on sync's exit status to notice unpublished commits must read the tally. Left for review.
+- `mgit.syncPush` is read as Git resolves it in each checkout, so a global `mgit.syncPush false` vetoes every repository; the decision names it per repository, and the global form is a side effect rather than a feature.
+
+### Post-change review
+
+Reviewed the diff against MGIT-PUSH-GUARD: no path pushes without `--push`; the veto is checked before the `-i` prompt, so neither `--push` nor `-i` overrides it; pulls, divergence, dirty and fetch-failure handling are unchanged.
+
+### Mini recap
+
+The push guard is delivered and documented with the full suite green; acceptance and any release stay with Kris.
 
 ## Discussion
 

@@ -78,9 +78,11 @@ unknown when provenance cannot be established.
 .SS Repository management
 \&
 .TP
-.B mgit sync [-i|--interactive] [-v|--verbose]
-Fetch in parallel, then fast-forward or push clean tracking branches in the
-current set, and summarize repositories that changed or need attention.
+.B mgit sync [--push] [-i|--interactive] [-v|--verbose]
+Fetch in parallel, then fast-forward clean tracking branches in the current
+set, pushing those only ahead with
+.BR \-\-push ,
+and summarize repositories that changed or need attention.
 .TP
 .B mgit overview [--json] [-v|--verbose] [--stale-days <days>]
 Show, read-only, what is outstanding across the current set.
@@ -540,7 +542,18 @@ its upstream.
 A branch only behind is fast-forwarded with
 .BR "git merge \-\-ff\-only" ;
 a branch only ahead runs
-.BR "git push" .
+.B git push
+only with
+.BR \-\-push .
+Without it, the branch is named
+.B ahead N, not pushed (pass \-\-push)
+and left alone.
+When a repository's Git configuration sets
+.B mgit.syncPush
+to false, or to a value Git cannot read as a boolean, sync never pushes it,
+whatever
+.BR \-\-push " or " \-i
+says, and names the reason instead.
 Nothing is merged or rebased, whatever
 .B pull.rebase
 says.
@@ -551,9 +564,12 @@ branches and checkouts whose fetch failed; each is named with a warning and
 left untouched.
 With
 .BR \-i " or " \-\-interactive ,
-it asks before each pull and push; an empty answer skips the action.
+it asks before each pull and, with
+.BR \-\-push ,
+each push; an empty answer skips the action.
 Prompts go to standard error.
-Declined actions are counted as skipped and do not cause failure.
+Declined actions and branches left unpushed are counted as skipped and do not
+cause failure.
 If input ends before an answer, the command stops unsuccessfully after its
 tally, which counts the checkouts not reached.
 .PP
@@ -574,15 +590,17 @@ selected checkout, for example
 .PP
 .RS
 .EX
-mgit sync: 57 repositories: 55 in sync, 0 pulled, 1 pushed, 1 skipped, 0 failed
+mgit sync: 57 repositories: 55 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed
   ki\-agentic\-harness: local changes, 5 ahead, 0 behind
+  tools\-mgit: ahead 1, not pushed (pass \-\-push)
 .EE
 .RE
 .PP
 followed by one indented line for each skipped or failed checkout with its
 reason and, where its branch has an upstream, its ahead and behind counts.
 Local changes, detached heads, branches without an upstream, diverged
-branches, bare repositories and declined actions are skipped; a failed status,
+branches, bare repositories, branches left unpushed and declined actions are
+skipped; a failed status,
 fetch, comparison, pull or push is failed, and a dirty checkout whose fetch
 failed keeps both reasons.
 Counts after a failed fetch compare with the last fetched upstream and are
@@ -593,7 +611,8 @@ With
 it also prints numbered progress for each checkout, names each bare
 repository, and announces each pull and push before it starts; the tally does
 not change.
-Any skip other than a declined action, and any failure, makes the command exit
+Any skip other than an unpushed branch or a declined action, and any failure,
+makes the command exit
 unsuccessfully.
 .TP
 .B mgit overview

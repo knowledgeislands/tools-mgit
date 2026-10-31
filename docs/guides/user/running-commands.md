@@ -134,21 +134,23 @@ The option changes repository listing, ordinary Git or bare-command dispatch, an
 
 ## Synchronise clean repositories
 
-Run `mgit sync` to inspect and update the primary checkout of every repository in the selected set. It first fetches the upstream remote of every branch that tracks a remote branch, clean or not, up to eight at once (`-j/--jobs N` sets the limit) and once per repository and remote. Then, one checkout at a time, a branch only behind its upstream is fast-forwarded and a branch only ahead is pushed. A diverged branch is named with its ahead and behind counts and left alone: sync never merges or rebases, whatever `pull.rebase` says. Its warning says whether merging its upstream `would be clean` or `would conflict in N files`, worked out in memory with `git merge-tree` without touching the checkout; `-v` lists the conflicting files. A Git older than 2.38 gives the plain warning. A checkout with local changes prints `git status --short` output and is skipped. Pass `--all-worktrees` to include linked worktrees.
+Run `mgit sync` to inspect and update the primary checkout of every repository in the selected set. It first fetches the upstream remote of every branch that tracks a remote branch, clean or not, up to eight at once (`-j/--jobs N` sets the limit) and once per repository and remote. Then, one checkout at a time, a branch only behind its upstream is fast-forwarded. A branch only ahead is pushed only when you pass `--push`; without it, sync names the branch `ahead N, not pushed (pass --push)` and leaves it. Set `git config mgit.syncPush false` in a repository to stop sync ever pushing it: neither `--push` nor `-i` overrides that, and the branch is named `ahead N, not pushed (mgit.syncPush is false)`. A value Git cannot read as a boolean also stops the push. A diverged branch is named with its ahead and behind counts and left alone: sync never merges or rebases, whatever `pull.rebase` says. Its warning says whether merging its upstream `would be clean` or `would conflict in N files`, worked out in memory with `git merge-tree` without touching the checkout; `-v` lists the conflicting files. A Git older than 2.38 gives the plain warning. A checkout with local changes prints `git status --short` output and is skipped. Pass `--all-worktrees` to include linked worktrees.
 
 Repositories that pulled or pushed commits are named on standard output as it happens; skips, warnings, failures, progress and `-i` prompts go to standard error. The run ends with one tally on standard output that accounts for every selected checkout, then one indented line for each checkout left behind, so a skip early in a long run is repeated where you will see it:
 
 ```text
-mgit sync: 57 repositories: 55 in sync, 0 pulled, 1 pushed, 1 skipped, 0 failed
+mgit sync: 57 repositories: 55 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed
   ki-agentic-harness: local changes, 5 ahead, 0 behind
+  tools-mgit: ahead 1, not pushed (pass --push)
 ```
 
-Local changes, detached heads, branches without upstreams, divergence, bare repositories and declined `-i` actions count as skipped; a failed status, fetch, comparison, pull or push counts as failed, and a dirty checkout whose fetch failed keeps both reasons. A branch with an upstream shows its ahead and behind counts, even when dirty, so unpushed commits are never left unmentioned; after a failed fetch they compare with the last fetched upstream and are marked `(stale)`. Every skip except a declined action, and every failure, makes the command exit with status `1` without forcing a change. If `-i` input ends, the tally counts the checkouts not reached. Pass `-v` or `--verbose`, globally or after `sync`, to also see numbered progress for every checkout and each pull and push as it starts; the tally is the same.
+Local changes, detached heads, branches without upstreams, divergence, bare repositories, branches left unpushed and declined `-i` actions count as skipped; a failed status, fetch, comparison, pull or push counts as failed, and a dirty checkout whose fetch failed keeps both reasons. A branch with an upstream shows its ahead and behind counts, even when dirty, so unpushed commits are never left unmentioned; after a failed fetch they compare with the last fetched upstream and are marked `(stale)`. Every skip except an unpushed branch or a declined action, and every failure, makes the command exit with status `1` without forcing a change. If `-i` input ends, the tally counts the checkouts not reached. Pass `-v` or `--verbose`, globally or after `sync`, to also see numbered progress for every checkout and each pull and push as it starts; the tally is the same.
 
 The existing selectors and filters narrow the same way as ordinary commands:
 
 ```sh
 mgit --filter 'tools-' sync
+mgit --filter 'tools-' sync --push
 mgit --filter 'tools-' sync --verbose
 mgit --territory knowledge-islands sync
 ```
@@ -181,7 +183,7 @@ Workspace members are selected before filters are applied. The filter then narro
 
 Global discovery selectors (`--physical`, `--follow-symlinks`, and `--ignore`) apply to listing, ordinary commands, `sync`, `structure`, and `worktree`. `--all-worktrees` applies to listing, ordinary commands, and `sync`; `--bypass`, `--raw` and `--learn` apply only to ordinary command pass-through. `register` accepts global `--territory` as a saved-location shorthand; `repair`, `doctor`, and `diag` accept no global selector. Inapplicable selectors fail with a usage error before a management command runs. Help and version remain available with selectors.
 
-`mgit sync -i` (or `--interactive`) confirms each pull and push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` performs recognised config repairs and clones missing repositories; `mgit repair --dry-run`, or `-n`, previews them without changing files.
+`mgit sync -i` (or `--interactive`) confirms each pull, and with `--push` each push. `mgit structure standard --dry-run` and `mgit structure nested --dry-run` preview conversions. `mgit register --dry-run` previews manifest writes and removals, including `register add` and `register rm`; `mgit repair` performs recognised config repairs and clones missing repositories; `mgit repair --dry-run`, or `-n`, previews them without changing files.
 
 ## Select a territory
 

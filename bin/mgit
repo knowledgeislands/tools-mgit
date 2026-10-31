@@ -187,7 +187,7 @@ EOF
 
 sync_usage() {
   cat <<'EOF'
-Usage: mgit sync [-i|--interactive] [-v|--verbose]
+Usage: mgit sync [--push] [-i|--interactive] [-v|--verbose]
 
 Update clean tracking branches across the current repository set.
 
@@ -195,9 +195,11 @@ Primary checkouts are selected by default; pass -W or --all-worktrees to
 include linked worktrees.
 Every branch with a remote upstream is fetched first, in parallel, even with
 local changes. Then, one checkout at a time, a branch only behind its upstream
-is fast-forwarded and a branch only ahead is pushed. Diverged, dirty, detached
-and untracked branches, and failed fetches, are named with a warning and left
-untouched; nothing is merged or rebased. A diverged branch's warning says
+is fast-forwarded. A branch only ahead is pushed only with --push; otherwise it
+is named "ahead N, not pushed (pass --push)". A repository whose Git
+configuration sets mgit.syncPush to false is never pushed, whatever --push or
+-i says. Diverged, dirty, detached and untracked branches, and failed fetches,
+are named with a warning and left untouched; nothing is merged or rebased. A diverged branch's warning says
 whether merging its upstream would be clean or conflict, computed in memory;
 -v lists the conflicting files. Pulls and pushes are named on standard output;
 skips, warnings, progress and prompts go to standard error. The run ends with
@@ -206,6 +208,7 @@ then one indented line per skipped or failed checkout with its reason and
 ahead and behind counts, marked (stale) after a failed fetch.
 
 Options:
+     --push              push branches only ahead of their upstream
  -i, --interactive       confirm each pull and push; an empty answer skips
  -v, --verbose           also print progress for every checkout
  -h, --help              display help for this command
@@ -411,7 +414,7 @@ _mgit() {
       COMPREPLY=( $(compgen -W '--help -h' -- "$cur") )
       ;;
     sync)
-      COMPREPLY=( $(compgen -W '--interactive -i --verbose -v --help -h' -- "$cur") )
+      COMPREPLY=( $(compgen -W '--push --interactive -i --verbose -v --help -h' -- "$cur") )
       ;;
     chain)
       if (( COMP_CWORD == command_index + 1 )); then
@@ -518,7 +521,7 @@ _mgit() {
     repair) _arguments -s '--dry-run[preview config repairs and clones]' '-n[preview config repairs and clones]' '-h[display help for command]' '--help[display help for command]' ;;
     doctor) _arguments '-h[display help for command]' '--help[display help for command]' ;;
     diag) _arguments '--full[include local directory]' '-h[display help for command]' '--help[display help for command]' ;;
-    sync) _arguments -s '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
+    sync) _arguments -s '--push[push branches only ahead of their upstream]' '-i[confirm each pull and push]' '--interactive[confirm each pull and push]' '-v[print progress for every checkout]' '--verbose[print progress for every checkout]' '-h[display help for command]' '--help[display help for command]' ;;
     chain)
       if (( CURRENT == 3 )); then
         compadd -- -h --help ${${(f)"$(git config --name-only --get-regexp '^mgit\.chain\.' 2>/dev/null)"}#mgit.chain.}
@@ -3018,10 +3021,10 @@ sync_outcome() {
 }
 
 sync_command() {
-  local help=false interactive=false verbose=false d label index branch upstream remote key
+  local help=false interactive=false verbose=false push=false d label index branch upstream remote key
   local status_output counts ahead behind output owner detail synced=0 pulled=0 pushed=0
   local failed=false current=0 total=${#repos[@]} answer_status j common prediction conflicts
-  local dirty held not_reached=0 line
+  local dirty held not_reached=0 line veto
   local fetch_keys=()
 
   split_options sub '' '' "$@"
@@ -3031,6 +3034,7 @@ sync_command() {
       -h|--help) help=true ;;
       -i|--interactive) interactive=true ;;
       -v|--verbose) verbose=true ;;
+      --push) push=true ;;
       *) usage_error_for sync_usage "sync: unexpected argument: $1"; return ;;
     esac
     shift
@@ -3161,6 +3165,21 @@ sync_command() {
       sync_report "$label" "pulled $behind $(sync_commit_noun "$behind")"
       pulled=$((pulled + 1))
     elif [ "$ahead" -gt 0 ]; then
+      # Pushing needs --push, and mgit.syncPush=false in the repository's Git
+      # configuration vetoes it whatever --push or -i says; a value Git cannot
+      # read as a boolean vetoes too. Either way it is a skip, not a failure.
+      veto=""
+      if line=$(git -C "$d" config --bool --get mgit.syncPush 2>/dev/null); then
+        [ "$line" != false ] || veto='mgit.syncPush is false'
+      elif [ $? -ne 1 ]; then
+        veto='mgit.syncPush is not a boolean'
+      fi
+      if [ -n "$veto" ] || [ "$push" = false ]; then
+        [ -n "$veto" ] || veto='pass --push'
+        sync_warn "$label" "ahead $ahead, not pushed ($veto)"
+        sync_outcome "$label" refused "ahead $ahead, not pushed ($veto)"
+        continue
+      fi
       if [ "$interactive" = true ]; then
         sync_confirm_action "$label" "push $ahead $(sync_commit_noun "$ahead")"
         answer_status=$?

@@ -10,6 +10,7 @@ All notable changes to `mgit` are documented here as a consolidated Pre-1.0 base
 
 ### Changed
 
+- `mgit sync` no longer pushes by default. It fetches and fast-forwards, and names each branch only ahead of its upstream as `ahead N, not pushed (pass --push)`, counted as skipped without failing the run; pass `mgit sync --push` to publish them. `git config mgit.syncPush false` in a repository is a hard veto that neither `--push` nor `-i` overrides, and `-i` asks about pushes only with `--push`.
 - `mgit repair` now writes recognised config repairs and clones missing repositories by default. Use `--dry-run` or `-n` to preview without changing files; `--apply` is no longer accepted. Existing-path, external-member and preflight validation guards remain in place.
 
 ## Pre-1.0 baseline

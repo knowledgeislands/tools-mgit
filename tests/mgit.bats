@@ -1289,7 +1289,7 @@ make_majority_trio() {
   [ "$output" = "$expected" ]
 }
 
-@test "sync pulls incoming commits and pushes outgoing commits" {
+@test "sync pulls incoming commits and pushes outgoing commits only with --push" {
   local incoming_seed="$BATS_TEST_TMPDIR/incoming-seed"
   local incoming_origin="$BATS_TEST_TMPDIR/incoming.git"
   local outgoing_seed="$BATS_TEST_TMPDIR/outgoing-seed"
@@ -1303,18 +1303,123 @@ make_majority_trio() {
   git -C "$incoming_seed" push -q
   git -C "$TREE/outgoing" commit -q --allow-empty -m outgoing-update
 
+  local before
+  before=$(git --git-dir="$outgoing_origin" rev-parse HEAD)
+
   cd "$TREE"
-  run "$MGIT" sync
+  run --separate-stderr "$MGIT" sync
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'mgit sync: incoming: pulled 1 commit' ]
+  [ "${lines[1]}" = 'mgit sync: 2 repositories: 0 in sync, 1 pulled, 0 pushed, 1 skipped, 0 failed' ]
+  [ "${lines[2]}" = '  outgoing: ahead 1, not pushed (pass --push)' ]
+  [ "${#lines[@]}" -eq 3 ]
+  [ "$stderr" = 'mgit sync: outgoing: ahead 1, not pushed (pass --push)' ]
+  [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
+  [ "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" = "$before" ]
+
+  git -C "$incoming_seed" commit -q --allow-empty -m incoming-again
+  git -C "$incoming_seed" push -q
+  run "$MGIT" sync --push
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"mgit sync: incoming: pulled 1 commit"* ]] || false
   [[ "$output" == *"mgit sync: outgoing: pushed 1 commit"* ]] || false
   [[ "$output" != *"pulling"* ]] || false
   [[ "$output" != *"pushing"* ]] || false
+  [[ "$output" != *"not pushed"* ]] || false
   [[ "$output" != *"[y/N]"* ]] || false
   [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 2 repositories: 0 in sync, 1 pulled, 1 pushed, 0 skipped, 0 failed' ]
   [ "$(git -C "$TREE/incoming" rev-parse HEAD)" = "$(git --git-dir="$incoming_origin" rev-parse HEAD)" ]
   [ "$(git -C "$TREE/outgoing" rev-parse HEAD)" = "$(git --git-dir="$outgoing_origin" rev-parse HEAD)" ]
+
+  run "$MGIT" sync --push=yes
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"sync: unexpected argument: --push=yes"* ]] || false
+}
+
+@test "sync never pushes a repository whose mgit.syncPush is false" {
+  local name seed origin
+  for name in false free maybe true; do
+    seed="$BATS_TEST_TMPDIR/$name-seed"
+    origin="$BATS_TEST_TMPDIR/$name.git"
+    make_origin "$seed" "$origin" "$name"
+    git clone -q "$origin" "$TREE/$name"
+    git -C "$TREE/$name" commit -q --allow-empty -m "$name-update"
+  done
+  git -C "$TREE/false" config mgit.syncPush false
+  git -C "$TREE/maybe" config mgit.syncPush maybe
+  git -C "$TREE/true" config mgit.syncPush true
+
+  cd "$TREE"
+  run --separate-stderr "$MGIT" sync
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'mgit sync: 4 repositories: 0 in sync, 0 pulled, 0 pushed, 4 skipped, 0 failed' ]
+  [ "${lines[1]}" = '  false: ahead 1, not pushed (mgit.syncPush is false)' ]
+  [ "${lines[2]}" = '  free: ahead 1, not pushed (pass --push)' ]
+  [ "${lines[3]}" = '  maybe: ahead 1, not pushed (mgit.syncPush is not a boolean)' ]
+  [ "${lines[4]}" = '  true: ahead 1, not pushed (pass --push)' ]
+
+  # The veto holds under -i --push: no prompt is offered for it.
+  run --separate-stderr bash -c 'printf "y\ny\n" | "$1" sync -i --push' _ "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'mgit sync: free: pushed 1 commit' ]
+  [ "${lines[1]}" = 'mgit sync: true: pushed 1 commit' ]
+  [ "${lines[2]}" = 'mgit sync: 4 repositories: 0 in sync, 0 pulled, 2 pushed, 2 skipped, 0 failed' ]
+  [ "${lines[3]}" = '  false: ahead 1, not pushed (mgit.syncPush is false)' ]
+  [ "${lines[4]}" = '  maybe: ahead 1, not pushed (mgit.syncPush is not a boolean)' ]
+  [[ "$stderr" != *"false: push"* ]] || false
+  [[ "$stderr" != *"maybe: push"* ]] || false
+  [[ "$stderr" == *"mgit sync: free: push 1 commit? [y/N]"* ]] || false
+
+  run "$MGIT" sync --push
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: false: ahead 1, not pushed (mgit.syncPush is false)"* ]] || false
+  [[ "$output" != *"false: pushed"* ]] || false
+  [[ "$output" != *"maybe: pushed"* ]] || false
+  for name in false maybe; do
+    [ "$(git --git-dir="$BATS_TEST_TMPDIR/$name.git" rev-parse HEAD)" != "$(git -C "$TREE/$name" rev-parse HEAD)" ]
+  done
+  for name in free true; do
+    [ "$(git --git-dir="$BATS_TEST_TMPDIR/$name.git" rev-parse HEAD)" = "$(git -C "$TREE/$name" rev-parse HEAD)" ]
+  done
+}
+
+@test "sync leaves linked worktrees unpushed without --push" {
+  local seed="$BATS_TEST_TMPDIR/seed"
+  local origin="$BATS_TEST_TMPDIR/origin.git"
+  local main_before topic_before
+  make_origin "$seed" "$origin" baseline
+  git -C "$seed" push -q origin HEAD:topic
+  git clone -q "$origin" "$TREE/repo"
+  git -C "$TREE/repo" worktree add -q --track -b topic "$TREE/repo-topic" origin/topic
+  git -C "$TREE/repo" commit -q --allow-empty -m main-local
+  git -C "$TREE/repo-topic" commit -q --allow-empty -m topic-local
+  main_before=$(git --git-dir="$origin" rev-parse HEAD)
+  topic_before=$(git --git-dir="$origin" rev-parse topic)
+
+  cd "$TREE"
+  run "$MGIT" -W sync
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 3]}" = 'mgit sync: 2 repositories: 0 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed' ]
+  [ "${lines[${#lines[@]} - 2]}" = '  repo: ahead 1, not pushed (pass --push)' ]
+  [ "${lines[${#lines[@]} - 1]}" = '  repo [topic]: ahead 1, not pushed (pass --push)' ]
+
+  # The repository's configuration is shared by its linked worktrees.
+  git -C "$TREE/repo" config mgit.syncPush false
+  run "$MGIT" -W sync --push
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 2]}" = '  repo: ahead 1, not pushed (mgit.syncPush is false)' ]
+  [ "${lines[${#lines[@]} - 1]}" = '  repo [topic]: ahead 1, not pushed (mgit.syncPush is false)' ]
+  [ "$(git --git-dir="$origin" rev-parse HEAD)" = "$main_before" ]
+  [ "$(git --git-dir="$origin" rev-parse topic)" = "$topic_before" ]
+
+  git -C "$TREE/repo" config --unset mgit.syncPush
+  run "$MGIT" -W sync --push
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mgit sync: repo: pushed 1 commit"* ]] || false
+  [[ "$output" == *"mgit sync: repo [topic]: pushed 1 commit"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit sync: 2 repositories: 0 in sync, 0 pulled, 2 pushed, 0 skipped, 0 failed' ]
+  [ "$(git --git-dir="$origin" rev-parse topic)" = "$(git -C "$TREE/repo-topic" rev-parse HEAD)" ]
 }
 
 @test "sync interactive mode confirms each pull and push" {
@@ -1337,7 +1442,19 @@ make_majority_trio() {
   branch=$(git -C "$TREE/behind" branch --show-current)
 
   cd "$TREE"
-  run bash -c 'printf "n\n\n" | "$1" sync -i' _ "$MGIT"
+  # Without --push, -i never offers a push.
+  run bash -c 'printf "\n" | "$1" sync -i' _ "$MGIT"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'mgit sync: ahead: ahead 1, not pushed (pass --push)' ]
+  [ "${lines[1]}" = "mgit sync: behind: pull 1 commit into $branch from origin/$branch? [y/N]" ]
+  [ "${lines[2]}" = 'mgit sync: behind: pull skipped' ]
+  [ "${lines[3]}" = 'mgit sync: 3 repositories: 1 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed' ]
+  [ "${lines[4]}" = '  ahead: ahead 1, not pushed (pass --push)' ]
+  [ "${lines[5]}" = '  behind: pull skipped by user, 0 ahead, 1 behind' ]
+  [ "${#lines[@]}" -eq 6 ]
+  [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$before" ]
+
+  run bash -c 'printf "n\n\n" | "$1" sync -i --push' _ "$MGIT"
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = 'mgit sync: ahead: push 1 commit? [y/N]' ]
   [ "${lines[1]}" = 'mgit sync: ahead: push skipped (1 commit ahead)' ]
@@ -1350,7 +1467,7 @@ make_majority_trio() {
   [ "$(git --git-dir="$ahead_origin" rev-parse HEAD)" = "$before" ]
   [ "$(git -C "$TREE/behind" rev-parse HEAD)" = "$behind_before" ]
 
-  run bash -c 'printf "y\ny\n" | "$1" sync -iv' _ "$MGIT"
+  run bash -c 'printf "y\ny\n" | "$1" sync --push -iv' _ "$MGIT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"mgit sync: [1/3] ahead: checking"* ]] || false
   [[ "$output" == *"mgit sync: ahead: pushed 1 commit"* ]] || false
@@ -1369,7 +1486,7 @@ make_majority_trio() {
   git -C "$TREE/repo" commit -q --allow-empty -m local-update
 
   cd "$TREE"
-  run bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
+  run bash -c '"$1" sync -i --push < /dev/null' _ "$MGIT"
   [ "$status" -eq 1 ]
   [[ "$output" == *"mgit sync: repo: push 1 commit? [y/N]"* ]] || false
   [[ "$output" == *"mgit sync: interactive input ended"* ]] || false
@@ -1495,7 +1612,7 @@ make_majority_trio() {
   git -C "$TREE/d-ahead" pull -q --rebase
 
   cd "$TREE"
-  run --separate-stderr "$MGIT" sync
+  run --separate-stderr "$MGIT" sync --push
   [ "$status" -eq 1 ]
   [ "${lines[0]}" = 'mgit sync: d-ahead: pushed 1 commit' ]
   [ "${lines[1]}" = 'mgit sync: 5 repositories: 1 in sync, 0 pulled, 1 pushed, 2 skipped, 1 failed' ]
@@ -1533,7 +1650,7 @@ make_majority_trio() {
   git -C "$TREE/first" commit -q --allow-empty -m local-update
 
   cd "$TREE"
-  run --separate-stderr bash -c '"$1" sync -i < /dev/null' _ "$MGIT"
+  run --separate-stderr bash -c '"$1" sync --push -i < /dev/null' _ "$MGIT"
   [ "$status" -eq 1 ]
   [ "$output" = 'mgit sync: 2 repositories: 0 in sync, 0 pulled, 0 pushed, 0 skipped, 0 failed, 2 not reached' ]
   [[ "$stderr" == *"mgit sync: first: push 1 commit? [y/N]"$'\n'"mgit sync: interactive input ended"* ]] || false
