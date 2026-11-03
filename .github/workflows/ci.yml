@@ -6,9 +6,6 @@ on:
 permissions:
   contents: read
 
-env:
-  KI_VERSION: v0.13.0
-
 jobs:
   governance:
     name: KI governance
@@ -17,6 +14,14 @@ jobs:
       - uses: actions/checkout@v4
       # The audit's Markdown gate runs rumdl through bunx.
       - uses: oven-sh/setup-bun@v2
+      # The released ki tag lives in .github/ki-version so that the
+      # update-ki-pin.yml receiver can propose its bump.
+      - name: Read released KI pin
+        run: |
+          set -euo pipefail
+          KI_VERSION=$(tr -d '[:space:]' < .github/ki-version)
+          [[ "$KI_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          printf 'KI_VERSION=%s\n' "$KI_VERSION" >> "$GITHUB_ENV"
       - name: Install released KI
         env:
           KI_CLI_INSTALL_DIR: ${{ runner.temp }}/ki/bin
