@@ -58,7 +58,7 @@ mgit -B help -a
 mgit chain fetch --prune --then pull --ff-only --then push
 ```
 
-Every word after `chain` reaches Git unchanged except `--then`, which always separates steps, even after `--`; write a path named `--then` as `./--then`. Each checkout works through its own steps and stops at its first failing step, so a checkout whose pull failed is not pushed, while the other checkouts carry on. Checkouts run in parallel up to the `-j` limit, and the usual selection options apply. Each checkout then gets one block naming every step `ok`, `failed (exit N)` or `not run`, with that step's output, and one line closes the run:
+Every word after `chain` reaches Git unchanged except `--then`, which always separates steps, even after `--`; write a path named `--then` as `./--then`. Each checkout works through its own steps and stops at its first failing step, so a checkout whose pull failed is not pushed, while the other checkouts carry on. Checkouts run in parallel up to the `-j` limit, and the usual selection options apply. Each checkout that failed or printed something then gets one block naming every step `ok`, `failed (exit N)` or `not run`, with that step's output; a checkout that completed every step without printing anything is left out and counted as quiet. One line closes the run:
 
 ```text
 tools-ki
@@ -66,10 +66,10 @@ tools-ki
   2 failed (exit 1): git pull --ff-only
 fatal: Not possible to fast-forward, aborting.
   3 not run: git push
-mgit chain: 12 repositories: 11 completed, 1 stopped, 0 failed to start: tools-ki (step 2, exit 1)
+mgit chain: 12 repositories: 11 completed (11 quiet), 1 stopped, 0 failed to start: tools-ki (step 2, exit 1)
 ```
 
-A checkout is stopped when a later step failed after at least one completed, and failed to start when no step completed. The run exits `1` unless every checkout completed. `-v` streams each checkout's steps one checkout at a time with the terminal attached, and `--json` prints one document with each checkout's outcome and steps. Steps are Git commands only: `-R`, `--learn` and mgit's own commands cannot be chained, and learned templates do not apply.
+A checkout is stopped when a later step failed after at least one completed, and failed to start when no step completed, including a checkout mgit could not enter. The run exits `1` unless every checkout completed. `-v` streams every checkout's steps one checkout at a time with the terminal attached, and `--json` prints one document with every checkout's outcome and steps. Steps are Git commands only: `-R`, `--learn` and mgit's own commands cannot be chained, and learned templates do not apply.
 
 Save a sequence you run often as a recipe in Git configuration, with the steps joined by `--then`; the value splits into words as a shell would, so quote a word that holds spaces:
 

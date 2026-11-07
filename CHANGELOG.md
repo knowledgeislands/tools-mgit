@@ -6,7 +6,7 @@ All notable changes to `mgit` are documented here as a consolidated Pre-1.0 base
 
 ### Added
 
-- `mgit chain` runs several Git commands in order in each checkout, split at each `--then`; a checkout stops at its first failing step while the others carry on, and one tally counts those that completed, stopped and failed to start. It takes `-j`, `-v` and `--json`. Recipes saved as `git config mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when mgit does not own the name; `-B` bypasses them.
+- `mgit chain` runs several Git commands in order in each checkout, split at each `--then`; a checkout stops at its first failing step while the others carry on, and one tally counts those that completed, stopped and failed to start. Checkouts that complete every step without output are counted as quiet and not shown, except under `-v` and `--json`. It takes `-j`, `-v` and `--json`. Recipes saved as `git config mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when mgit does not own the name; `-B` bypasses them.
 
 ### Changed
 

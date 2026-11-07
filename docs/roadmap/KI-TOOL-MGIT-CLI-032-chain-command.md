@@ -13,7 +13,7 @@ blocks: []
 blocked_by: []
 baseline_ref: d4bb1b86928b7da74bfa5999957fdd33b36157ad
 created_at: 2026-10-28T22:44:14Z
-updated_at: 2026-10-28T22:54:27Z
+updated_at: 2026-11-07T12:00:00Z
 ---
 
 # Chain Git commands
@@ -87,12 +87,12 @@ None expected; any follow-on found in delivery is reported to the coordinator ra
 
 ### Delivered
 
-`mgit chain STEP [--then STEP]...` runs Git steps in order in every selected checkout on the shared pool, stopping each checkout at its first failing step while the others carry on, with one block per checkout and a tally of completed, stopped and failed to start; `-v` streams it and `--json` prints one document. Recipes in `mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when the name is the sole word, not mgit-owned, and no `-B`, `-R` or `--learn` is given. Help, usage, Bash and Zsh completion, the manual, README, running-commands guide, MGIT-WS-028 and the changelog cover it, including the `./--then` path form.
+`mgit chain STEP [--then STEP]...` runs Git steps in order in every selected checkout on the shared pool, stopping each checkout at its first failing step while the others carry on, with one block per checkout that failed or printed something and a tally of completed, quiet among them, stopped and failed to start; `-v` streams it and `--json` prints one document. Recipes in `mgit.chain.NAME` run as `mgit chain NAME`, or as `mgit NAME` when the name is the sole word, not mgit-owned, and no `-B`, `-R` or `--learn` is given. Help, usage, Bash and Zsh completion, the manual, README, running-commands guide, MGIT-WS-028 and the changelog cover it, including the `./--then` path form.
 
 ### Change Summary
 
 - `bin/mgit`: chain parsing, recipe lookup and shell-like splitting, the chain worker, captured, streaming and JSON renderers, the top-level recipe rule, one shared `is_mgit_command` list used by the learn check and the recipe rule, `chain_usage`, `mgit help chain`, the command listing and both completions.
-- `tests/mgit.bats`: nine chain cases, and `chain` in the standalone-help loop.
+- `tests/mgit.bats`: ten chain cases, and `chain` in the standalone-help loop.
 - `docs/specs/workspace-dispatch.md`: new MGIT-WS-028 under Chained commands; MGIT-WS-022 names the selectors `chain` accepts.
 - `man/mgit.1`, `README.md`, `docs/guides/user/running-commands.md`, `CHANGELOG.md` (Unreleased, Added); no version bump.
 
@@ -101,10 +101,10 @@ None expected; any follow-on found in delivery is reported to the coordinator ra
 - `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check` and `rumdl check` on the changed Markdown: pass.
 - `MGIT_KI_PRODUCER=<installed ki> TMPDIR=<run directory> bats tests/`: 151 of 151 pass, none skipped, the nine chain cases among them.
 - `ki repo audit --repo .`: the only FAIL is the existing SHELL-HOOK finding on `.githooks/pre-commit`, untouched by this work; a MAN-STYLE finding the new FILES subsection raised was fixed before commit.
+- Quiet output, 7 November 2026: `shellcheck`, `bash -n`, `mandoc -T lint`, `git diff --check`, `rumdl check` on the changed Markdown and `ki repo audit --repo .` (no FAIL) pass; `bats tests/` with the installed ki 0.14.1 as producer passes 153 of 154, the ten chain cases among them. The one failure, `real producer blocks selected missing roots and missing member registrations before dispatch`, fails identically on the unchanged previous commit with the same producer, so it comes from the installed ki rather than this change; CI pins ki v0.13.0.
 
 ### Outstanding concerns
 
-- Every checkout is shown in captured output, including completed ones, because the brief asks for one block per repository; over a large set a quiet-collapse like ordinary dispatch may read better, left for review.
 - A recipe is read from the Git configuration visible in the invoking directory, as Git aliases are; a repository-local recipe in one member is not seen from the workspace root.
 
 ### Post-change review
@@ -124,6 +124,12 @@ Captured, planned and delivered in one run under Kris's instruction of 28 Octobe
 ### Outcome categories
 
 "Failed to start" is read as a checkout where no step completed: its first step failed, or the checkout could not be entered. "Stopped" is a checkout whose chain failed at a later step after at least one completed. The three counts therefore partition the selection.
+
+Kris settled the second half on 7 November 2026 under CHAIN-START-ENTER a), recorded in the ki.sop.main decisions log: a checkout that cannot be entered counts as "failed to start", as built; `chain counts a checkout it cannot enter as failed to start` covers it. Whether a first step that runs and fails is "failed to start" or "stopped" is still open with Kris as CHAIN-START-FIRST, so it stays as built.
+
+### Quiet output
+
+Kris decided on 7 November 2026 under CHAIN-QUIET a), recorded in the ki.sop.main decisions log, that captured output follows ordinary dispatch: a checkout that completed every step with nothing on either stream is left out and counted as quiet in the tally, as `N completed (N quiet)`, while `-v` and `--json` show every checkout. JSON gains a per-checkout `quiet` flag and a `quiet` count in its summary. `chain stops a checkout at its first failing step while others carry on, leaving quiet checkouts out` covers it; this replaces the earlier one-block-per-checkout output the review left open.
 
 ### Top-level recipes
 

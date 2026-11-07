@@ -703,20 +703,23 @@ steps are not run; other checkouts carry on.
 Checkouts run in parallel up to the
 .B \-j
 limit.
-Each checkout then gets one block naming every step
+Each checkout that failed or printed something then gets one block naming
+every step
 .BR ok ,
 .B failed (exit
 .IB N )
 or
 .B not run
-with that step's output, and one closing line counts the checkouts that
-completed, stopped after at least one step completed, and failed to start
-because no step completed, naming each that did not complete with its step
-and exit status.
+with that step's output; a checkout that completed every step without output
+is left out and counted as quiet.
+One closing line counts the checkouts that completed, stopped after at least
+one step completed, and failed to start because no step completed or the
+checkout could not be entered, naming each that did not complete with its
+step and exit status.
 .B \-v
-streams each checkout's steps one checkout at a time, and
+streams every checkout's steps one checkout at a time, and
 .B \-\-json
-prints one document.
+prints one document with every checkout.
 The command exits 1 unless every checkout completed.
 .BR \-R ,
 .B \-\-learn

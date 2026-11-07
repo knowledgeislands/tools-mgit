@@ -3375,11 +3375,11 @@ make_overview_hygiene() {
   [[ "${lines[4]}" == '* '*' init' ]] || false
   [ "${lines[5]}" = '  3 ok: git status --short -- -v' ]
   [ "${lines[6]}" = beta ]
-  [ "${lines[12]}" = 'mgit chain: 2 repositories: 2 completed, 0 stopped, 0 failed to start' ]
+  [ "${lines[12]}" = 'mgit chain: 2 repositories: 2 completed (0 quiet), 0 stopped, 0 failed to start' ]
 
   run "$MGIT" --filter al -j2 chain log -n 1 --format=%s
   [ "$status" -eq 0 ]
-  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\nmgit chain: 1 repository: 1 completed (0 quiet), 0 stopped, 0 failed to start' ]
 }
 
 @test "chain splits at every literal --then, so a path of that name is written ./--then" {
@@ -3399,7 +3399,7 @@ make_overview_hygiene() {
   [ -z "$(git -C alpha diff --cached --name-only)" ]
 }
 
-@test "chain stops a checkout at its first failing step while others carry on" {
+@test "chain stops a checkout at its first failing step while others carry on, leaving quiet checkouts out" {
   local name
   for name in alpha beta gamma; do mkrepo "$TREE/$name"; done
   git -C "$TREE/alpha" tag start
@@ -3409,13 +3409,38 @@ make_overview_hygiene() {
 
   run "$MGIT" chain show-ref -q --verify refs/tags/start --then checkout -q feature --then commit -q --allow-empty -m chained
   [ "$status" -eq 1 ]
-  [[ "$output" == *$'alpha\n  1 ok: git show-ref -q --verify refs/tags/start\n  2 ok: git checkout -q feature\n  3 ok: git commit -q --allow-empty -m chained\n'* ]] || false
+  [ "${lines[0]}" = beta ]
   [[ "$output" == *$'beta\n  1 ok: git show-ref -q --verify refs/tags/start\n  2 failed (exit 1): git checkout -q feature\n'*$'\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
   [[ "$output" == *$'gamma\n  1 failed (exit 1): git show-ref -q --verify refs/tags/start\n  2 not run: git checkout -q feature\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 1 completed, 1 stopped, 1 failed to start: beta (step 2, exit 1), gamma (step 1, exit 1)' ]
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 1 completed (1 quiet), 1 stopped, 1 failed to start: beta (step 2, exit 1), gamma (step 1, exit 1)' ]
   [ "$(git -C alpha log -1 --format=%s feature)" = chained ]
   [ "$(git -C beta log -1 --format=%s)" = init ]
   [ "$(git -C gamma log -1 --format=%s)" = init ]
+  [[ "$output" != *alpha* ]] || false
+
+  # Verbose and JSON runs still show the quiet checkout.
+  run "$MGIT" -v --filter alpha chain show-ref -q --verify refs/tags/start
+  [ "$status" -eq 0 ]
+  [ "$output" = $'alpha: git show-ref -q --verify refs/tags/start\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+  run "$MGIT" --json --filter alpha chain show-ref -q --verify refs/tags/start
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"label":"alpha",'*'"outcome":"completed","quiet":true,'*'"summary":{"repositories":1,"completed":1,"quiet":1,"stopped":0,"failed_to_start":0}}' ]] || false
+}
+
+@test "chain counts a checkout it cannot enter as failed to start" {
+  local name
+  for name in alpha beta gamma; do mkrepo "$TREE/$name"; done
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  # Run one checkout at a time, so alpha's first step moves gamma away after
+  # discovery and before gamma's turn.
+  git config --file "$GIT_CONFIG_GLOBAL" alias.hide '!if [ "${PWD##*/}" = alpha ]; then mv ../gamma ../gamma.gone; fi'
+  cd "$TREE"
+
+  run "$MGIT" -j 1 chain hide --then log -n 1 --format=%s
+  [ "$status" -eq 1 ]
+  [[ "$output" == *$'gamma\n'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 2 completed (0 quiet), 0 stopped, 1 failed to start: gamma (step 1, exit 1)' ]
+  [ "$(git -C gamma.gone log -1 --format=%s)" = init ]
 }
 
 @test "chain runs checkouts in parallel up to the job limit" {
@@ -3443,7 +3468,7 @@ make_overview_hygiene() {
   [ "${lines[2]}" = 1 ]
   [ "${lines[7]}" = 2 ]
   [ "${lines[12]}" = 3 ]
-  [ "${lines[15]}" = 'mgit chain: 3 repositories: 3 completed, 0 stopped, 0 failed to start' ]
+  [ "${lines[15]}" = 'mgit chain: 3 repositories: 3 completed (0 quiet), 0 stopped, 0 failed to start' ]
 }
 
 @test "verbose chain streams each checkout's steps in turn and keeps the tally" {
@@ -3463,7 +3488,7 @@ make_overview_hygiene() {
 
   run "$MGIT" --json chain log -n 1 --format=%s --then show-ref -q --verify refs/tags/start --then status
   [ "$status" -eq 1 ]
-  [[ "$output" == '{"tool":"mgit","command":"chain","version":"'*'","recipe":null,"steps":["git log -n 1 --format=%s","git show-ref -q --verify refs/tags/start","git status"],"repositories":[{"label":"alpha","path":"'*'/alpha","outcome":"stopped","steps":[{"command":"git log -n 1 --format=%s","run":true,"exit":0,"stdout":"init\n","stderr":""},{"command":"git show-ref -q --verify refs/tags/start","run":true,"exit":1,"stdout":"","stderr":""},{"command":"git status","run":false}]}],"summary":{"repositories":1,"completed":0,"stopped":1,"failed_to_start":0}}' ]] || false
+  [[ "$output" == '{"tool":"mgit","command":"chain","version":"'*'","recipe":null,"steps":["git log -n 1 --format=%s","git show-ref -q --verify refs/tags/start","git status"],"repositories":[{"label":"alpha","path":"'*'/alpha","outcome":"stopped","quiet":false,"steps":[{"command":"git log -n 1 --format=%s","run":true,"exit":0,"stdout":"init\n","stderr":""},{"command":"git show-ref -q --verify refs/tags/start","run":true,"exit":1,"stdout":"","stderr":""},{"command":"git status","run":false}]}],"summary":{"repositories":1,"completed":0,"quiet":0,"stopped":1,"failed_to_start":0}}' ]] || false
 
   assert_usage_error -v --json chain status
 }
@@ -3478,7 +3503,7 @@ make_overview_hygiene() {
 
   run "$MGIT" chain tidy
   [ "$status" -eq 0 ]
-  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\\ by\\ %an\ninit by t\n  2 ok: git log -n 1 --format=%s\\ \\ x\\ y\ninit  x y\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\\ by\\ %an\ninit by t\n  2 ok: git log -n 1 --format=%s\\ \\ x\\ y\ninit  x y\nmgit chain: 1 repository: 1 completed (0 quiet), 0 stopped, 0 failed to start' ]
 
   run "$MGIT" --json chain tidy
   [[ "$output" == *'"recipe":"tidy","steps":["git log -n 1 --format=%s\\ by\\ %an",'* ]] || false
@@ -3503,7 +3528,7 @@ make_overview_hygiene() {
 
   run "$MGIT" tidy
   [ "$status" -eq 0 ]
-  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\n  2 ok: git rev-parse --is-inside-work-tree\ntrue\nmgit chain: 1 repository: 1 completed, 0 stopped, 0 failed to start' ]
+  [ "$output" = $'alpha\n  1 ok: git log -n 1 --format=%s\ninit\n  2 ok: git rev-parse --is-inside-work-tree\ntrue\nmgit chain: 1 repository: 1 completed (0 quiet), 0 stopped, 0 failed to start' ]
 
   run "$MGIT" status
   [ "$status" -eq 0 ]

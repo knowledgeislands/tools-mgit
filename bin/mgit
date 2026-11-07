@@ -277,9 +277,11 @@ ends one step and starts the next, wherever it appears; write a path named
 first failing step; other checkouts carry on. Checkouts run in parallel up to
 --jobs, and --verbose runs them one at a time, streaming every step. Each
 checkout's block names every step as ok, failed or not run, followed by its
-output, and the run ends with one tally: completed, stopped at a later step,
-and failed to start, where no step completed. --json prints one document. The
-run exits 1 unless every checkout completed.
+output; a checkout that completed every step without output is left out and
+counted as quiet. The run ends with one tally: completed, stopped at a later
+step, and failed to start, where no step completed or the checkout could not
+be entered. --verbose and --json show every checkout. The run exits 1 unless
+every checkout completed.
 
 A recipe is a chain saved in the Git configuration visible where mgit runs:
   git config --global mgit.chain.tidy 'fetch --prune --then pull --ff-only'
@@ -4128,10 +4130,20 @@ chain_count() {
   chain_failures="$chain_failures, $1 (step $(($2 + 1)), exit $3)"
 }
 
+# Print the tally; $1, when given, counts the completed checkouts left quiet.
 chain_tally() {
-  printf 'mgit chain: %s: %s completed, %s stopped, %s failed to start%s\n' \
-    "$(plural "${#repos[@]}" repository repositories)" "$chain_completed" "$chain_stopped" \
-    "$chain_unstarted" "${chain_failures:+: ${chain_failures#, }}"
+  printf 'mgit chain: %s: %s completed%s, %s stopped, %s failed to start%s\n' \
+    "$(plural "${#repos[@]}" repository repositories)" "$chain_completed" "${1:+ ($1 quiet)}" \
+    "$chain_stopped" "$chain_unstarted" "${chain_failures:+: ${chain_failures#, }}"
+}
+
+# Succeed when checkout $1 completed every step and nothing printed anything.
+chain_quiet() {
+  local s
+  [ "$chain_outcome" = completed ] && [ ! -s "$runner_dir/$1.err" ] || return 1
+  for s in "${!chain_texts[@]}"; do
+    [ ! -s "$runner_dir/$1.$s.out" ] && [ ! -s "$runner_dir/$1.$s.err" ] || return 1
+  done
 }
 
 # Set chain_stop and chain_stop_status for checkout $1 from its step files.
@@ -4152,9 +4164,10 @@ chain_result() {
 }
 
 # Captured chain: run every checkout's chain in the pool, then print one block
-# per checkout in selection order and close with the tally.
+# per checkout in selection order, leaving out checkouts that completed without
+# output, and close with the tally. JSON keeps every checkout.
 chain_captured() {
-  local i s label path state first=true step_first
+  local i s label path state quiet quiets=0 first=true step_first
   runner_start || return 1
   runner_run chain_worker
   if [ "$runner_json" = true ]; then
@@ -4171,12 +4184,17 @@ chain_captured() {
     label="${repo_labels[$i]}"
     chain_result "$i"
     chain_count "$label" "$chain_stop" "$chain_stop_status"
+    quiet=false
+    if chain_quiet "$i"; then
+      quiet=true
+      quiets=$((quiets + 1))
+    fi
     if [ "$runner_json" = true ]; then
       [ "$first" = true ] || printf ','
       first=false
       capture_dir path "${repos[$i]}" || path="${repos[$i]}"
-      printf '{"label":%s,"path":%s,"outcome":"%s","steps":[' \
-        "$(json_string "$label")" "$(json_string "$path")" "$chain_outcome"
+      printf '{"label":%s,"path":%s,"outcome":"%s","quiet":%s,"steps":[' \
+        "$(json_string "$label")" "$(json_string "$path")" "$chain_outcome" "$quiet"
       step_first=true
       for s in "${!chain_texts[@]}"; do
         [ "$step_first" = true ] || printf ','
@@ -4192,6 +4210,7 @@ chain_captured() {
       printf ']}'
       continue
     fi
+    [ "$quiet" = false ] || continue
     printf '%s%s%s%s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR"
     cat "$runner_dir/$i.err" >&2
     for s in "${!chain_texts[@]}"; do
@@ -4206,10 +4225,10 @@ chain_captured() {
     done
   done
   if [ "$runner_json" = true ]; then
-    printf '],"summary":{"repositories":%s,"completed":%s,"stopped":%s,"failed_to_start":%s}}\n' \
-      "${#repos[@]}" "$chain_completed" "$chain_stopped" "$chain_unstarted"
+    printf '],"summary":{"repositories":%s,"completed":%s,"quiet":%s,"stopped":%s,"failed_to_start":%s}}\n' \
+      "${#repos[@]}" "$chain_completed" "$quiets" "$chain_stopped" "$chain_unstarted"
   else
-    chain_tally
+    chain_tally "$quiets"
   fi
   runner_cleanup
   [ $((chain_stopped + chain_unstarted)) -eq 0 ]
