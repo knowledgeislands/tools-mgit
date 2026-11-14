@@ -140,7 +140,7 @@ Repositories that pulled or pushed commits are named on standard output as it ha
 
 ```text
 mgit sync: 57 repositories: 55 in sync, 0 pulled, 0 pushed, 2 skipped, 0 failed
-  ki-agentic-harness: local changes, 5 ahead, 0 behind
+  ki-agent-backpack: local changes, 5 ahead, 0 behind
   tools-mgit: ahead 1, not pushed (pass --push)
 ```
 

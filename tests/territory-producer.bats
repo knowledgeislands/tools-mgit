@@ -147,7 +147,7 @@ write_other_capital() {
 @test "real producer selects only Capitals for principals, system Capital first then by name" {
   write_other_capital "$ROOT/Alpha Capital" alpha alpha 'Alpha territory'
   write_other_capital "$ROOT/Zulu Capital" zulu zulu 'Zulu territory' \
-    ', "https://github.com/knowledgeislands/ki-agentic-harness"'
+    ', "https://github.com/knowledgeislands/ki-agent-backpack"'
   run "$MGIT" --principals
   [ "$status" -eq 0 ]
   [ "$output" = $'../Zulu Capital\n../Alpha Capital\n../Capital Space' ] || { printf '%s\n' "$output"; return 1; }
