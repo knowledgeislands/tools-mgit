@@ -13,7 +13,7 @@ blocks: []
 blocked_by: []
 baseline_ref: d4bb1b86928b7da74bfa5999957fdd33b36157ad
 created_at: 2026-10-28T22:44:14Z
-updated_at: 2026-11-07T12:00:00Z
+updated_at: 2026-11-17T03:30:00Z
 ---
 
 # Chain Git commands
@@ -48,7 +48,7 @@ Today a sequence such as fetch, fast-forward pull and push needs three separate 
 - [x] Add `chain` to the owned commands: split its raw words at each literal `--then` into steps, reject an empty step, `-R`, `--learn`, and `-v` with `--json` as usage errors, and give `mgit chain -h`, `mgit help chain` and `mgit --help chain` the chain usage.
 - [x] Read recipes from `mgit.chain.<name>` when the only word after `chain` is a valid Git configuration key name with a value, splitting the value into words with single quotes, double quotes and backslash escapes; reject an unterminated quote or empty step naming the recipe.
 - [x] Run a recipe at top level when `mgit <name>` has no other words, `<name>` is not an mgit-owned command, and none of `-B`, `-R` or `--learn` is given; share one owned-command list with the learn check.
-- [x] Add a chain worker on the shared pool that runs each step in turn inside the checkout, stops at the first non-zero status, and keeps each step's output and status; render one block per checkout in selection order with each step `ok`, `failed (exit N)` or `not run` and its output, then `mgit chain: N repositories: N completed, N stopped, N failed to start` naming each checkout that did not complete with its step and exit status; exit `1` unless every checkout completed.
+- [x] Add a chain worker on the shared pool that runs each step in turn inside the checkout, stops at the first non-zero status, and keeps each step's output and status; render one block per checkout in selection order with each step `ok`, `failed (exit N)` or `not run` and its output, then `mgit chain: N repositories: N completed, N stopped, N failed to start` naming each stopped checkout with its step and exit status and each checkout not entered as `could not be entered`; exit `1` unless every checkout completed.
 - [x] Add a streaming form under `-v` with the same per-step stop and the same tally, and a `--json` document with each checkout's outcome and steps and a `summary` object.
 - [x] Add Bash and Zsh completion for `chain` (recipe names and `--then`), the usage text and command listing, MGIT-WS-028, the manual, README, running-commands guide and changelog, documenting a path named `--then` as `./--then`.
 - [x] Add Bats cases for splitting with Git flags surviving, stop-at-first-failure with other checkouts continuing, the tally, parallel and verbose runs, JSON, recipes with quoting, top-level precedence, `-B` bypass, the no-shadow rule, and the usage errors.
@@ -101,6 +101,7 @@ None expected; any follow-on found in delivery is reported to the coordinator ra
 - `shellcheck bin/mgit install.sh`, `bash -n bin/mgit install.sh`, `mandoc -T lint man/mgit.1`, `git diff --check` and `rumdl check` on the changed Markdown: pass.
 - `MGIT_KI_PRODUCER=<installed ki> TMPDIR=<run directory> bats tests/`: 151 of 151 pass, none skipped, the nine chain cases among them.
 - `ki repo audit --repo .`: the only FAIL is the existing SHELL-HOOK finding on `.githooks/pre-commit`, untouched by this work; a MAN-STYLE finding the new FILES subsection raised was fixed before commit.
+- Outcome labels, 17 November 2026 (CHAIN-START-FIRST a, CHAIN-ENTER-LABEL a): `shellcheck`, `bash -n`, `mandoc -T lint`, `git diff --check`, `rumdl check` on the changed Markdown and `ki repo audit --repo .` pass (its one FAIL the existing FILES-6 `.gitignore` finding, untouched here); `bats tests/` with the installed ki 0.16.1 as producer passes 153 of 154, the chain cases among them, the one failure being the same `real producer blocks selected missing roots and missing member registrations before dispatch` that fails with ki 0.14 and later on the unchanged code.
 - Quiet output, 7 November 2026: `shellcheck`, `bash -n`, `mandoc -T lint`, `git diff --check`, `rumdl check` on the changed Markdown and `ki repo audit --repo .` (no FAIL) pass; `bats tests/` with the installed ki 0.14.1 as producer passes 153 of 154, the ten chain cases among them. The one failure, `real producer blocks selected missing roots and missing member registrations before dispatch`, fails identically on the unchanged previous commit with the same producer, so it comes from the installed ki rather than this change; CI pins ki v0.13.0.
 
 ### Outstanding concerns
@@ -109,7 +110,7 @@ None expected; any follow-on found in delivery is reported to the coordinator ra
 
 ### Post-change review
 
-Reviewed the diff against the agreed design: `--then` splitting is literal and global, Git flags pass unchanged, the stop rule is per checkout, owned names are never shadowed, `-B` reaches Git, and `mgit NAME ARGS` stays pass-through. The interpretation of "failed to start" as no step completed is recorded under Discussion.
+Reviewed the diff against the agreed design: `--then` splitting is literal and global, Git flags pass unchanged, the stop rule is per checkout, owned names are never shadowed, `-B` reaches Git, and `mgit NAME ARGS` stays pass-through. Kris's reading of "stopped" and "failed to start" is recorded under Discussion.
 
 ### Mini recap
 
@@ -123,9 +124,9 @@ Captured, planned and delivered in one run under Kris's instruction of 28 Octobe
 
 ### Outcome categories
 
-"Failed to start" is read as a checkout where no step completed: its first step failed, or the checkout could not be entered. "Stopped" is a checkout whose chain failed at a later step after at least one completed. The three counts therefore partition the selection.
+"Stopped" is a checkout where a step ran and failed, the first step included. "Failed to start" is a checkout mgit could not enter, so no step ran. The three counts therefore partition the selection.
 
-Kris settled the second half on 7 November 2026 under CHAIN-START-ENTER a), recorded in the ki.sop.main decisions log: a checkout that cannot be entered counts as "failed to start", as built; `chain counts a checkout it cannot enter as failed to start` covers it. Whether a first step that runs and fails is "failed to start" or "stopped" is still open with Kris as CHAIN-START-FIRST, so it stays as built.
+Kris settled this in two parts. On 7 November 2026, under CHAIN-START-ENTER a), recorded in the ki.sop.main decisions log, a checkout that cannot be entered counts as "failed to start". On 17 November 2026, under CHAIN-START-FIRST a) and CHAIN-ENTER-LABEL a), recorded in the ki.summit legacy change from ki.sop.main, he decided that a first step that runs and fails counts as "stopped", since a Git step that ran has started and may have changed things, and that a checkout `mgit chain` cannot enter shows every step `not run`, its tally entry saying `could not be entered`, as the JSON output already showed its steps unrun. The build had counted a failing first step as "failed to start" and shown an unenterable checkout's first step as failed; both now follow the decisions in the captured, streamed and JSON forms, and JSON keeps its `failed-to-start` outcome and `failed_to_start` count for the checkout not entered. `chain stops a checkout at its first failing step while others carry on, leaving quiet checkouts out` covers a failing first step, and `chain counts a checkout it cannot enter as failed to start, with every step not run` covers the checkout not entered.
 
 ### Quiet output
 

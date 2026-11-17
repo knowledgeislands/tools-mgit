@@ -69,7 +69,7 @@ fatal: Not possible to fast-forward, aborting.
 mgit chain: 12 repositories: 11 completed (11 quiet), 1 stopped, 0 failed to start: tools-ki (step 2, exit 1)
 ```
 
-A checkout is stopped when a later step failed after at least one completed, and failed to start when no step completed, including a checkout mgit could not enter. The run exits `1` unless every checkout completed. `-v` streams every checkout's steps one checkout at a time with the terminal attached, and `--json` prints one document with every checkout's outcome and steps. Steps are Git commands only: `-R`, `--learn` and mgit's own commands cannot be chained, and learned templates do not apply.
+A checkout is stopped when a step ran and failed, the first step included, and failed to start when mgit could not enter it, so no step ran: its block shows every step `not run` and the closing line names it as `could not be entered`. The run exits `1` unless every checkout completed. `-v` streams every checkout's steps one checkout at a time with the terminal attached, and `--json` prints one document with every checkout's outcome and steps. Steps are Git commands only: `-R`, `--learn` and mgit's own commands cannot be chained, and learned templates do not apply.
 
 Save a sequence you run often as a recipe in Git configuration, with the steps joined by `--then`; the value splits into words as a shell would, so quote a word that holds spaces:
 

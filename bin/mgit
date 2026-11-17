@@ -278,10 +278,10 @@ first failing step; other checkouts carry on. Checkouts run in parallel up to
 --jobs, and --verbose runs them one at a time, streaming every step. Each
 checkout's block names every step as ok, failed or not run, followed by its
 output; a checkout that completed every step without output is left out and
-counted as quiet. The run ends with one tally: completed, stopped at a later
-step, and failed to start, where no step completed or the checkout could not
-be entered. --verbose and --json show every checkout. The run exits 1 unless
-every checkout completed.
+counted as quiet. The run ends with one tally: completed, stopped at a failing
+step, and failed to start, where the checkout could not be entered and no step
+ran. --verbose and --json show every checkout. The run exits 1 unless every
+checkout completed.
 
 A recipe is a chain saved in the Git configuration visible where mgit runs:
   git config --global mgit.chain.tidy 'fetch --prune --then pull --ff-only'
@@ -4113,20 +4113,23 @@ chain_unstarted=0
 chain_failures=""
 
 # Count checkout label $1, whose chain stopped at step index $2 with status $3;
-# a stop at the step count means every step completed. Sets chain_outcome.
+# a stop at the step count means every step completed, and $4 is false when
+# the checkout could not be entered, so no step ran. A step that ran and failed
+# stops the chain, the first step included. Sets chain_outcome.
 chain_count() {
+  if [ "$4" = false ]; then
+    chain_outcome='failed-to-start'
+    chain_unstarted=$((chain_unstarted + 1))
+    chain_failures="$chain_failures, $1 (could not be entered)"
+    return
+  fi
   if [ "$2" -ge ${#chain_starts[@]} ]; then
     chain_outcome=completed
     chain_completed=$((chain_completed + 1))
     return
   fi
-  if [ "$2" -eq 0 ]; then
-    chain_outcome='failed-to-start'
-    chain_unstarted=$((chain_unstarted + 1))
-  else
-    chain_outcome=stopped
-    chain_stopped=$((chain_stopped + 1))
-  fi
+  chain_outcome=stopped
+  chain_stopped=$((chain_stopped + 1))
   chain_failures="$chain_failures, $1 (step $(($2 + 1)), exit $3)"
 }
 
@@ -4146,11 +4149,15 @@ chain_quiet() {
   done
 }
 
-# Set chain_stop and chain_stop_status for checkout $1 from its step files.
+# Set chain_stop and chain_stop_status for checkout $1 from its step files,
+# and chain_entered to false when no step ran because the worker could not
+# enter the checkout.
 chain_result() {
   local s=0 status
   chain_stop=${#chain_starts[@]}
   chain_stop_status=0
+  chain_entered=true
+  [ -f "$runner_dir/$1.0.rc" ] || chain_entered=false
   while [ "$s" -lt ${#chain_starts[@]} ]; do
     status=""
     [ ! -f "$runner_dir/$1.$s.rc" ] || IFS= read -r status < "$runner_dir/$1.$s.rc" || true
@@ -4183,7 +4190,7 @@ chain_captured() {
   for i in "${!repos[@]}"; do
     label="${repo_labels[$i]}"
     chain_result "$i"
-    chain_count "$label" "$chain_stop" "$chain_stop_status"
+    chain_count "$label" "$chain_stop" "$chain_stop_status" "$chain_entered"
     quiet=false
     if chain_quiet "$i"; then
       quiet=true
@@ -4214,7 +4221,8 @@ chain_captured() {
     printf '%s%s%s%s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR"
     cat "$runner_dir/$i.err" >&2
     for s in "${!chain_texts[@]}"; do
-      if [ "$s" -lt "$chain_stop" ]; then state=ok
+      if [ "$chain_entered" = false ]; then state="not run"
+      elif [ "$s" -lt "$chain_stop" ]; then state=ok
       elif [ "$s" -eq "$chain_stop" ]; then state="failed (exit $chain_stop_status)"
       else state="not run"
       fi
@@ -4241,7 +4249,7 @@ runner_step_status() {
 }
 
 # Streaming chain: one checkout at a time, each step's header and output as it
-# runs, then the same tally.
+# runs, then the same tally. A checkout that cannot be entered runs no step.
 chain_streaming() {
   local i s d label stop status
   for i in "${!repos[@]}"; do
@@ -4249,6 +4257,10 @@ chain_streaming() {
     label="${repo_labels[$i]}"
     stop=${#chain_starts[@]}
     status=0
+    if ! ( cd "$d" ); then
+      chain_count "$label" 0 1 false
+      continue
+    fi
     for s in "${!chain_texts[@]}"; do
       printf '%s%s%s%s: %s\n' "$BOLD" "$YELLOW" "$label" "$CLEAR" "${chain_texts[s]}"
       ( cd "$d" && git "${chain_words[@]:${chain_starts[s]}:${chain_lengths[s]}}" ) || {
@@ -4257,7 +4269,7 @@ chain_streaming() {
         break
       }
     done
-    chain_count "$label" "$stop" "$status"
+    chain_count "$label" "$stop" "$status" true
   done
   chain_tally
   [ $((chain_stopped + chain_unstarted)) -eq 0 ]

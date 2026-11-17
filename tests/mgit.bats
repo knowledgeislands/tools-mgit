@@ -3412,7 +3412,8 @@ make_overview_hygiene() {
   [ "${lines[0]}" = beta ]
   [[ "$output" == *$'beta\n  1 ok: git show-ref -q --verify refs/tags/start\n  2 failed (exit 1): git checkout -q feature\n'*$'\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
   [[ "$output" == *$'gamma\n  1 failed (exit 1): git show-ref -q --verify refs/tags/start\n  2 not run: git checkout -q feature\n  3 not run: git commit -q --allow-empty -m chained\n'* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 1 completed (1 quiet), 1 stopped, 1 failed to start: beta (step 2, exit 1), gamma (step 1, exit 1)' ]
+  # A first step that runs and fails stops the chain like any later step.
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 1 completed (1 quiet), 2 stopped, 0 failed to start: beta (step 2, exit 1), gamma (step 1, exit 1)' ]
   [ "$(git -C alpha log -1 --format=%s feature)" = chained ]
   [ "$(git -C beta log -1 --format=%s)" = init ]
   [ "$(git -C gamma log -1 --format=%s)" = init ]
@@ -3425,9 +3426,17 @@ make_overview_hygiene() {
   run "$MGIT" --json --filter alpha chain show-ref -q --verify refs/tags/start
   [ "$status" -eq 0 ]
   [[ "$output" == *'"label":"alpha",'*'"outcome":"completed","quiet":true,'*'"summary":{"repositories":1,"completed":1,"quiet":1,"stopped":0,"failed_to_start":0}}' ]] || false
+
+  # A failing first step counts as stopped in the streamed and JSON forms too.
+  run "$MGIT" -v --filter gamma chain show-ref -q --verify refs/tags/start --then status
+  [ "$status" -eq 1 ]
+  [ "$output" = $'gamma: git show-ref -q --verify refs/tags/start\nmgit chain: 1 repository: 0 completed, 1 stopped, 0 failed to start: gamma (step 1, exit 1)' ]
+  run "$MGIT" --json --filter gamma chain show-ref -q --verify refs/tags/start --then status
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"label":"gamma",'*'"outcome":"stopped","quiet":false,"steps":[{"command":"git show-ref -q --verify refs/tags/start","run":true,"exit":1,'*'{"command":"git status","run":false}]}],"summary":{"repositories":1,"completed":0,"quiet":0,"stopped":1,"failed_to_start":0}}' ]] || false
 }
 
-@test "chain counts a checkout it cannot enter as failed to start" {
+@test "chain counts a checkout it cannot enter as failed to start, with every step not run" {
   local name
   for name in alpha beta gamma; do mkrepo "$TREE/$name"; done
   export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
@@ -3438,9 +3447,23 @@ make_overview_hygiene() {
 
   run "$MGIT" -j 1 chain hide --then log -n 1 --format=%s
   [ "$status" -eq 1 ]
-  [[ "$output" == *$'gamma\n'* ]] || false
-  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 2 completed (0 quiet), 0 stopped, 1 failed to start: gamma (step 1, exit 1)' ]
+  [[ "$output" == *$'gamma\n'*$'\n  1 not run: git hide\n  2 not run: git log -n 1 --format=%s\nmgit chain: '* ]] || false
+  [[ "$output" != *'failed (exit'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 2 completed (0 quiet), 0 stopped, 1 failed to start: gamma (could not be entered)' ]
   [ "$(git -C gamma.gone log -1 --format=%s)" = init ]
+
+  # The streamed form runs no step there and closes with the same tally.
+  mv gamma.gone gamma
+  run "$MGIT" -v chain hide --then log -n 1 --format=%s
+  [ "$status" -eq 1 ]
+  [[ "$output" != *'gamma: git'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = 'mgit chain: 3 repositories: 2 completed, 0 stopped, 1 failed to start: gamma (could not be entered)' ]
+
+  # JSON reports the same checkout as failed to start with no step run.
+  mv gamma.gone gamma
+  run "$MGIT" -j 1 --json chain hide --then log -n 1 --format=%s
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'{"label":"gamma",'*'"outcome":"failed-to-start","quiet":false,"steps":[{"command":"git hide","run":false},{"command":"git log -n 1 --format=%s","run":false}]}],"summary":{"repositories":3,"completed":2,"quiet":0,"stopped":0,"failed_to_start":1}}' ]] || false
 }
 
 @test "chain runs checkouts in parallel up to the job limit" {

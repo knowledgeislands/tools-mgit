@@ -712,10 +712,12 @@ or
 .B not run
 with that step's output; a checkout that completed every step without output
 is left out and counted as quiet.
-One closing line counts the checkouts that completed, stopped after at least
-one step completed, and failed to start because no step completed or the
-checkout could not be entered, naming each that did not complete with its
-step and exit status.
+A checkout that could not be entered names every step
+.BR "not run" .
+One closing line counts the checkouts that completed, stopped at a failing
+step, the first included, and failed to start because the checkout could not
+be entered, naming each that stopped with its step and exit status and each
+that could not be entered as such.
 .B \-v
 streams every checkout's steps one checkout at a time, and
 .B \-\-json
