@@ -14,7 +14,7 @@ blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-11-21T10:58:22Z
-updated_at: 2026-11-22T20:10:54Z
+updated_at: 2026-11-22T20:28:53Z
 ---
 
 # Push honours sync veto
@@ -83,4 +83,4 @@ The question for Kris: should the `mgit.syncPush` veto also bind `mgit push` and
 
 ### Adoption
 
-Kris adopted the record on 22 November 2026 on the question cards in Loreward's Home Chat: ADOPT-MGIT-034 a at 20:00 GMT, "Adopt, draft at Soon", and, since the card offered Soon against ROADMAP-UPCOMING-NEW a, which admits new work only at Now or Next, ADOPT-MGIT-034-HORIZON a at 20:22 GMT, "Next". Both answers are recorded in ki.summit's change 20, 4.2, in the Cairn store, `work/ki/ki.summit/20-ki-sop-main-legacy.change.md`. It is held by ki.summit for ki.tools while that seat is vacant. The adoption gate passes: Kris's approval, its home in tools-mgit's CLI, size `s`, and a known next step, settling the three choices above while planning it to Ready.
+Kris adopted the record on 22 November 2026 on the question cards in Loreward's Home Chat: ADOPT-MGIT-034 a at about 19:58 GMT, "Adopt, draft at Soon", and, since the card offered Soon against ROADMAP-UPCOMING-NEW a, which admits new work only at Now or Next, ADOPT-MGIT-034-HORIZON a at about 20:10 GMT, "Next". Both answers are recorded in ki.summit's change 20, 4.2, in the Cairn store, `work/ki/ki.summit/20-ki-sop-main-legacy.change.md`. It is held by ki.summit for ki.tools while that seat is vacant. The adoption gate passes: Kris's approval, its home in tools-mgit's CLI, size `s`, and a known next step, settling the three choices above while planning it to Ready.
