@@ -79,9 +79,3 @@ components = [
 
 [skills.ki-work-roadmap.areas]
 CLI = "Command-line interface"
-
-# -----------------------------------------------------------------------------
-# Relationships
-# -----------------------------------------------------------------------------
-
-[skills.ki-trades]
