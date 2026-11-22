@@ -2,15 +2,19 @@
 id: KI-TOOL-MGIT-CLI-034
 area: CLI
 title: Push honours sync veto
+kind: deliver
+purpose: corrective
+component: cli
 priority: high
 size: s
-assignee: owner
-status: triage
+assignee: work/ki.summit
+horizon: next
+status: draft
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-11-21T10:58:22Z
-updated_at: 2026-11-21T10:58:22Z
+updated_at: 2026-11-22T20:10:19Z
 ---
 
 # Push honours sync veto
@@ -34,4 +38,8 @@ No document states that `mgit push` is the deliberate way round the veto. The ve
 
 ## Discussion
 
-The question for Kris: should the `mgit.syncPush` veto also bind `mgit push` and push steps in `mgit chain`, or should a repository keep `mgit push` as the explicit way to publish it? If it should bind them, the choices still open are whether any explicit flag may override it, whether the key keeps its sync-specific name or gains a general one such as `mgit.push`, and whether a Git alias that pushes, which mgit cannot see through, is left out. Captured as triage for Kris to adopt or cancel; the coordinating brief proposed a draft at Soon, which needs his approval.
+The question for Kris: should the `mgit.syncPush` veto also bind `mgit push` and push steps in `mgit chain`, or should a repository keep `mgit push` as the explicit way to publish it? If it should bind them, the choices still open are whether any explicit flag may override it, whether the key keeps its sync-specific name or gains a general one such as `mgit.push`, and whether a Git alias that pushes, which mgit cannot see through, is left out. Captured as triage for Kris to adopt or cancel.
+
+### Adoption
+
+Kris adopted the record on 22 November 2026 on the question cards in Loreward's Home Chat: ADOPT-MGIT-034 a at 20:00 GMT, "Adopt, draft at Soon", and, since the card offered Soon against ROADMAP-UPCOMING-NEW a, which admits new work only at Now or Next, ADOPT-MGIT-034-HORIZON a at 20:22 GMT, "Next". Both answers are recorded in ki.summit's change 20, 4.2, in the Cairn store, `work/ki/ki.summit/20-ki-sop-main-legacy.change.md`. It is held by ki.summit for ki.tools while that seat is vacant. The adoption gate passes: Kris's approval, its home in tools-mgit's CLI, size `s`, and a known next step, settling the three choices above while planning it to Ready.
