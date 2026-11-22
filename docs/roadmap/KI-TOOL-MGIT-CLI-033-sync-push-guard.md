@@ -7,13 +7,12 @@ purpose: corrective
 component: cli
 priority: high
 size: m
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 0a995a84eccd2b6d8731a73689574c75927746ce
 created_at: 2026-10-31T14:20:53Z
-updated_at: 2026-10-31T14:21:51Z
+updated_at: 2026-11-22T20:12:01Z
 ---
 
 # Guard sync pushes
@@ -106,6 +105,10 @@ Reviewed the diff against MGIT-PUSH-GUARD: no path pushes without `--push`; the 
 ### Mini recap
 
 The push guard is delivered and documented with the full suite green; acceptance and any release stay with Kris.
+
+## Done
+
+Accepted 22 November 2026 by Kris on the review packet above. Kris accepted it on Orca item 153, 22 November 2026: "Accept, with the follow-up", ACCEPT-THREE a, which accepts KI-TOOL-MGIT-CLI-032, KI-TOOL-MGIT-CLI-033 and KI-TOOL-RIG-CORE-070, the follow-up being KI-TOOL-RIG-CORE-079 in tools-rig. Recorded in the Cairn store's ki.summit change document `work/ki/ki.summit/20-ki-sop-main-legacy.change.md`, section 4.2. Closed under `ki-work accept` by Loreward. The veto's reach beyond sync is KI-TOOL-MGIT-CLI-034, adopted at Next.
 
 ## Discussion
 

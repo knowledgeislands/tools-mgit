@@ -7,13 +7,12 @@ purpose: capability
 component: cli
 priority: high
 size: m
-horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: d4bb1b86928b7da74bfa5999957fdd33b36157ad
 created_at: 2026-10-28T22:44:14Z
-updated_at: 2026-11-17T03:30:00Z
+updated_at: 2026-11-22T20:12:01Z
 ---
 
 # Chain Git commands
@@ -115,6 +114,10 @@ Reviewed the diff against the agreed design: `--then` splitting is literal and g
 ### Mini recap
 
 Chain and recipes are delivered and documented, with the full suite green; acceptance and any release stay with Kris.
+
+## Done
+
+Accepted 22 November 2026 by Kris on the review packet above. Kris accepted it on Orca item 153, 22 November 2026: "Accept, with the follow-up", ACCEPT-THREE a, which accepts KI-TOOL-MGIT-CLI-032, KI-TOOL-MGIT-CLI-033 and KI-TOOL-RIG-CORE-070, the follow-up being KI-TOOL-RIG-CORE-079 in tools-rig. Recorded in the Cairn store's ki.summit change document `work/ki/ki.summit/20-ki-sop-main-legacy.change.md`, section 4.2. Closed under `ki-work accept` by Loreward. CHAIN-START-FIRST and CHAIN-ENTER-LABEL were built before acceptance, in `c0b2f31`.
 
 ## Discussion
 
