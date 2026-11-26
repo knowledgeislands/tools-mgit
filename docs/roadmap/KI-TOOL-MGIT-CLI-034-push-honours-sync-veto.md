@@ -25,7 +25,7 @@ Let a repository that sets `git config mgit.syncPush false` opt out of every pus
 
 ## Context
 
-Kitteth reported on 21 November 2026 that held commits went out on 19 and 20 November through Kris's own `mgit sync --push` and `mgit push`. [KI-TOOL-MGIT-CLI-033](KI-TOOL-MGIT-CLI-033-sync-push-guard.md), awaiting review, delivered Kris's MGIT-PUSH-GUARD decision: `mgit sync` pushes only with `--push`, and `mgit.syncPush` false is a hard per-repository veto that neither `--push` nor `-i` overrides.
+Kitteth reported on 21 November 2026 that held commits went out on 19 and 20 November through Kris's own `mgit sync --push` and `mgit push`. [KI-TOOL-MGIT-CLI-033](https://github.com/knowledgeislands/tools-mgit/blob/70fffecb60e252880844892e21a9abd4625cb48b/docs/roadmap/KI-TOOL-MGIT-CLI-033-sync-push-guard.md), awaiting review, delivered Kris's MGIT-PUSH-GUARD decision: `mgit sync` pushes only with `--push`, and `mgit.syncPush` false is a hard per-repository veto that neither `--push` nor `-i` overrides.
 
 The code confirms the gap. `push` is not an mgit-owned command (`is_mgit_command` in [`bin/mgit`](../../bin/mgit) names only `register`, `repair`, `doctor`, `diag`, `sync`, `overview`, `structure`, `worktree`, `chain`, `learn`, `completion`, `help` and `config`), so `mgit push` is ordinary Git pass-through and runs `git push` in every selected checkout. `mgit.syncPush` is read only inside `sync_command`. A `push` step in `mgit chain` runs the same pass-through, so it ignores the veto too.
 
